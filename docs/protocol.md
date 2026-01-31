@@ -20,6 +20,10 @@ Wire format:
 3. `LEN` (u32, little-endian): number of payload bytes
 4. `PAYLOAD` (LEN bytes): `bincode`-encoded `Request` or `Response`
 
+### Resync (noisy shell / MOTD)
+If the client receives unexpected bytes before `MAGIC` (e.g., shell banners), it may resync by scanning for the next `MAGIC` sequence and discarding garbage bytes.
+This is enabled by default in client reads and can be disabled via `--strict-frames`.
+
 ## Size Limits
 - Default maximum payload size: **10 MiB**
 - Enforced when reading frames, and before accepting `Set` in the daemon.
@@ -57,6 +61,7 @@ Protocol-level error codes (returned in `Response::Error`):
 - `payload_too_large`
 - `invalid_utf8`
 - `daemon_not_running`
+- `version_mismatch`
 - `internal`
 
 Proxy process exit codes (Linux):

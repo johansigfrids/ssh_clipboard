@@ -26,6 +26,8 @@ Flags:
 - `--ssh-bin <path>`
 - `--timeout-ms <ms>`
 - `--max-size <bytes>`
+- `--strict-frames`: disable framing resync (strict MAGIC at byte 0)
+- `--resync-max-bytes <bytes>`: max bytes to discard before MAGIC (default 8192)
 
 ### `pull`
 Fetch from server and write to clipboard (default), or output to stdout/file.
@@ -42,6 +44,7 @@ Flags:
 - `--peek`: metadata-only (like `peek`)
 - `--json`: with `--peek`, print JSON output
 - SSH + timeout + size flags (same as `push`)
+- `--strict-frames`, `--resync-max-bytes` (same as `push`)
 
 ### `peek`
 Fetch metadata only (no payload).
@@ -54,6 +57,7 @@ ssh_clipboard peek --target user@server
 Flags:
 - `--json`: output JSON
 - SSH + timeout + size flags (same as `push`)
+- `--strict-frames`, `--resync-max-bytes` (same as `push`)
 
 ### `agent` (Windows/macOS/Linux, requires `--features agent`)
 Run the background agent (tray icon + hotkeys).
@@ -98,6 +102,7 @@ Flags:
 - `--socket-path <path>`
 - `--max-size <bytes>`
 - `--io-timeout-ms <ms>`
+- `--autostart-daemon`: attempt to start the daemon if the socket is unavailable
 
 ## Exit Codes (client)
 - `0`: success

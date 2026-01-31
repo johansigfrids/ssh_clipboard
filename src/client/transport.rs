@@ -1,18 +1,25 @@
 use crate::client::ssh::{SshConfig, spawn_ssh_proxy};
-use crate::framing::{decode_message, encode_message, read_frame_payload, write_frame_payload};
+use crate::framing::{
+    decode_message, encode_message, read_frame_payload, read_frame_payload_resync,
+    write_frame_payload,
+};
 use crate::protocol::{
     DEFAULT_MAX_SIZE, ErrorCode, RESPONSE_OVERHEAD, Request, RequestKind, Response, ResponseKind,
 };
 use eyre::{Result, WrapErr, eyre};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64 as AtomicU64Warn, Ordering as OrderingWarn};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{Duration, timeout};
+use tracing::warn;
 
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
     pub ssh: SshConfig,
     pub max_size: usize,
     pub timeout_ms: u64,
+    pub resync_frames: bool,
+    pub resync_max_bytes: usize,
 }
 
 impl ClientConfig {
@@ -62,8 +69,20 @@ pub async fn send_request(config: &ClientConfig, request: Request) -> Result<Res
         .wrap_err("ssh send timed out")??;
 
     let receive = async {
-        let response_payload =
-            read_frame_payload(&mut stdout, max_size.saturating_add(RESPONSE_OVERHEAD)).await?;
+        let response_payload = if config.resync_frames {
+            let result = read_frame_payload_resync(
+                &mut stdout,
+                max_size.saturating_add(RESPONSE_OVERHEAD),
+                config.resync_max_bytes,
+            )
+            .await?;
+            if result.discarded_bytes > 0 {
+                warn_noisy_shell(result.discarded_bytes);
+            }
+            result.payload
+        } else {
+            read_frame_payload(&mut stdout, max_size.saturating_add(RESPONSE_OVERHEAD)).await?
+        };
         let response: Response = decode_message(&response_payload)?;
         Ok::<Response, eyre::Report>(response)
     };
@@ -105,5 +124,27 @@ pub fn make_request(kind: RequestKind) -> Request {
     Request {
         request_id: new_request_id(),
         kind,
+    }
+}
+
+static LAST_NOISY_WARN_MS: AtomicU64Warn = AtomicU64Warn::new(0);
+
+fn warn_noisy_shell(discarded: usize) {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let last = LAST_NOISY_WARN_MS.load(OrderingWarn::Relaxed);
+    if now_ms.saturating_sub(last) < 60_000 {
+        return;
+    }
+    if LAST_NOISY_WARN_MS
+        .compare_exchange(last, now_ms, OrderingWarn::Relaxed, OrderingWarn::Relaxed)
+        .is_ok()
+    {
+        warn!(
+            discarded_bytes = discarded,
+            "discarded unexpected bytes before MAGIC (noisy shell/MOTD?)"
+        );
     }
 }

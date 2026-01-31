@@ -15,6 +15,9 @@ Common failure cases and how to resolve them.
 - **Command not found on server:**
   - Ensure `ssh_clipboard` is on `PATH` for the SSH user.
   - Use an absolute path in `authorized_keys` forced command if needed.
+- **Noisy shell / MOTD corrupts protocol:**
+  - Use `ssh -T` (already default in the client) and consider forced commands.
+  - Client resync is enabled by default; disable with `--strict-frames` if needed.
 
 ## Daemon/Proxy Issues
 - **`daemon not running` error:**

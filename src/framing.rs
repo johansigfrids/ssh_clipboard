@@ -10,6 +10,8 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 pub enum FramingError {
     #[error("invalid magic")]
     InvalidMagic,
+    #[error("magic not found within scan limit")]
+    MagicNotFound,
     #[error("unsupported version {0}")]
     UnsupportedVersion(u16),
     #[error("payload too large: {0} bytes")]
@@ -20,11 +22,31 @@ pub async fn read_frame_payload<R: AsyncRead + Unpin>(
     reader: &mut R,
     max_size: usize,
 ) -> Result<Vec<u8>> {
-    let mut magic = [0u8; 4];
-    reader.read_exact(&mut magic).await?;
-    if magic != MAGIC {
-        return Err(FramingError::InvalidMagic.into());
-    }
+    Ok(read_frame_payload_inner(reader, max_size, false, 0)
+        .await?
+        .payload)
+}
+
+pub struct FrameReadResult {
+    pub payload: Vec<u8>,
+    pub discarded_bytes: usize,
+}
+
+pub async fn read_frame_payload_resync<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    max_size: usize,
+    max_scan_bytes: usize,
+) -> Result<FrameReadResult> {
+    read_frame_payload_inner(reader, max_size, true, max_scan_bytes).await
+}
+
+async fn read_frame_payload_inner<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    max_size: usize,
+    resync: bool,
+    max_scan_bytes: usize,
+) -> Result<FrameReadResult> {
+    let discarded = read_magic(reader, resync, max_scan_bytes).await?;
 
     let mut version_bytes = [0u8; 2];
     reader.read_exact(&mut version_bytes).await?;
@@ -42,7 +64,43 @@ pub async fn read_frame_payload<R: AsyncRead + Unpin>(
 
     let mut payload = vec![0u8; len as usize];
     reader.read_exact(&mut payload).await?;
-    Ok(payload)
+    Ok(FrameReadResult {
+        payload,
+        discarded_bytes: discarded,
+    })
+}
+
+async fn read_magic<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    resync: bool,
+    max_scan_bytes: usize,
+) -> Result<usize> {
+    let mut window = [0u8; 4];
+    reader.read_exact(&mut window).await?;
+    if window == MAGIC {
+        return Ok(0);
+    }
+    if !resync {
+        return Err(FramingError::InvalidMagic.into());
+    }
+
+    let mut total_read = 4usize;
+    loop {
+        let mut byte = [0u8; 1];
+        reader.read_exact(&mut byte).await?;
+        total_read += 1;
+        window[0] = window[1];
+        window[1] = window[2];
+        window[2] = window[3];
+        window[3] = byte[0];
+
+        if window == MAGIC {
+            return Ok(total_read.saturating_sub(4));
+        }
+        if total_read.saturating_sub(4) > max_scan_bytes {
+            return Err(FramingError::MagicNotFound.into());
+        }
+    }
 }
 
 pub async fn write_frame_payload<W: AsyncWrite + Unpin>(
@@ -138,6 +196,45 @@ mod tests {
         assert!(matches!(
             err.downcast_ref::<FramingError>(),
             Some(FramingError::UnsupportedVersion(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn resync_skips_garbage_prefix() {
+        let request = Request {
+            request_id: 9,
+            kind: RequestKind::Get,
+        };
+        let payload = encode_message(&request).unwrap();
+        let (mut writer, mut reader) = duplex(2048);
+
+        writer.write_all(b"garbage!").await.unwrap();
+        write_frame_payload(&mut writer, &payload).await.unwrap();
+
+        let result = read_frame_payload_resync(&mut reader, 1024, 64)
+            .await
+            .unwrap();
+        let decoded: Request = decode_message(&result.payload).unwrap();
+        assert!(matches!(decoded.kind, RequestKind::Get));
+        assert!(result.discarded_bytes >= 8);
+    }
+
+    #[tokio::test]
+    async fn resync_fails_when_strict() {
+        let request = Request {
+            request_id: 9,
+            kind: RequestKind::Get,
+        };
+        let payload = encode_message(&request).unwrap();
+        let (mut writer, mut reader) = duplex(2048);
+
+        writer.write_all(b"noise").await.unwrap();
+        write_frame_payload(&mut writer, &payload).await.unwrap();
+
+        let err = read_frame_payload(&mut reader, 1024).await.unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<FramingError>(),
+            Some(FramingError::InvalidMagic)
         ));
     }
 

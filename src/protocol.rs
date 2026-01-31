@@ -59,6 +59,7 @@ pub enum ErrorCode {
     InvalidUtf8,
     Internal,
     DaemonNotRunning,
+    VersionMismatch,
 }
 
 #[cfg(test)]
@@ -123,6 +124,8 @@ mod tests {
     fn error_code_is_snake_case_in_json() {
         let encoded = serde_json::to_string(&ErrorCode::DaemonNotRunning).unwrap();
         assert_eq!(encoded, "\"daemon_not_running\"");
+        let encoded = serde_json::to_string(&ErrorCode::VersionMismatch).unwrap();
+        assert_eq!(encoded, "\"version_mismatch\"");
     }
 
     #[test]

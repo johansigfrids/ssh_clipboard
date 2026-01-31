@@ -429,7 +429,53 @@
   - build + unit tests
   - integration tests that exercise daemon/proxy and client transport without SSH
 
-## Phase 6 — Packaging + release
+## Phase 6 — Transport + daemon hardening (Noisy shell, versioning, creds, lifecycle)
+
+### Phase 6 Goals
+- Make the SSH transport resilient to noisy shells / MOTD output.
+- Make versioning failure modes explicit and user-friendly.
+- Harden daemon access with peer credential checks.
+- Improve UX by optionally auto-starting the daemon from the proxy.
+
+### 1. Noisy shell / MOTD resilience
+- Implement a **MAGIC resync** mode in the framing reader:
+  - If the first 4 bytes are not `MAGIC`, scan the incoming stream for the next `MAGIC` sequence.
+  - Cap scan length (e.g., 4–16 KiB) to avoid hanging on garbage.
+  - Return a clear `invalid framing` error if the scan limit is exceeded.
+- Enable resync by default for **client→proxy reads** (user-friendly); add a strict mode flag to disable resync.
+- Log a **warning** when resync discards bytes (include count; rate-limit to avoid spam).
+- Add tests for resync behavior (garbage prefix then valid frame) and strict mode failure.
+
+### 2. Versioning policy enforcement
+- Document and enforce **strict version matching**:
+  - If `VERSION` mismatch, return a clear error indicating client/server version mismatch.
+- Add a **distinct error code** for version mismatch (or map to `invalid_request` with a specific message if we avoid adding a new code).
+- Add tests for version mismatch error mapping.
+
+### 3. Proxy auto-start (optional, guarded)
+- Default **off** for safety; enable via `--autostart-daemon` (user-friendly for casual usage).
+- Add a proxy flag (or env var) like `--autostart-daemon`:
+  - On connect failure, attempt to spawn `ssh_clipboard daemon` for the same user.
+  - Retry socket connect with a short backoff (e.g., 3 tries, 200ms).
+- Document the trade-offs and recommended production usage (systemd user service still preferred).
+
+### 4. Peer credential checks (Linux)
+- When accepting a UNIX socket connection, verify peer credentials (`SO_PEERCRED`) match the daemon **UID**.
+- If mismatch: return `Error::InvalidRequest` with a clear message and close the connection.
+- For containers/user namespaces: document that UID mapping must match the daemon user.
+- Add tests (Linux-only) for the credential check helper (unit test on `uid` equality).
+
+### 5. Docs + troubleshooting
+- Update `docs/protocol.md` with resync behavior and strict version matching.
+- Update `docs/server-setup.md` with `--autostart-daemon` (if implemented).
+- Add troubleshooting entries for noisy shells/MOTD corruption.
+
+### 6. Tests
+- Add framing resync tests (garbage prefix + valid frame).
+- Add proxy auto-start integration test (Linux-only, temp socket + stub daemon).
+- Add peer credential unit tests for the helper.
+
+## Phase 7 — Packaging + release
 1. Provide systemd user service example for Linux daemon.
 2. Document Windows/macOS distribution strategy.
 3. Package agent (Windows/macOS) in a user-friendly way (optional app bundle on macOS).

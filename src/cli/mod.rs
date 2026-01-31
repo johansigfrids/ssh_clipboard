@@ -75,6 +75,10 @@ pub struct PushArgs {
     pub timeout_ms: u64,
     #[arg(long)]
     pub stdin: bool,
+    #[arg(long)]
+    pub strict_frames: bool,
+    #[arg(long, default_value_t = 8192)]
+    pub resync_max_bytes: usize,
 }
 
 #[derive(Args, Clone)]
@@ -107,6 +111,10 @@ pub struct PullArgs {
     pub peek: bool,
     #[arg(long)]
     pub json: bool,
+    #[arg(long)]
+    pub strict_frames: bool,
+    #[arg(long, default_value_t = 8192)]
+    pub resync_max_bytes: usize,
 }
 
 #[derive(Args, Clone)]
@@ -131,6 +139,10 @@ pub struct PeekArgs {
     pub timeout_ms: u64,
     #[arg(long)]
     pub json: bool,
+    #[arg(long)]
+    pub strict_frames: bool,
+    #[arg(long, default_value_t = 8192)]
+    pub resync_max_bytes: usize,
 }
 
 #[cfg(target_os = "linux")]
@@ -153,6 +165,8 @@ pub struct ProxyArgs {
     pub max_size: usize,
     #[arg(long, default_value_t = 7000)]
     pub io_timeout_ms: u64,
+    #[arg(long)]
+    pub autostart_daemon: bool,
 }
 
 #[cfg(all(
@@ -248,9 +262,14 @@ pub async fn run() -> Result<()> {
             let socket_path = args
                 .socket_path
                 .unwrap_or(crate::daemon::default_socket_path()?);
-            let exit_code = crate::proxy::run_proxy(socket_path, args.max_size, args.io_timeout_ms)
-                .await
-                .wrap_err("proxy failed")?;
+            let exit_code = crate::proxy::run_proxy(
+                socket_path,
+                args.max_size,
+                args.io_timeout_ms,
+                args.autostart_daemon,
+            )
+            .await
+            .wrap_err("proxy failed")?;
             std::process::exit(exit_code);
         }
         #[cfg(all(
@@ -277,7 +296,9 @@ pub(crate) fn handle_response(response: Response, allow_empty: bool) -> Result<(
         ResponseKind::Empty if allow_empty => Ok(()),
         ResponseKind::Empty => exit::exit_with_code(2, "no clipboard value set"),
         ResponseKind::Error { code, message } => match code {
-            ErrorCode::InvalidRequest | ErrorCode::InvalidUtf8 => exit::exit_with_code(2, &message),
+            ErrorCode::InvalidRequest | ErrorCode::InvalidUtf8 | ErrorCode::VersionMismatch => {
+                exit::exit_with_code(2, &message)
+            }
             ErrorCode::PayloadTooLarge => exit::exit_with_code(3, &message),
             ErrorCode::DaemonNotRunning => exit::exit_with_code(4, &message),
             ErrorCode::Internal => exit::exit_with_code(2, &message),
@@ -320,6 +341,8 @@ pub(crate) fn build_client_config(
     ssh_bin: Option<PathBuf>,
     max_size: usize,
     timeout_ms: u64,
+    strict_frames: bool,
+    resync_max_bytes: usize,
 ) -> ClientConfig {
     ClientConfig {
         ssh: SshConfig {
@@ -333,6 +356,8 @@ pub(crate) fn build_client_config(
         },
         max_size,
         timeout_ms,
+        resync_frames: !strict_frames,
+        resync_max_bytes,
     }
 }
 

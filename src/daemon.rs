@@ -8,6 +8,7 @@ use crate::protocol::{
 use eyre::{Result, WrapErr};
 use std::env;
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
@@ -96,6 +97,19 @@ async fn handle_connection(
     max_size: usize,
     io_timeout_ms: u64,
 ) -> Result<()> {
+    if let Err(err) = verify_peer_credentials(&stream) {
+        let response = Response {
+            request_id: 0,
+            kind: ResponseKind::Error {
+                code: ErrorCode::InvalidRequest,
+                message: format!("peer credential check failed: {err}"),
+            },
+        };
+        let payload = encode_message(&response)?;
+        let _ = write_frame_payload(&mut stream, &payload).await;
+        return Ok(());
+    }
+
     let payload = match timeout(
         Duration::from_millis(io_timeout_ms),
         read_frame_payload(&mut stream, max_size),
@@ -213,11 +227,18 @@ fn to_error_response(err: DaemonError) -> ResponseKind {
 fn framing_error_response(err: &eyre::Report, request_id: u64) -> Response {
     if let Some(framing) = err.downcast_ref::<FramingError>() {
         match framing {
-            FramingError::InvalidMagic | FramingError::UnsupportedVersion(_) => Response {
+            FramingError::InvalidMagic | FramingError::MagicNotFound => Response {
                 request_id,
                 kind: ResponseKind::Error {
                     code: ErrorCode::InvalidRequest,
                     message: format!("invalid framing: {framing}"),
+                },
+            },
+            FramingError::UnsupportedVersion(_) => Response {
+                request_id,
+                kind: ResponseKind::Error {
+                    code: ErrorCode::VersionMismatch,
+                    message: format!("version mismatch: {framing}"),
                 },
             },
             FramingError::PayloadTooLarge(_) => Response {
@@ -237,6 +258,40 @@ fn framing_error_response(err: &eyre::Report, request_id: u64) -> Response {
             },
         }
     }
+}
+
+fn verify_peer_credentials(stream: &UnixStream) -> Result<()> {
+    let expected = get_uid();
+    let actual = peer_uid(stream)?;
+    if !peer_uid_matches(actual, expected) {
+        return Err(eyre::eyre!(
+            "peer uid mismatch (expected {expected}, got {actual})"
+        ));
+    }
+    Ok(())
+}
+
+fn peer_uid_matches(actual: u32, expected: u32) -> bool {
+    actual == expected
+}
+
+fn peer_uid(stream: &UnixStream) -> Result<u32> {
+    let fd = stream.as_raw_fd();
+    let mut cred: libc::ucred = unsafe { std::mem::zeroed() };
+    let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    let ret = unsafe {
+        libc::getsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_PEERCRED,
+            &mut cred as *mut _ as *mut libc::c_void,
+            &mut len as *mut _,
+        )
+    };
+    if ret != 0 {
+        return Err(eyre::eyre!("getsockopt SO_PEERCRED failed"));
+    }
+    Ok(cred.uid)
 }
 
 #[cfg(test)]
@@ -337,5 +392,11 @@ mod tests {
         };
         let response = handle_request(request, state, 1024).await;
         assert_eq!(response.request_id, 7);
+    }
+
+    #[test]
+    fn peer_uid_match_helper() {
+        assert!(peer_uid_matches(1000, 1000));
+        assert!(!peer_uid_matches(1001, 1000));
     }
 }

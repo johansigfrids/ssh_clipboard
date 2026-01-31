@@ -34,6 +34,8 @@ pub async fn run(args: PullArgs) -> Result<()> {
                 args.ssh_bin,
                 effective_max_size,
                 args.timeout_ms,
+                args.strict_frames,
+                args.resync_max_bytes,
             ),
             make_request(RequestKind::PeekMeta),
         )
@@ -56,6 +58,8 @@ pub async fn run(args: PullArgs) -> Result<()> {
             args.ssh_bin,
             effective_max_size,
             args.timeout_ms,
+            args.strict_frames,
+            args.resync_max_bytes,
         ),
         make_request(RequestKind::Get),
     )

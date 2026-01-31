@@ -52,6 +52,11 @@ Optional timeouts:
 ssh user@server ssh_clipboard proxy --io-timeout-ms 7000
 ```
 
+Optional auto-start (off by default):
+```
+ssh user@server ssh_clipboard proxy --autostart-daemon
+```
+
 Ensure `ssh_clipboard` is on the server `PATH` for that SSH user, or invoke it via an absolute path.
 
 ## Client Usage (Windows/macOS/Linux)

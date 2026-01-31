@@ -16,6 +16,8 @@ pub async fn run(args: PeekArgs) -> Result<()> {
             args.ssh_bin,
             args.max_size,
             args.timeout_ms,
+            args.strict_frames,
+            args.resync_max_bytes,
         ),
         make_request(RequestKind::PeekMeta),
     )

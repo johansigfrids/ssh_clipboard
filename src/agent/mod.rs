@@ -14,6 +14,10 @@ pub struct AgentConfig {
     pub ssh_options: Vec<String>,
     pub max_size: usize,
     pub timeout_ms: u64,
+    #[serde(default = "default_resync_frames")]
+    pub resync_frames: bool,
+    #[serde(default = "default_resync_max_bytes")]
+    pub resync_max_bytes: usize,
     pub hotkeys: HotkeyConfig,
     pub autostart_enabled: bool,
 }
@@ -64,6 +68,8 @@ pub fn default_agent_config() -> AgentConfig {
         ssh_options: Vec::new(),
         max_size: crate::protocol::DEFAULT_MAX_SIZE,
         timeout_ms: 7000,
+        resync_frames: default_resync_frames(),
+        resync_max_bytes: default_resync_max_bytes(),
         hotkeys: HotkeyConfig { push, pull },
         autostart_enabled: false,
     }
@@ -102,6 +108,9 @@ pub fn validate_config(config: &AgentConfig) -> Result<()> {
     if config.timeout_ms == 0 {
         return Err(eyre!("timeout_ms must be > 0"));
     }
+    if config.resync_max_bytes == 0 {
+        return Err(eyre!("resync_max_bytes must be > 0"));
+    }
     crate::agent::hotkey::parse_hotkey(&config.hotkeys.push)
         .wrap_err("invalid push hotkey binding")?;
     crate::agent::hotkey::parse_hotkey(&config.hotkeys.pull)
@@ -122,6 +131,8 @@ pub fn client_config_from_agent(config: &AgentConfig) -> ClientConfig {
         },
         max_size: config.max_size,
         timeout_ms: config.timeout_ms,
+        resync_frames: config.resync_frames,
+        resync_max_bytes: config.resync_max_bytes,
     }
 }
 
@@ -177,3 +188,11 @@ pub mod notify;
 pub mod run;
 
 pub use hotkey::parse_hotkey;
+
+fn default_resync_frames() -> bool {
+    true
+}
+
+fn default_resync_max_bytes() -> usize {
+    8192
+}

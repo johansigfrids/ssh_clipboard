@@ -40,6 +40,10 @@ ssh_clipboard config validate
 ### Required fields
 - `target`: SSH target (e.g., `user@server`). This must be set for the agent to run.
 
+### Transport options
+- `resync_frames`: when true, the client can skip noisy bytes before MAGIC (default true).
+- `resync_max_bytes`: max bytes to discard before failing (default 8192).
+
 ### Hotkey bindings
 Bindings are stored as strings parsed by `global-hotkey` (examples):
 - `CmdOrCtrl+Shift+KeyC` (push)

@@ -36,15 +36,13 @@ pub enum PlatformDefaults {
 }
 
 pub fn platform_defaults() -> PlatformDefaults {
-    #[cfg(target_os = "macos")]
-    {
-        return PlatformDefaults::Macos;
+    if cfg!(target_os = "macos") {
+        PlatformDefaults::Macos
+    } else if cfg!(target_os = "linux") {
+        PlatformDefaults::Linux
+    } else {
+        PlatformDefaults::Windows
     }
-    #[cfg(target_os = "linux")]
-    {
-        return PlatformDefaults::Linux;
-    }
-    PlatformDefaults::Windows
 }
 
 pub fn default_agent_config() -> AgentConfig {

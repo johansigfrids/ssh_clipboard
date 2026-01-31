@@ -1,4 +1,6 @@
 use auto_launch::AutoLaunchBuilder;
+#[cfg(target_os = "macos")]
+use auto_launch::MacOSLaunchMode;
 use eyre::{Result, WrapErr, eyre};
 
 fn build_autolaunch() -> Result<auto_launch::AutoLaunch> {
@@ -14,7 +16,7 @@ fn build_autolaunch() -> Result<auto_launch::AutoLaunch> {
     builder.set_args(&["agent"]);
 
     #[cfg(target_os = "macos")]
-    builder.set_use_launch_agent(true);
+    builder.set_macos_launch_mode(MacOSLaunchMode::LaunchAgent);
 
     builder.build().map_err(|err| eyre!(err))
 }

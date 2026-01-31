@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-agent
+            os: windows-latest
+            features: "agent"
+            artifact: ssh_clipboard-windows-agent
+          - name: mac-agent
+            os: macos-latest
+            features: "agent"
+            artifact: ssh_clipboard-macos-agent
+          - name: linux-agent
+            os: ubuntu-latest
+            features: "agent"
+            artifact: ssh_clipboard-linux-agent
+          - name: linux-server
+            os: ubuntu-latest
+            features: ""
+            artifact: ssh_clipboard-linux-server
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux GUI deps (agent)
+        if: runner.os == 'Linux' && matrix.features == 'agent'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxfixes-dev \
+            libxcb1-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build (release)
+        run: |
+          if [ "${{ matrix.features }}" = "agent" ]; then
+            cargo build --release --features agent
+          else
+            cargo build --release --no-default-features
+          fi
+        shell: bash
+
+      - name: Package (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          bin="ssh_clipboard"
+          cp "target/release/$bin" "dist/$bin"
+          tar -C dist -czf "dist/${{ matrix.artifact }}.tar.gz" "$bin"
+          shasum -a 256 "dist/${{ matrix.artifact }}.tar.gz" > "dist/${{ matrix.artifact }}.tar.gz.sha256"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target/release/ssh_clipboard.exe" "dist/ssh_clipboard.exe"
+          Compress-Archive -Path "dist/ssh_clipboard.exe" -DestinationPath "dist/${{ matrix.artifact }}.zip" -Force
+          $hash = (Get-FileHash "dist/${{ matrix.artifact }}.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  ${{ matrix.artifact }}.zip" | Out-File -FilePath "dist/${{ matrix.artifact }}.zip.sha256" -Encoding ASCII
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ runner.os }}
+          path: dist/*
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Display artifacts
+        run: ls -la dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/**/*

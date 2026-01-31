@@ -36,7 +36,7 @@ winrt-notification = { version = "0.5", optional = true }
 notify-rust = { version = "4.11", optional = true }
 
 [features]
-default = []
+default = ["agent"]
 agent = [
   "dep:global-hotkey",
   "dep:tray-icon",

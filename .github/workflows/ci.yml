@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+
+jobs:
+  test:
+    name: Test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-agent
+            os: windows-latest
+            features: "agent"
+          - name: mac-agent
+            os: macos-latest
+            features: "agent"
+          - name: linux-agent
+            os: ubuntu-latest
+            features: "agent"
+          - name: linux-server
+            os: ubuntu-latest
+            features: ""
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux GUI deps (agent)
+        if: runner.os == 'Linux' && matrix.features == 'agent'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxfixes-dev \
+            libxcb1-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Format
+        run: cargo fmt -- --check
+
+      - name: Clippy
+        run: |
+          if [ "${{ matrix.features }}" = "agent" ]; then
+            cargo clippy --features agent -- -D warnings
+          else
+            cargo clippy --no-default-features -- -D warnings
+          fi
+        shell: bash
+
+      - name: Test
+        run: |
+          if [ "${{ matrix.features }}" = "agent" ]; then
+            cargo test --features agent
+          else
+            cargo test --no-default-features
+          fi
+        shell: bash
+
+      - name: Build (release)
+        run: |
+          if [ "${{ matrix.features }}" = "agent" ]; then
+            cargo build --release --features agent
+          else
+            cargo build --release --no-default-features
+          fi
+        shell: bash

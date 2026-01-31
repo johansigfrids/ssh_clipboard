@@ -11,9 +11,17 @@ Describe how to run tests locally and what kinds of tests exist in this repo.
 - `Cargo.toml` (dev-dependencies for tests)
 
 ## How to Run
-Basic unit tests:
+Basic unit tests (agent is enabled by default):
 ```
 cargo test
+```
+
+CI (runs on GitHub Actions, 4 build variants):
+```
+cargo fmt -- --check
+cargo clippy --features agent -- -D warnings
+cargo test --features agent
+cargo build --release --features agent
 ```
 
 With agent feature:
@@ -30,6 +38,8 @@ cargo test --features agent
 ## Notes
 - Some tests are Linux-only (`#[cfg(test)]` in `src/daemon.rs`).
 - Property tests use `proptest`; keep bounds small to avoid long test runs.
+- CI runs four variants: Windows agent, macOS agent, Linux agent, and Linux server (`--no-default-features`).
+- CI installs Linux GUI deps so the agent feature can build.
 
 ## Update Triggers
 - New features or protocol changes.

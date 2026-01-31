@@ -19,6 +19,8 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `IMPLEMENTATION_PLAN.md`: Phased implementation checklist.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
 - `docs/server-setup.md`: Linux daemon setup and proxy usage.
+- `docs/client-setup.md`: Windows/macOS client usage and SSH troubleshooting.
+- `docs/security.md`: Security model and recommended SSH hardening.
 
 ## Doc Conventions
 - Each doc includes: `Purpose`, `Key Files`, `Update Triggers`, `Related Docs`.

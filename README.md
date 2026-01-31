@@ -7,8 +7,50 @@ Hitting a keyboard shortcut copies to current content of the clipboard over to t
 Communication with the server is done over SSH, and the server does not persist copied content to disk but keeps it in memory. 
 
 ## Status
-- Phase 1 implemented for Linux daemon/proxy only.
-- Windows/macOS clients (push/pull + hotkeys) are not implemented yet.
+- Linux server: daemon/proxy implemented.
+- Clients: `push`/`pull`/`peek` implemented (text-only).
+- Hotkeys and background UX are not implemented yet.
+
+## Client CLI (Phase 2)
+
+### Requirements
+- The Linux server must be running `ssh_clipboard daemon`.
+- The `ssh_clipboard` binary must be available on the server `PATH` for the SSH user (so `ssh user@server ssh_clipboard proxy` works).
+- The client uses the system `ssh` binary.
+
+### Examples
+Push clipboard to server:
+```
+ssh_clipboard push --target user@server
+```
+
+Pull clipboard from server:
+```
+ssh_clipboard pull --target user@server
+```
+
+Push from stdin:
+```
+cat note.txt | ssh_clipboard push --stdin --target user@server
+```
+
+Pull to stdout (instead of clipboard):
+```
+ssh_clipboard pull --stdout --target user@server
+```
+
+Peek metadata:
+```
+ssh_clipboard peek --target user@server
+```
+
+### Common options
+- `--target user@host` (preferred) or `--host host --user user`
+- `--port 2222` (recommended; `user@host:2222` may work for simple hostnames)
+- `--identity-file ~/.ssh/id_ed25519`
+- `--ssh-option <opt>` (repeatable; passed as `ssh -o <opt>`)
+- `--timeout-ms 7000`
+- `--max-size <bytes>` (default 10 MiB)
 
 ## Linux Daemon/Proxy (Phase 1)
 

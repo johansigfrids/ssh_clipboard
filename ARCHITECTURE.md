@@ -35,6 +35,7 @@ This yields a clean separation:
 3. **Client app (Windows / macOS)**
    - Reads local clipboard, sends it to server (push).
    - Receives clipboard from server, writes it to local clipboard (pull).
+   - Uses the platform `ssh` binary and communicates via stdin/stdout frames.
    - Later: registers global hotkeys; initially: CLI-triggered push/pull is acceptable for MVP.
 
 ## Data Flow

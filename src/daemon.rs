@@ -1,7 +1,7 @@
 use crate::framing::{
-    decode_message, encode_message, read_frame_payload, write_frame_payload, FramingError,
+    FramingError, decode_message, encode_message, read_frame_payload, write_frame_payload,
 };
-use crate::protocol::{ClipboardValue, ErrorCode, Request, Response, CONTENT_TYPE_TEXT};
+use crate::protocol::{CONTENT_TYPE_TEXT, ClipboardValue, ErrorCode, Request, Response};
 use eyre::{Result, WrapErr};
 use std::env;
 use std::os::unix::fs::PermissionsExt;
@@ -33,7 +33,9 @@ pub fn default_socket_path() -> Result<PathBuf> {
     }
 
     if let Ok(dir) = env::var("TMPDIR") {
-        return Ok(Path::new(&dir).join(format!("ssh_clipboard-{}", get_uid())).join("daemon.sock"));
+        return Ok(Path::new(&dir)
+            .join(format!("ssh_clipboard-{}", get_uid()))
+            .join("daemon.sock"));
     }
 
     Ok(Path::new("/tmp")
@@ -119,7 +121,9 @@ async fn handle_request(
         Request::Get => {
             let state = state.lock().await;
             match &state.value {
-                Some(value) => Response::Value { value: value.clone() },
+                Some(value) => Response::Value {
+                    value: value.clone(),
+                },
                 None => Response::Empty,
             }
         }

@@ -52,6 +52,7 @@ Protocol-level error codes (returned in `Response::Error`):
 - `invalid_request`
 - `payload_too_large`
 - `invalid_utf8`
+- `daemon_not_running`
 - `internal`
 
 Proxy process exit codes (Linux):
@@ -60,6 +61,10 @@ Proxy process exit codes (Linux):
 - `3`: payload too large
 - `4`: daemon not running / socket unavailable
 - `5`: internal error
+
+### Proxy exit status vs protocol response
+The proxy may exit non-zero while still writing a valid `Response::Error` frame to stdout.
+Clients should treat the framed `Response` as the primary signal and use the process exit status only as a secondary hint (or for logging).
 
 ## Update Triggers
 - Any changes to `MAGIC`, `VERSION`, message enums, or size limits.

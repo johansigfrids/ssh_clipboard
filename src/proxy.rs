@@ -1,5 +1,5 @@
-use crate::framing::{decode_message, read_frame_payload, write_frame_payload};
-use crate::protocol::{ErrorCode, Response, RESPONSE_OVERHEAD};
+use crate::framing::{decode_message, encode_message, read_frame_payload, write_frame_payload};
+use crate::protocol::{ErrorCode, RESPONSE_OVERHEAD, Response};
 use eyre::{Result, WrapErr};
 use std::path::PathBuf;
 use tokio::io::{stdin, stdout};
@@ -20,10 +20,17 @@ pub async fn run_proxy(socket_path: PathBuf, max_size: usize) -> Result<i32> {
     let mut stream = match UnixStream::connect(&socket_path).await {
         Ok(stream) => stream,
         Err(err) => {
-            eprintln!(
+            let message = format!(
                 "daemon not running or socket unavailable at {}: {err}",
                 socket_path.display()
             );
+            eprintln!("{message}");
+            let response = Response::Error {
+                code: ErrorCode::DaemonNotRunning,
+                message,
+            };
+            let payload = encode_message(&response)?;
+            write_frame_payload(&mut output, &payload).await?;
             return Ok(EXIT_DAEMON_NOT_RUNNING);
         }
     };
@@ -54,6 +61,7 @@ fn map_error_code(code: ErrorCode) -> i32 {
         ErrorCode::InvalidRequest => EXIT_INVALID_REQUEST,
         ErrorCode::PayloadTooLarge => EXIT_PAYLOAD_TOO_LARGE,
         ErrorCode::InvalidUtf8 => EXIT_INVALID_REQUEST,
+        ErrorCode::DaemonNotRunning => EXIT_DAEMON_NOT_RUNNING,
         ErrorCode::Internal => EXIT_INTERNAL,
     }
 }

@@ -2,7 +2,7 @@ use crate::protocol::{MAGIC, VERSION};
 use bincode::config;
 use bincode::serde::{decode_from_slice, encode_to_vec};
 use eyre::Result;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -51,7 +51,9 @@ pub async fn write_frame_payload<W: AsyncWrite + Unpin>(
 ) -> Result<()> {
     writer.write_all(&MAGIC).await?;
     writer.write_all(&VERSION.to_le_bytes()).await?;
-    writer.write_all(&(payload.len() as u32).to_le_bytes()).await?;
+    writer
+        .write_all(&(payload.len() as u32).to_le_bytes())
+        .await?;
     writer.write_all(payload).await?;
     writer.flush().await?;
     Ok(())

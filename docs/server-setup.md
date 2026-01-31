@@ -42,6 +42,18 @@ Example:
 ssh user@server ssh_clipboard proxy
 ```
 
+Ensure `ssh_clipboard` is on the server `PATH` for that SSH user, or invoke it via an absolute path.
+
+## Client Usage (Windows/macOS)
+From a client machine (Windows or macOS), use:
+```
+ssh_clipboard push --target user@server
+ssh_clipboard pull --target user@server
+ssh_clipboard peek --target user@server
+```
+
+The client invokes the proxy using the system `ssh` binary (with `ssh -T`) and speaks the framed protocol over stdin/stdout.
+
 ## systemd (user service) — Suggested
 This project does not ship a unit file yet, but a typical user unit would:
 - set `Restart=on-failure`

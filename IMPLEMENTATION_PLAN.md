@@ -64,9 +64,102 @@
 - Integration test for daemon + proxy happy path (Linux-only).
 
 ## Phase 2 — Client CLI (Windows/macOS)
-1. Implement client-side SSH invocation (spawn `ssh` and communicate over stdin/stdout).
-2. Implement `push` (read local clipboard, send `Set`) and `pull` (send `Get`, write clipboard).
-3. Add helpful exit codes and error messages for scripting.
+
+### Phase 2 Goals
+- Provide a usable CLI on Windows and macOS to `push`/`pull` clipboard text via the Linux server daemon (through the SSH proxy).
+- Keep the one-shot model: **one request/response per SSH invocation**.
+- Enforce the 10 MiB payload size limit client-side before sending.
+- Keep Phase 2 text-only (images/binary deferred to Phase 3).
+
+### 1. CLI shape (cross-platform)
+- Extend the top-level CLI to include:
+  - `push` (client: local clipboard → server)
+  - `pull` (client: server → local clipboard)
+  - `peek` (optional: show metadata only, via `PeekMeta`)
+  - Keep existing Linux-only subcommands:
+    - `daemon` (Linux only)
+    - `proxy` (Linux only)
+- Ensure the binary runs on Windows/macOS and does not hard-exit (current Phase 1 behavior) once `push/pull` exist.
+- Add flags for stdin/stdout behavior:
+  - `push --stdin` to read text from stdin instead of clipboard.
+  - `pull --stdout` to print to stdout instead of writing to clipboard (default remains clipboard).
+
+### 2. SSH invocation layer
+- Implement a `client::ssh` module that spawns the platform SSH client using `tokio::process::Command`.
+- Default remote command: `ssh_clipboard proxy` (invoked on the Linux server).
+- Use `ssh -T` (no TTY) to ensure the binary protocol is not corrupted.
+- Capture stderr and surface it on failures (especially for SSH auth/known_hosts issues).
+- Provide a clean configuration surface:
+  - `--target user@host[:port]` (full target string accepted)
+  - `--host` + `--user` + `--port` (optional explicit fields)
+  - `--port`
+  - `--identity-file`
+  - `--ssh-option <opt>` (repeatable; passed as `-o opt`)
+  - Optional: `--ssh-bin` to override the ssh executable path
+- Security defaults:
+  - Do not disable host key checking by default.
+  - Do not enable agent forwarding by default; rely on user SSH config if needed.
+
+### 3. Client protocol send/receive
+- Implement `client::transport` helpers:
+  - Build `Request` (`Set/Get/PeekMeta`)
+  - `bincode` encode + frame write to SSH stdin
+  - frame read + decode `Response` from SSH stdout
+- Handle these failure classes distinctly:
+  - SSH spawn/exec failure (local error)
+  - SSH exited non-zero (include stderr)
+  - Protocol framing errors (invalid magic/version/EOF)
+  - `Response::Error` (map server-side codes to client exit codes/messages)
+- Timeouts (Phase 2 minimum):
+  - Add a default timeout per operation (e.g., 5–10s) and make it configurable (`--timeout-ms`).
+
+### 4. Clipboard integration (Windows/macOS)
+- Implement `client::clipboard` using `arboard`:
+  - `read_text()` for `push`
+  - `write_text()` for `pull`
+- If `push --stdin` is provided, read from stdin and skip clipboard access.
+- If clipboard read fails and `--stdin` is not set, return a clipboard error.
+- If `pull --stdout` is provided, print text to stdout and skip clipboard write.
+- On `push`, validate:
+  - UTF-8 text only (already in Rust `String`)
+  - size ≤ 10 MiB once encoded as UTF-8 bytes
+- Populate `ClipboardValue`:
+  - `content_type = text/plain; charset=utf-8`
+  - `data = text.into_bytes()`
+  - `created_at = now_utc_epoch_millis()`
+
+### 5. User experience / exit codes
+- Define client exit codes that are stable for scripting, for example:
+  - `0` success
+  - `2` invalid request/response (protocol or server error `invalid_request`)
+  - `3` payload too large
+  - `4` daemon not running (proxy exit code passthrough or `Response::Error` if present)
+  - `5` SSH failure (auth/hostkey/network)
+  - `6` clipboard read/write failure
+- Print a short, actionable stderr message per failure (don’t dump huge debug output by default).
+- Add `--verbose` to increase logging (`RUST_LOG` support via `tracing-subscriber` env filter).
+
+### 5a. CLI examples (Phase 2)
+- Push clipboard to server:
+  - `ssh_clipboard push --target user@server`
+- Pull clipboard from server:
+  - `ssh_clipboard pull --target user@server`
+- Push from stdin:
+  - `cat note.txt | ssh_clipboard push --stdin --target user@server`
+- Pull to stdout:
+  - `ssh_clipboard pull --stdout --target user@server`
+- Peek metadata:
+  - `ssh_clipboard peek --target user@server`
+
+### 6. Tests (pragmatic)
+- Unit tests:
+  - request/response encode/decode round-trips
+  - max-size enforcement on the client path
+  - timestamp conversion
+- Linux-only integration test (when running CI on Linux later):
+  - start daemon on a temp socket
+  - invoke proxy directly (without SSH) using the same framing
+  - exercise `push` and `pull` logic by swapping the SSH transport for a “local proxy transport”
 
 ## Phase 3 — Hardening + ergonomics
 1. Add timeouts, improved logging, and robust error mapping.

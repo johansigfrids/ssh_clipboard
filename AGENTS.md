@@ -38,6 +38,7 @@ As the project grows, prefer adding Rust modules under `src/` (for example `src/
 - Docs entrypoint: `docs/index.md` (follow `docs/writing-docs.md`).
 - At minimum, read `docs/index.md` before making changes; for major changes, skim relevant `docs/*.md` for context.
 - As you learn: update existing docs or add `docs/<topic>.md`, then link it in `docs/index.md`.
+- Keep `ARCHITECTURE.md` up to date as the system design or component boundaries change.
 - After behavior changes or bug fixes: refresh related docs and keep cross-links current.
 - Do not include secrets in docs; reference where secrets/config are managed instead.
 

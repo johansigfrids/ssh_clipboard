@@ -7,12 +7,18 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/index.md`
 - `docs/writing-docs.md`
 - `AGENTS.md`
+- `ARCHITECTURE.md`
+- `IMPLEMENTATION_PLAN.md`
 
 ## Where To Start
 - Skim this index, then jump to any topic docs listed below as they are added.
 
 ## Docs Map
 - `docs/writing-docs.md`: How to write and maintain internal docs in this repo.
+- `ARCHITECTURE.md`: System architecture and implementation roadmap.
+- `IMPLEMENTATION_PLAN.md`: Phased implementation checklist.
+- `docs/protocol.md`: Protocol framing, message types, and error codes.
+- `docs/server-setup.md`: Linux daemon setup and proxy usage.
 
 ## Doc Conventions
 - Each doc includes: `Purpose`, `Key Files`, `Update Triggers`, `Related Docs`.

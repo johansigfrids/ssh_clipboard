@@ -286,23 +286,40 @@ fn handle_menu(id: MenuId, ctx: MenuContext) {
     }
 
     if id == ctx.tray.menu_ids.push {
-        start_operation("push", ctx.runtime, ctx.proxy.clone(), ctx.config.clone(), ctx.running.clone(), |cfg| async move {
-            agent_push(&cfg).await
-        });
+        start_operation(
+            "push",
+            ctx.runtime,
+            ctx.proxy.clone(),
+            ctx.config.clone(),
+            ctx.running.clone(),
+            |cfg| async move { agent_push(&cfg).await },
+        );
         return;
     }
     if id == ctx.tray.menu_ids.pull {
-        start_operation("pull", ctx.runtime, ctx.proxy.clone(), ctx.config.clone(), ctx.running.clone(), |cfg| async move {
-            agent_pull(&cfg).await
-        });
+        start_operation(
+            "pull",
+            ctx.runtime,
+            ctx.proxy.clone(),
+            ctx.config.clone(),
+            ctx.running.clone(),
+            |cfg| async move { agent_pull(&cfg).await },
+        );
         return;
     }
     if id == ctx.tray.menu_ids.peek {
-        start_operation("peek", ctx.runtime, ctx.proxy, ctx.config, ctx.running, |cfg| async move {
-            let result = agent_peek(&cfg).await?;
-            notify::notify("ssh_clipboard peek", &result);
-            Ok(())
-        });
+        start_operation(
+            "peek",
+            ctx.runtime,
+            ctx.proxy,
+            ctx.config,
+            ctx.running,
+            |cfg| async move {
+                let result = agent_peek(&cfg).await?;
+                notify::notify("ssh_clipboard peek", &result);
+                Ok(())
+            },
+        );
     }
 }
 

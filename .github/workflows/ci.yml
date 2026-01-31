@@ -38,6 +38,8 @@ jobs:
             libglib2.0-dev \
             libgtk-3-dev \
             libappindicator3-dev \
+            libdbus-1-dev \
+            libxdo-dev \
             libx11-dev \
             libxkbcommon-dev \
             libwayland-dev \

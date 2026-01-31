@@ -23,6 +23,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/linux-client.md`: Linux desktop client notes (Wayland/X11, tray, hotkeys).
 - `docs/security.md`: Security model and recommended SSH hardening.
 - `docs/cli.md`: CLI command and flag reference.
+- `docs/ci.md`: CI workflows, build variants, and release packaging.
 - `docs/troubleshooting.md`: Common errors and fixes.
 - `docs/testing.md`: How to run tests and what’s covered.
 - Agent-related:

@@ -29,6 +29,30 @@ With agent feature:
 cargo test --features agent
 ```
 
+## Linux Build Dependencies (agent)
+Ubuntu packages needed to build the agent on Linux:
+```
+sudo apt-get update
+sudo apt-get install -y \
+  pkg-config \
+  libglib2.0-dev \
+  libgtk-3-dev \
+  libappindicator3-dev \
+  libdbus-1-dev \
+  libxdo-dev \
+  libx11-dev \
+  libxkbcommon-dev \
+  libwayland-dev \
+  libxrandr-dev \
+  libxinerama-dev \
+  libxcursor-dev \
+  libxi-dev \
+  libxfixes-dev \
+  libxcb1-dev \
+  libxcb-shape0-dev \
+  libxcb-xfixes0-dev
+```
+
 ## Test Categories
 - **Framing/protocol**: round-trip, invalid framing, truncated payloads.
 - **Client actions**: behavior parity tests using mock clipboard.

@@ -1,10 +1,10 @@
 use crate::framing::{decode_message, encode_message, read_frame_payload, write_frame_payload};
 use crate::protocol::{ErrorCode, RESPONSE_OVERHEAD, Request, Response, ResponseKind};
 use eyre::{Result, WrapErr};
-use std::path::PathBuf;
-use std::process::Stdio;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
+use std::path::PathBuf;
+use std::process::Stdio;
 use tokio::io::{stdin, stdout};
 use tokio::net::UnixStream;
 use tokio::time::{Duration, timeout};

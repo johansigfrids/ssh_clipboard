@@ -3,7 +3,7 @@ use base64::engine::general_purpose::STANDARD;
 use eyre::Result;
 use std::fs;
 
-use crate::cli::{PullArgs, build_client_config, handle_peek_response};
+use crate::cli::{ClientConfigArgs, PullArgs, build_client_config, handle_peek_response};
 use crate::client::transport::{make_request, send_request};
 use crate::client_actions::{PullApplyErrorKind, apply_pull_response_with_system_clipboard};
 use crate::protocol::{CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, RequestKind, ResponseKind};
@@ -24,19 +24,7 @@ pub async fn run(args: PullArgs) -> Result<()> {
 
     if args.peek {
         let response = match send_request(
-            &build_client_config(
-                args.target,
-                args.host,
-                args.user,
-                args.port,
-                args.identity_file,
-                args.ssh_option,
-                args.ssh_bin,
-                effective_max_size,
-                args.timeout_ms,
-                args.strict_frames,
-                args.resync_max_bytes,
-            ),
+            &build_client_config(client_config_args(&args, effective_max_size)),
             make_request(RequestKind::PeekMeta),
         )
         .await
@@ -48,19 +36,7 @@ pub async fn run(args: PullArgs) -> Result<()> {
     }
 
     let response = match send_request(
-        &build_client_config(
-            args.target,
-            args.host,
-            args.user,
-            args.port,
-            args.identity_file,
-            args.ssh_option,
-            args.ssh_bin,
-            effective_max_size,
-            args.timeout_ms,
-            args.strict_frames,
-            args.resync_max_bytes,
-        ),
+        &build_client_config(client_config_args(&args, effective_max_size)),
         make_request(RequestKind::Get),
     )
     .await
@@ -157,5 +133,21 @@ fn handle_pull_to_clipboard(
             | PullApplyErrorKind::Server
             | PullApplyErrorKind::Unexpected => crate::cli::exit::exit_with_code(2, &err.message),
         },
+    }
+}
+
+fn client_config_args(args: &PullArgs, max_size: usize) -> ClientConfigArgs {
+    ClientConfigArgs {
+        target: args.target.clone(),
+        host: args.host.clone(),
+        user: args.user.clone(),
+        port: args.port,
+        identity_file: args.identity_file.clone(),
+        ssh_option: args.ssh_option.clone(),
+        ssh_bin: args.ssh_bin.clone(),
+        max_size,
+        timeout_ms: args.timeout_ms,
+        strict_frames: args.strict_frames,
+        resync_max_bytes: args.resync_max_bytes,
     }
 }

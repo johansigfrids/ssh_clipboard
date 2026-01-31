@@ -331,33 +331,35 @@ pub(crate) fn handle_peek_response(response: Response, json: bool) -> Result<()>
     }
 }
 
-pub(crate) fn build_client_config(
-    target: Option<String>,
-    host: Option<String>,
-    user: Option<String>,
-    port: Option<u16>,
-    identity_file: Option<PathBuf>,
-    ssh_option: Vec<String>,
-    ssh_bin: Option<PathBuf>,
-    max_size: usize,
-    timeout_ms: u64,
-    strict_frames: bool,
-    resync_max_bytes: usize,
-) -> ClientConfig {
+pub(crate) struct ClientConfigArgs {
+    pub target: Option<String>,
+    pub host: Option<String>,
+    pub user: Option<String>,
+    pub port: Option<u16>,
+    pub identity_file: Option<PathBuf>,
+    pub ssh_option: Vec<String>,
+    pub ssh_bin: Option<PathBuf>,
+    pub max_size: usize,
+    pub timeout_ms: u64,
+    pub strict_frames: bool,
+    pub resync_max_bytes: usize,
+}
+
+pub(crate) fn build_client_config(args: ClientConfigArgs) -> ClientConfig {
     ClientConfig {
         ssh: SshConfig {
-            target: target.unwrap_or_default(),
-            port,
-            user,
-            host,
-            identity_file,
-            ssh_options: ssh_option,
-            ssh_bin,
+            target: args.target.unwrap_or_default(),
+            port: args.port,
+            user: args.user,
+            host: args.host,
+            identity_file: args.identity_file,
+            ssh_options: args.ssh_option,
+            ssh_bin: args.ssh_bin,
         },
-        max_size,
-        timeout_ms,
-        resync_frames: !strict_frames,
-        resync_max_bytes,
+        max_size: args.max_size,
+        timeout_ms: args.timeout_ms,
+        resync_frames: !args.strict_frames,
+        resync_max_bytes: args.resync_max_bytes,
     }
 }
 

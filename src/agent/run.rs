@@ -90,16 +90,16 @@ pub fn run_agent(no_tray: bool, no_hotkeys: bool) -> Result<()> {
 
             Event::UserEvent(UserEvent::Menu(id)) => {
                 if let Some(state) = &tray_state {
-                    handle_menu(
-                        id,
-                        state,
-                        &mut hotkeys,
-                        &runtime,
-                        proxy.clone(),
-                        config.clone(),
-                        operation_running.clone(),
+                    let ctx = MenuContext {
+                        tray: state,
+                        hotkeys: &mut hotkeys,
+                        runtime: &runtime,
+                        proxy: proxy.clone(),
+                        config: config.clone(),
+                        running: operation_running.clone(),
                         control_flow,
-                    );
+                    };
+                    handle_menu(id, ctx);
                 }
             }
 
@@ -206,22 +206,23 @@ fn build_tray(config: Arc<Mutex<AgentConfig>>) -> Result<TrayState> {
     })
 }
 
-fn handle_menu(
-    id: MenuId,
-    tray: &TrayState,
-    hotkeys: &mut Option<Hotkeys>,
-    runtime: &Runtime,
+struct MenuContext<'a> {
+    tray: &'a TrayState,
+    hotkeys: &'a mut Option<Hotkeys>,
+    runtime: &'a Runtime,
     proxy: EventLoopProxy<UserEvent>,
     config: Arc<Mutex<AgentConfig>>,
     running: Arc<AtomicBool>,
-    control_flow: &mut ControlFlow,
-) {
-    if id == tray.menu_ids.quit {
-        *control_flow = ControlFlow::Exit;
+    control_flow: &'a mut ControlFlow,
+}
+
+fn handle_menu(id: MenuId, ctx: MenuContext) {
+    if id == ctx.tray.menu_ids.quit {
+        *ctx.control_flow = ControlFlow::Exit;
         return;
     }
 
-    if id == tray.menu_ids.show_config {
+    if id == ctx.tray.menu_ids.show_config {
         match crate::agent::config_path() {
             Ok(path) => notify::notify("ssh_clipboard", &format!("config: {}", path.display())),
             Err(err) => notify::notify("ssh_clipboard", &format!("config path error: {err}")),
@@ -229,8 +230,8 @@ fn handle_menu(
         return;
     }
 
-    if id == tray.menu_ids.restore_defaults {
-        let mut cfg = config.lock().unwrap();
+    if id == ctx.tray.menu_ids.restore_defaults {
+        let mut cfg = ctx.config.lock().unwrap();
         let preserved_target = cfg.target.clone();
         let preserved_port = cfg.port;
         let preserved_identity = cfg.identity_file.clone();
@@ -249,19 +250,19 @@ fn handle_menu(
         cfg.autostart_enabled = preserved_autostart;
 
         let _ = store_config(&cfg);
-        if let Some(hk) = hotkeys.as_mut() {
-            if let Err(err) = hk.update_from_config(&cfg) {
-                notify::notify("ssh_clipboard", &format!("hotkey update failed: {err}"));
-            }
+        if let Some(hk) = ctx.hotkeys.as_mut()
+            && let Err(err) = hk.update_from_config(&cfg)
+        {
+            notify::notify("ssh_clipboard", &format!("hotkey update failed: {err}"));
         }
         notify::notify("ssh_clipboard", "restored defaults");
         return;
     }
 
-    if id == tray.menu_ids.autostart {
-        let enable = tray.autostart.is_checked();
+    if id == ctx.tray.menu_ids.autostart {
+        let enable = ctx.tray.autostart.is_checked();
         {
-            let mut cfg = config.lock().unwrap();
+            let mut cfg = ctx.config.lock().unwrap();
             cfg.autostart_enabled = enable;
             let _ = store_config(&cfg);
         }
@@ -284,25 +285,24 @@ fn handle_menu(
         return;
     }
 
-    if id == tray.menu_ids.push {
-        start_operation("push", runtime, proxy, config, running, |cfg| async move {
+    if id == ctx.tray.menu_ids.push {
+        start_operation("push", ctx.runtime, ctx.proxy.clone(), ctx.config.clone(), ctx.running.clone(), |cfg| async move {
             agent_push(&cfg).await
         });
         return;
     }
-    if id == tray.menu_ids.pull {
-        start_operation("pull", runtime, proxy, config, running, |cfg| async move {
+    if id == ctx.tray.menu_ids.pull {
+        start_operation("pull", ctx.runtime, ctx.proxy.clone(), ctx.config.clone(), ctx.running.clone(), |cfg| async move {
             agent_pull(&cfg).await
         });
         return;
     }
-    if id == tray.menu_ids.peek {
-        start_operation("peek", runtime, proxy, config, running, |cfg| async move {
+    if id == ctx.tray.menu_ids.peek {
+        start_operation("peek", ctx.runtime, ctx.proxy, ctx.config, ctx.running, |cfg| async move {
             let result = agent_peek(&cfg).await?;
             notify::notify("ssh_clipboard peek", &result);
             Ok(())
         });
-        return;
     }
 }
 

@@ -13,6 +13,7 @@ As the project grows, prefer adding Rust modules under `src/` (for example `src/
 - `cargo build` — compiles the project in debug mode.
 - `cargo run` — builds and runs the binary.
 - `cargo test` — runs the test suite (currently no tests are defined).
+- `cargo clippy --features agent -- -D warnings` — lint the codebase (CI-required).
 - `cargo build --release` — produces optimized release binaries in `target/release/`.
 
 ## Coding Style & Naming Conventions

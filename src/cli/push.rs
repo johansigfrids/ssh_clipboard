@@ -1,7 +1,7 @@
 use eyre::{Result, WrapErr, eyre};
 use tokio::io::{AsyncReadExt, BufReader};
 
-use crate::cli::{PushArgs, build_client_config, handle_response};
+use crate::cli::{ClientConfigArgs, PushArgs, build_client_config, handle_response};
 use crate::client::transport::{make_request, send_request};
 use crate::client_actions::ClipboardBuildError;
 use crate::protocol::{ClipboardValue, DEFAULT_MAX_SIZE, RequestKind};
@@ -19,19 +19,19 @@ pub async fn run(args: PushArgs) -> Result<()> {
     };
 
     let response = match send_request(
-        &build_client_config(
-            args.target,
-            args.host,
-            args.user,
-            args.port,
-            args.identity_file,
-            args.ssh_option,
-            args.ssh_bin,
-            effective_max_size,
-            args.timeout_ms,
-            args.strict_frames,
-            args.resync_max_bytes,
-        ),
+        &build_client_config(ClientConfigArgs {
+            target: args.target,
+            host: args.host,
+            user: args.user,
+            port: args.port,
+            identity_file: args.identity_file,
+            ssh_option: args.ssh_option,
+            ssh_bin: args.ssh_bin,
+            max_size: effective_max_size,
+            timeout_ms: args.timeout_ms,
+            strict_frames: args.strict_frames,
+            resync_max_bytes: args.resync_max_bytes,
+        }),
         make_request(RequestKind::Set { value }),
     )
     .await

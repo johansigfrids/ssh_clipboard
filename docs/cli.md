@@ -55,12 +55,15 @@ Flags:
 - `--json`: output JSON
 - SSH + timeout + size flags (same as `push`)
 
-### `agent` (Windows/macOS, requires `--features agent`)
+### `agent` (Windows/macOS/Linux, requires `--features agent`)
 Run the background agent (tray icon + hotkeys).
 
 Flags:
 - `--no-tray`: disable tray UI
 - `--no-hotkeys`: disable hotkeys
+
+Notes:
+- Linux hotkeys require X11; on Wayland use `--no-hotkeys`.
 
 ### `config` (requires `--features agent`)
 Manage agent configuration.
@@ -106,5 +109,6 @@ Flags:
 
 ## Related Docs
 - `docs/client-setup.md`
+- `docs/linux-client.md`
 - `docs/server-setup.md`
 - `docs/protocol.md`

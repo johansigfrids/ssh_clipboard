@@ -35,6 +35,7 @@ If the current executable path cannot be resolved to a usable absolute path, aut
 Exact mechanisms differ per OS:
 - Windows: typically a per-user startup entry.
 - macOS: typically a per-user Launch Agent.
+- Linux: XDG autostart entry under `~/.config/autostart/`.
 
 ## Update Triggers
 - Changes to autostart strategy or arguments (`agent` flags).
@@ -44,4 +45,3 @@ Exact mechanisms differ per OS:
 - `docs/agent.md`
 - `docs/cli.md`
 - `docs/security.md`
-

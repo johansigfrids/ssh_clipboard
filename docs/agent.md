@@ -44,6 +44,7 @@ ssh_clipboard config validate
 Bindings are stored as strings parsed by `global-hotkey` (examples):
 - `CmdOrCtrl+Shift+KeyC` (push)
 - `CmdOrCtrl+Shift+KeyV` (pull)
+- Linux default uses `Ctrl+Shift+KeyC` / `Ctrl+Shift+KeyV`.
 
 If a hotkey fails to register (already taken or blocked), the agent will still run; you can change bindings in the config file and restart the agent.
 
@@ -67,6 +68,11 @@ If hotkeys appear not to work on macOS, you may need to enable permissions for t
 - System Settings → Privacy & Security → Input Monitoring
 - System Settings → Privacy & Security → Accessibility
 
+### Linux notes
+- Hotkeys are X11-only; Wayland may not support global hotkeys. Use `--no-hotkeys` if registration fails.
+- Tray support uses GTK; ensure a GTK/appindicator implementation is installed.
+- Notifications rely on a working desktop notification daemon (DBus).
+
 ## Logs
 When running the agent, logs are written to a `logs/agent.log` file next to the agent config file.
 
@@ -82,4 +88,4 @@ To increase verbosity:
 - `docs/autostart.md`
 - `docs/troubleshooting.md`
 - `docs/security.md`
-
+- `docs/linux-client.md`

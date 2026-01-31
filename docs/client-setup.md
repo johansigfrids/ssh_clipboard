@@ -1,7 +1,8 @@
 # Client Setup (Windows/macOS)
 
 ## Purpose
-Document how to run the Phase 2 client CLI on Windows and macOS, including SSH prerequisites and common troubleshooting.
+Document how to run the client CLI on Windows and macOS, including SSH prerequisites and common troubleshooting.
+For Linux desktop specifics (Wayland/X11, tray/hotkeys), see `docs/linux-client.md`.
 
 ## Key Files
 - `README.md`
@@ -91,3 +92,4 @@ ssh_clipboard push --target user@server --ssh-option "ConnectTimeout=5" --ssh-op
 - `docs/server-setup.md`
 - `docs/protocol.md`
 - `ARCHITECTURE.md`
+- `docs/linux-client.md`

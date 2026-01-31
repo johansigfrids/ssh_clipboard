@@ -1,6 +1,6 @@
 # SSH Clipboard
 
-This tool is for copying clipboard content between machines on a local network. I has client implementations for Mac and Windows, and a server implementaiton for Linux. 
+This tool is for copying clipboard content between machines on a local network. It has client implementations for Windows/macOS/Linux and a server implementation for Linux.
 
 Hitting a keyboard shortcut copies to current content of the clipboard over to the server. A separate keyboard shortcut copies the content on the server over to the clipboard on the current client.
 
@@ -8,8 +8,8 @@ Communication with the server is done over SSH, and the server does not persist 
 
 ## Status
 - Linux server: daemon/proxy implemented.
-- Clients: `push`/`pull`/`peek` implemented (text + PNG images).
-- Hotkeys and background UX are not implemented yet.
+- Clients: `push`/`pull`/`peek` implemented (text + PNG images) on Windows/macOS/Linux.
+- Agent (tray + hotkeys): implemented; Linux hotkeys require X11 (Wayland best effort).
 
 ## Client CLI (Phase 2)
 
@@ -72,7 +72,7 @@ ssh_clipboard pull --peek --target user@server
 - `--timeout-ms 7000`
 - `--max-size <bytes>` (default 10 MiB)
 
-## Agent Mode (Phase 4 - hotkeys + tray)
+## Agent Mode (hotkeys + tray)
 The background agent (tray icon + global hotkeys) is behind the Cargo feature `agent`.
 
 Build and run:
@@ -92,6 +92,7 @@ ssh_clipboard autostart enable
 Notes:
 - The agent reads its settings from the config file (see `ssh_clipboard config path`).
 - Set `target` (e.g. `user@server`) in the agent config before running, otherwise `config validate` will fail.
+- Linux notes: tray/hotkeys depend on GTK + X11; see `docs/linux-client.md` for Wayland limitations.
 
 ## Linux Daemon/Proxy (Phase 1)
 
@@ -114,7 +115,7 @@ ssh user@server ssh_clipboard proxy
 - Socket path: `$XDG_RUNTIME_DIR/ssh_clipboard/daemon.sock` or `/tmp/ssh_clipboard-$UID/daemon.sock`
 - Max payload: 10 MiB
 - One-shot request/response per SSH session
-- UTF-8 text only (`text/plain; charset=utf-8`)
+- Content types: `text/plain; charset=utf-8` and `image/png`
 
 ### Options
 - `--socket-path <path>`

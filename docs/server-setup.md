@@ -54,8 +54,8 @@ ssh user@server ssh_clipboard proxy --io-timeout-ms 7000
 
 Ensure `ssh_clipboard` is on the server `PATH` for that SSH user, or invoke it via an absolute path.
 
-## Client Usage (Windows/macOS)
-From a client machine (Windows or macOS), use:
+## Client Usage (Windows/macOS/Linux)
+From a client machine, use:
 ```
 ssh_clipboard push --target user@server
 ssh_clipboard pull --target user@server

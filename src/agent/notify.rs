@@ -17,7 +17,7 @@ fn try_notify(summary: &str, body: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         notify_rust::Notification::new()
             .summary(summary)

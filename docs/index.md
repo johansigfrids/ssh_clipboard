@@ -15,11 +15,12 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 
 ## Docs Map
 - `docs/writing-docs.md`: How to write and maintain internal docs in this repo.
-- `ARCHITECTURE.md`: System architecture and implementation roadmap.
+- `ARCHITECTURE.md`: System architecture.
 - `IMPLEMENTATION_PLAN.md`: Phased implementation checklist.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
 - `docs/server-setup.md`: Linux daemon setup and proxy usage.
 - `docs/client-setup.md`: Windows/macOS client usage and SSH troubleshooting.
+- `docs/linux-client.md`: Linux desktop client notes (Wayland/X11, tray, hotkeys).
 - `docs/security.md`: Security model and recommended SSH hardening.
 - `docs/cli.md`: CLI command and flag reference.
 - `docs/troubleshooting.md`: Common errors and fixes.

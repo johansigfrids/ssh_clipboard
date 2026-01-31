@@ -115,7 +115,10 @@ enum Commands {
         io_timeout_ms: u64,
     },
 
-    #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
     Agent {
         #[arg(long)]
         no_tray: bool,
@@ -123,20 +126,29 @@ enum Commands {
         no_hotkeys: bool,
     },
 
-    #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
     },
 
-    #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
     Autostart {
         #[command(subcommand)]
         command: AutostartCommands,
     },
 }
 
-#[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+#[cfg(all(
+    feature = "agent",
+    any(target_os = "windows", target_os = "macos", target_os = "linux")
+))]
 #[derive(Subcommand)]
 enum ConfigCommands {
     Path,
@@ -148,7 +160,10 @@ enum ConfigCommands {
     Defaults,
 }
 
-#[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+#[cfg(all(
+    feature = "agent",
+    any(target_os = "windows", target_os = "macos", target_os = "linux")
+))]
 #[derive(Subcommand)]
 enum AutostartCommands {
     Enable,
@@ -160,9 +175,15 @@ enum AutostartCommands {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
     let agent_mode = matches!(cli.command, Commands::Agent { .. });
-    #[cfg(not(all(feature = "agent", any(target_os = "windows", target_os = "macos"))))]
+    #[cfg(not(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    )))]
     let agent_mode = false;
     init_tracing(agent_mode)?;
 
@@ -414,7 +435,10 @@ async fn main() -> Result<()> {
             std::process::exit(exit_code);
         }
 
-        #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+        #[cfg(all(
+            feature = "agent",
+            any(target_os = "windows", target_os = "macos", target_os = "linux")
+        ))]
         Commands::Agent {
             no_tray,
             no_hotkeys,
@@ -422,7 +446,10 @@ async fn main() -> Result<()> {
             ssh_clipboard::agent::run::run_agent(no_tray, no_hotkeys)?;
         }
 
-        #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+        #[cfg(all(
+            feature = "agent",
+            any(target_os = "windows", target_os = "macos", target_os = "linux")
+        ))]
         Commands::Config { command } => match command {
             ConfigCommands::Path => {
                 let path = ssh_clipboard::agent::config_path()?;
@@ -449,7 +476,10 @@ async fn main() -> Result<()> {
             }
         },
 
-        #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+        #[cfg(all(
+            feature = "agent",
+            any(target_os = "windows", target_os = "macos", target_os = "linux")
+        ))]
         Commands::Autostart { command } => match command {
             AutostartCommands::Enable => {
                 ssh_clipboard::agent::autostart::enable()?;
@@ -604,10 +634,16 @@ async fn read_stdin_text() -> Result<String> {
 }
 
 fn init_tracing(agent_mode: bool) -> Result<()> {
-    #[cfg(not(all(feature = "agent", any(target_os = "windows", target_os = "macos"))))]
+    #[cfg(not(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    )))]
     let _ = agent_mode;
 
-    #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
     if agent_mode {
         let log_dir = ssh_clipboard::agent::config_path()
             .ok()

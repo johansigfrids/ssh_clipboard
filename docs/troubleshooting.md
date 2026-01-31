@@ -29,6 +29,9 @@ Common failure cases and how to resolve them.
   - Another app may be locking the clipboard. Retry.
 - **Clipboard access error (macOS):**
   - Ensure the terminal/app has clipboard permissions if required by your environment.
+- **Clipboard access error (Linux):**
+  - Ensure a display server is available (`DISPLAY` for X11, `WAYLAND_DISPLAY` for Wayland).
+  - On Wayland, clipboard support is best effort; XWayland may be required.
 
 ## Payload / Format Issues
 - **`payload too large`:**
@@ -47,6 +50,10 @@ Common failure cases and how to resolve them.
   - Ensure only one instance is running (agent enforces single-instance).
 - **Hotkeys don’t fire (macOS):**
   - Some environments may require enabling the terminal/app under System Settings → Privacy & Security → Input Monitoring or Accessibility.
+- **Hotkeys don’t fire (Linux):**
+  - Hotkeys are X11-only; on Wayland, use `--no-hotkeys`.
+- **Tray icon missing (Linux):**
+  - Ensure GTK + appindicator packages are installed for your distro.
 
 ## Related Docs
 - `docs/client-setup.md`

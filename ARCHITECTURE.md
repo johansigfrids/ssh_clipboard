@@ -4,6 +4,7 @@
 Describe the intended architecture for `ssh_clipboard`: a cross-platform Rust tool to copy clipboard contents between:
 - Windows client ↔ Linux server
 - macOS client ↔ Linux server
+- Linux client ↔ Linux server
 
 All data transfer occurs over SSH. The Linux server does not persist clipboard contents to disk; it only keeps the latest value in memory while the server daemon is running.
 
@@ -11,7 +12,7 @@ All data transfer occurs over SSH. The Linux server does not persist clipboard c
 - Reliable push/pull of clipboard contents between a client machine and a server machine.
 - Transport security via SSH (reuse existing SSH keys/agent/config).
 - Server-side clipboard state held in memory only (no on-disk persistence).
-- Simple operational model: a small daemon on the Linux server, and a client app on Windows/macOS.
+- Simple operational model: a small daemon on the Linux server, and a client app on Windows/macOS/Linux.
 
 ## Non-goals (initially)
 - Multi-user sharing or access control beyond SSH user isolation.
@@ -32,7 +33,7 @@ This yields a clean separation:
 2. **Server proxy (Linux, runs per SSH session)**
    - A small mode of the same binary (or a separate binary) executed via `ssh user@host ...`.
    - Bridges stdin/stdout (SSH channel) to the daemon UNIX socket.
-3. **Client app (Windows / macOS)**
+3. **Client app (Windows / macOS / Linux)**
    - Reads local clipboard, sends it to server (push).
    - Receives clipboard from server, writes it to local clipboard (pull).
    - Uses the platform `ssh` binary and communicates via stdin/stdout frames.
@@ -142,7 +143,7 @@ This repo currently uses `src/main.rs` + `src/lib.rs` modules, with optional “
 
 Conditional compilation:
 - `#[cfg(target_os = "linux")]` for daemon unix-socket server
-- `#[cfg(target_os = "windows")]` / `#[cfg(target_os = "macos")]` for clipboard/hotkey specifics
+- `#[cfg(target_os = "windows")]` / `#[cfg(target_os = "macos")]` / `#[cfg(target_os = "linux")]` for clipboard/hotkey specifics
 
 ## Operational Model
 
@@ -150,7 +151,7 @@ Conditional compilation:
 - Run daemon via `systemd --user` (recommended) or as a simple background process.
 - Daemon holds the clipboard value in memory until it exits/restarts.
 
-### Windows/macOS client
+### Windows/macOS/Linux client
 - MVP: CLI push/pull commands.
 - Later: background app that registers hotkeys and invokes push/pull.
 

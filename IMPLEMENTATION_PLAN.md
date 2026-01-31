@@ -371,13 +371,65 @@
   - config load/store (confy) with defaults
   - hotkey string parse/validate (no OS registration in unit tests)
   - event dispatch state machine (hotkey/menu → action request)
-- Manual checklist (Windows + macOS):
+- Manual checklist (Windows + macOS + Linux/X11):
   - agent starts, tray icon appears
   - hotkeys trigger push/pull
   - repeated triggers are debounced
   - autostart enable/disable works
   - quitting unregisters hotkeys and exits cleanly
 
-## Phase 5 — Packaging + release
+## Phase 5 — Linux Desktop Client (Feature Parity)
+
+### Phase 5 Goals
+- Provide a **desktop Linux client** with feature parity to Windows/macOS:
+  - CLI `push`/`pull`/`peek`
+  - Agent mode (tray + hotkeys)
+  - Text + PNG clipboard formats
+- Reuse the existing client protocol and SSH transport.
+- “Best effort” Wayland support with clear documentation and fallbacks.
+
+### 1. Clipboard support (Linux)
+- Use `arboard` as the primary clipboard adapter.
+- X11:
+  - Expected to work out-of-the-box via X11 clipboard APIs.
+- Wayland (best effort):
+  - Enable `arboard`’s `wayland-data-control` feature; it prioritizes Wayland data-control when available.
+  - Many compositors do **not** support the data-control protocol; document that XWayland may be required.
+  - If running in sandboxed environments (Flatpak/Snap), document the need to expose X11/Wayland sockets.
+- Keep formats aligned with current support:
+  - `text/plain; charset=utf-8`
+  - `image/png`
+
+### 2. CLI support
+- Ensure `push`/`pull`/`peek` behave identically across platforms (including `--stdin`, `--stdout`, `--output`, `--base64`, `--peek`).
+- Confirm `ssh` invocation behavior across distros (OpenSSH on PATH).
+
+### 3. Linux agent (hotkeys + tray) — feature parity
+- Hotkeys:
+  - `global-hotkey` supports Linux **X11 only** (no Wayland support).
+  - For Wayland, document that hotkeys may not work or are compositor-dependent; provide a `--no-hotkeys` option as fallback.
+- Tray:
+  - `tray-icon` supports Linux via **GTK only**.
+  - Document required system packages (GTK + appindicator libraries) and recommend installing them explicitly.
+- Event loop:
+  - On Linux, tray and hotkeys require an event loop on the same thread as the UI (GTK) and hotkey manager.
+- Scope by display server:
+  - X11: full agent support (tray + hotkeys).
+  - Wayland: tray may work; hotkeys likely unsupported; document limitations and recommended workarounds.
+
+### 4. Docs
+- Add `docs/linux-client.md`:
+  - X11 vs Wayland behavior and limitations
+  - enabling `arboard` Wayland feature
+  - required packages for tray/hotkeys
+  - troubleshooting clipboard access issues
+
+### 5. Testing
+- Add Linux CI (if/when we add CI):
+  - build + unit tests
+  - integration tests that exercise daemon/proxy and client transport without SSH
+
+## Phase 6 — Packaging + release
 1. Provide systemd user service example for Linux daemon.
 2. Document Windows/macOS distribution strategy.
+3. Package agent (Windows/macOS) in a user-friendly way (optional app bundle on macOS).

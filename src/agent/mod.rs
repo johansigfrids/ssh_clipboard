@@ -28,12 +28,17 @@ pub struct HotkeyConfig {
 pub enum PlatformDefaults {
     Windows,
     Macos,
+    Linux,
 }
 
 pub fn platform_defaults() -> PlatformDefaults {
     #[cfg(target_os = "macos")]
     {
         return PlatformDefaults::Macos;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return PlatformDefaults::Linux;
     }
     PlatformDefaults::Windows
 }
@@ -47,6 +52,10 @@ pub fn default_agent_config() -> AgentConfig {
         PlatformDefaults::Windows => (
             "CmdOrCtrl+Shift+KeyC".to_string(),
             "CmdOrCtrl+Shift+KeyV".to_string(),
+        ),
+        PlatformDefaults::Linux => (
+            "Ctrl+Shift+KeyC".to_string(),
+            "Ctrl+Shift+KeyV".to_string(),
         ),
     };
 

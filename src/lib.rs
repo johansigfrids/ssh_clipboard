@@ -9,5 +9,8 @@ pub mod proxy;
 
 pub mod client;
 
-#[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+#[cfg(all(
+    feature = "agent",
+    any(target_os = "windows", target_os = "macos", target_os = "linux")
+))]
 pub mod agent;

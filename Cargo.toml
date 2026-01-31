@@ -12,7 +12,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 eyre = "0.6"
 thiserror = "1"
-arboard = "3"
+arboard = { version = "3", features = ["wayland-data-control"] }
 image = "0.25"
 base64 = "0.22"
 serde_json = "1"
@@ -27,6 +27,7 @@ tracing-appender = { version = "0.2", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
+notify-rust = { version = "4.11", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winrt-notification = { version = "0.5", optional = true }

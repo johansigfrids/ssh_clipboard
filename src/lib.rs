@@ -1,3 +1,4 @@
+pub mod cli;
 pub mod client_actions;
 pub mod framing;
 pub mod protocol;

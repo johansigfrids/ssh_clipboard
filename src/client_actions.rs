@@ -125,12 +125,10 @@ pub fn apply_pull_response_with_clipboard(
                     kind: PullApplyErrorKind::InvalidUtf8,
                     message: "response was not valid UTF-8".to_string(),
                 })?;
-                clipboard
-                    .write_text(&text)
-                    .map_err(|err| PullApplyError {
-                        kind: PullApplyErrorKind::Clipboard,
-                        message: err.to_string(),
-                    })?;
+                clipboard.write_text(&text).map_err(|err| PullApplyError {
+                    kind: PullApplyErrorKind::Clipboard,
+                    message: err.to_string(),
+                })?;
                 return Ok(());
             }
 
@@ -141,12 +139,10 @@ pub fn apply_pull_response_with_clipboard(
                         message: err.to_string(),
                     }
                 })?;
-                clipboard
-                    .write_image(img)
-                    .map_err(|err| PullApplyError {
-                        kind: PullApplyErrorKind::Clipboard,
-                        message: err.to_string(),
-                    })?;
+                clipboard.write_image(img).map_err(|err| PullApplyError {
+                    kind: PullApplyErrorKind::Clipboard,
+                    message: err.to_string(),
+                })?;
                 return Ok(());
             }
 
@@ -170,7 +166,10 @@ pub fn apply_pull_response_with_clipboard(
     }
 }
 
-pub fn build_text_value(text: String, max_size: usize) -> Result<ClipboardValue, ClipboardBuildError> {
+pub fn build_text_value(
+    text: String,
+    max_size: usize,
+) -> Result<ClipboardValue, ClipboardBuildError> {
     let bytes = text.into_bytes();
     if bytes.len() > max_size {
         return Err(ClipboardBuildError {
@@ -208,15 +207,11 @@ mod tests {
 
     impl ClipboardAccess for MockClipboard {
         fn read_text(&mut self) -> Result<String> {
-            self.text
-                .take()
-                .ok_or_else(|| eyre!("no text available"))
+            self.text.take().ok_or_else(|| eyre!("no text available"))
         }
 
         fn read_image(&mut self) -> Result<ImageData<'static>> {
-            self.image
-                .take()
-                .ok_or_else(|| eyre!("no image available"))
+            self.image.take().ok_or_else(|| eyre!("no image available"))
         }
 
         fn write_text(&mut self, text: &str) -> Result<()> {

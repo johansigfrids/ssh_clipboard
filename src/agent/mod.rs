@@ -53,10 +53,7 @@ pub fn default_agent_config() -> AgentConfig {
             "CmdOrCtrl+Shift+KeyC".to_string(),
             "CmdOrCtrl+Shift+KeyV".to_string(),
         ),
-        PlatformDefaults::Linux => (
-            "Ctrl+Shift+KeyC".to_string(),
-            "Ctrl+Shift+KeyV".to_string(),
-        ),
+        PlatformDefaults::Linux => ("Ctrl+Shift+KeyC".to_string(), "Ctrl+Shift+KeyV".to_string()),
     };
 
     AgentConfig {

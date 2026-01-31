@@ -8,7 +8,7 @@ Communication with the server is done over SSH, and the server does not persist 
 
 ## Status
 - Linux server: daemon/proxy implemented.
-- Clients: `push`/`pull`/`peek` implemented (text-only).
+- Clients: `push`/`pull`/`peek` implemented (text + PNG images).
 - Hotkeys and background UX are not implemented yet.
 
 ## Client CLI (Phase 2)
@@ -39,9 +39,29 @@ Pull to stdout (instead of clipboard):
 ssh_clipboard pull --stdout --target user@server
 ```
 
+Pull PNG image to a file:
+```
+ssh_clipboard pull --output ./clipboard.png --target user@server
+```
+
+Pull binary/image as base64:
+```
+ssh_clipboard pull --stdout --base64 --target user@server
+```
+
 Peek metadata:
 ```
 ssh_clipboard peek --target user@server
+```
+
+Peek metadata (JSON):
+```
+ssh_clipboard peek --json --target user@server
+```
+
+Peek metadata via pull:
+```
+ssh_clipboard pull --peek --target user@server
 ```
 
 ### Common options
@@ -78,3 +98,4 @@ ssh user@server ssh_clipboard proxy
 ### Options
 - `--socket-path <path>`
 - `--max-size <bytes>`
+- `--io-timeout-ms 7000`

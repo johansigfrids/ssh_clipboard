@@ -1,7 +1,10 @@
 use crate::framing::{
     FramingError, decode_message, encode_message, read_frame_payload, write_frame_payload,
 };
-use crate::protocol::{CONTENT_TYPE_TEXT, ClipboardValue, ErrorCode, Request, Response};
+use crate::protocol::{
+    ClipboardValue, ErrorCode, Request, RequestKind, Response, ResponseKind, CONTENT_TYPE_PNG,
+    CONTENT_TYPE_TEXT,
+};
 use eyre::{Result, WrapErr};
 use std::env;
 use std::os::unix::fs::PermissionsExt;
@@ -10,6 +13,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
+use tokio::time::{timeout, Duration};
 use tracing::{error, info};
 
 #[derive(Debug, Error)]
@@ -47,7 +51,11 @@ fn get_uid() -> u32 {
     unsafe { libc::getuid() }
 }
 
-pub async fn run_daemon(socket_path: PathBuf, max_size: usize) -> Result<()> {
+pub async fn run_daemon(
+    socket_path: PathBuf,
+    max_size: usize,
+    io_timeout_ms: u64,
+) -> Result<()> {
     prepare_socket_path(&socket_path)?;
     let old_umask = set_umask();
     let listener = UnixListener::bind(&socket_path);
@@ -62,7 +70,7 @@ pub async fn run_daemon(socket_path: PathBuf, max_size: usize) -> Result<()> {
         let (stream, _) = listener.accept().await?;
         let state = Arc::clone(&state);
         tokio::spawn(async move {
-            if let Err(err) = handle_connection(stream, state, max_size).await {
+            if let Err(err) = handle_connection(stream, state, max_size, io_timeout_ms).await {
                 error!(error = %err, "connection error");
             }
         });
@@ -90,11 +98,29 @@ async fn handle_connection(
     mut stream: UnixStream,
     state: Arc<Mutex<ClipboardState>>,
     max_size: usize,
+    io_timeout_ms: u64,
 ) -> Result<()> {
-    let payload = match read_frame_payload(&mut stream, max_size).await {
-        Ok(payload) => payload,
-        Err(err) => {
-            let response = framing_error_response(&err);
+    let payload = match timeout(
+        Duration::from_millis(io_timeout_ms),
+        read_frame_payload(&mut stream, max_size),
+    )
+    .await
+    {
+        Ok(Ok(payload)) => payload,
+        Ok(Err(err)) => {
+            let response = framing_error_response(&err, 0);
+            let payload = encode_message(&response)?;
+            let _ = write_frame_payload(&mut stream, &payload).await;
+            return Ok(());
+        }
+        Err(_) => {
+            let response = Response {
+                request_id: 0,
+                kind: ResponseKind::Error {
+                    code: ErrorCode::Internal,
+                    message: "read timeout".to_string(),
+                },
+            };
             let payload = encode_message(&response)?;
             let _ = write_frame_payload(&mut stream, &payload).await;
             return Ok(());
@@ -102,13 +128,20 @@ async fn handle_connection(
     };
     let response = match decode_message::<Request>(&payload) {
         Ok(request) => handle_request(request, state, max_size).await,
-        Err(err) => Response::Error {
-            code: ErrorCode::InvalidRequest,
-            message: format!("decode error: {err}"),
+        Err(err) => Response {
+            request_id: 0,
+            kind: ResponseKind::Error {
+                code: ErrorCode::InvalidRequest,
+                message: format!("decode error: {err}"),
+            },
         },
     };
     let payload = encode_message(&response)?;
-    write_frame_payload(&mut stream, &payload).await?;
+    timeout(
+        Duration::from_millis(io_timeout_ms),
+        write_frame_payload(&mut stream, &payload),
+    )
+    .await??;
     Ok(())
 }
 
@@ -117,84 +150,95 @@ async fn handle_request(
     state: Arc<Mutex<ClipboardState>>,
     max_size: usize,
 ) -> Response {
-    match request {
-        Request::Get => {
+    let request_id = request.request_id;
+    let kind = match request.kind {
+        RequestKind::Get => {
             let state = state.lock().await;
             match &state.value {
-                Some(value) => Response::Value {
+                Some(value) => ResponseKind::Value {
                     value: value.clone(),
                 },
-                None => Response::Empty,
+                None => ResponseKind::Empty,
             }
         }
-        Request::PeekMeta => {
+        RequestKind::PeekMeta => {
             let state = state.lock().await;
             match &state.value {
-                Some(value) => Response::Meta {
+                Some(value) => ResponseKind::Meta {
                     content_type: value.content_type.clone(),
                     size: value.data.len() as u64,
                     created_at: value.created_at,
                 },
-                None => Response::Empty,
+                None => ResponseKind::Empty,
             }
         }
-        Request::Set { value } => match validate_set(&value, max_size) {
+        RequestKind::Set { value } => match validate_set(&value, max_size) {
             Ok(()) => {
                 let mut state = state.lock().await;
                 state.value = Some(value);
-                Response::Ok
+                ResponseKind::Ok
             }
             Err(err) => to_error_response(err),
         },
-    }
+    };
+    Response { request_id, kind }
 }
 
 fn validate_set(value: &ClipboardValue, max_size: usize) -> std::result::Result<(), DaemonError> {
-    if value.content_type != CONTENT_TYPE_TEXT {
+    if value.content_type != CONTENT_TYPE_TEXT && value.content_type != CONTENT_TYPE_PNG {
         return Err(DaemonError::InvalidContentType);
     }
     if value.data.len() > max_size {
         return Err(DaemonError::PayloadTooLarge);
     }
-    if std::str::from_utf8(&value.data).is_err() {
+    if value.content_type == CONTENT_TYPE_TEXT && std::str::from_utf8(&value.data).is_err() {
         return Err(DaemonError::InvalidUtf8);
     }
     Ok(())
 }
 
-fn to_error_response(err: DaemonError) -> Response {
+fn to_error_response(err: DaemonError) -> ResponseKind {
     match err {
-        DaemonError::InvalidContentType => Response::Error {
+        DaemonError::InvalidContentType => ResponseKind::Error {
             code: ErrorCode::InvalidRequest,
             message: "invalid content type".to_string(),
         },
-        DaemonError::InvalidUtf8 => Response::Error {
+        DaemonError::InvalidUtf8 => ResponseKind::Error {
             code: ErrorCode::InvalidUtf8,
             message: "invalid utf-8".to_string(),
         },
-        DaemonError::PayloadTooLarge => Response::Error {
+        DaemonError::PayloadTooLarge => ResponseKind::Error {
             code: ErrorCode::PayloadTooLarge,
             message: "payload too large".to_string(),
         },
     }
 }
 
-fn framing_error_response(err: &eyre::Report) -> Response {
+fn framing_error_response(err: &eyre::Report, request_id: u64) -> Response {
     if let Some(framing) = err.downcast_ref::<FramingError>() {
         match framing {
-            FramingError::InvalidMagic | FramingError::UnsupportedVersion(_) => Response::Error {
-                code: ErrorCode::InvalidRequest,
-                message: format!("invalid framing: {framing}"),
+            FramingError::InvalidMagic | FramingError::UnsupportedVersion(_) => Response {
+                request_id,
+                kind: ResponseKind::Error {
+                    code: ErrorCode::InvalidRequest,
+                    message: format!("invalid framing: {framing}"),
+                },
             },
-            FramingError::PayloadTooLarge(_) => Response::Error {
-                code: ErrorCode::PayloadTooLarge,
-                message: format!("{framing}"),
+            FramingError::PayloadTooLarge(_) => Response {
+                request_id,
+                kind: ResponseKind::Error {
+                    code: ErrorCode::PayloadTooLarge,
+                    message: format!("{framing}"),
+                },
             },
         }
     } else {
-        Response::Error {
-            code: ErrorCode::Internal,
-            message: format!("framing read error: {err}"),
+        Response {
+            request_id,
+            kind: ResponseKind::Error {
+                code: ErrorCode::Internal,
+                message: format!("framing read error: {err}"),
+            },
         }
     }
 }

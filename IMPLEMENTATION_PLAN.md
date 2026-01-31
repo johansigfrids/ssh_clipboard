@@ -162,9 +162,93 @@
   - exercise `push` and `pull` logic by swapping the SSH transport for a “local proxy transport”
 
 ## Phase 3 — Hardening + ergonomics
-1. Add timeouts, improved logging, and robust error mapping.
-2. Add richer clipboard formats (binary payloads, images) and optional multi-format metadata.
-3. Document server setup and example `authorized_keys` forced command.
+
+### Phase 3 Goals
+- Make the tool reliable under real-world conditions (SSH hiccups, daemon restarts, large payloads).
+- Improve observability without leaking clipboard contents.
+- Extend clipboard support beyond text (images/binary), while keeping the protocol compatible.
+- Improve operational ergonomics (service setup, clearer errors, safer defaults).
+
+### 1. Reliability hardening
+- **Timeouts everywhere:**
+  - Client: already has `--timeout-ms`; ensure it covers spawn, send, receive, and wait.
+  - Proxy: add a short timeout for daemon connect/read/write (avoid hanging SSH sessions forever).
+  - Daemon: add idle connection timeout per socket connection.
+- **Graceful daemon restart behavior:**
+  - Clear client errors when daemon is restarted (returns `Empty` after restart).
+  - Optional: `--wait-for-daemon <ms>` on proxy/client (retry connect briefly before failing).
+- **Robust I/O handling:**
+  - Better handling of partial reads/writes, unexpected EOF, and invalid frames.
+  - Ensure stdin/stdout are flushed appropriately and errors are propagated.
+- **Size-limit hygiene:**
+  - Keep 10 MiB default, but ensure response overhead is bounded and documented.
+  - Add `--max-size` validation (refuse absurd values; require both ends to match).
+
+### 2. Observability and debugging UX
+- Switch to consistent `tracing` spans:
+  - request id (random u64) per operation (client + proxy + daemon) for correlation
+  - timings: ssh spawn time, round-trip time, daemon processing time
+- Add `--json` output for `peek` (optional), useful for scripting and debugging.
+- Improve error messages:
+  - include hints for common SSH failures (known_hosts, auth, command not found)
+  - include socket path in daemon/proxy errors
+- Ensure we never log clipboard contents by default (only sizes/types).
+
+### 3. Protocol evolution (compat + metadata)
+- Make protocol explicitly forward-compatible:
+  - reserve fields/variants where helpful
+  - keep `MAGIC`/`VERSION` stable; bump `VERSION` only when required
+- Versioning policy:
+  - Phase 3 bumped to `VERSION = 2` to carry `request_id` for correlation.
+  - Clients/servers must match versions; return a clear `invalid_request` error on mismatch.
+- Add optional metadata fields:
+  - `source` (client hostname/user) for debugging (optional; not required)
+  - `format` enumeration (text/png/etc.) once multi-format exists
+- Define a request-id field (u64) carried in requests/responses for correlation across client/proxy/daemon logs.
+  - Client generates; proxy forwards; daemon echoes in response.
+- Add a clearer distinction between transport failures and application errors in docs.
+
+### 4. Rich clipboard formats (images/binary)
+- Extend `ClipboardValue` semantics:
+  - keep `content_type` and `data` as the core
+  - for images: use `image/png` with PNG bytes (portable across OSes)
+  - Phase 3 stores **one format at a time** (single `content_type`); multi-format bundles deferred.
+- Client support:
+  - `push`:
+    - prefer text if available; auto-select image when text is absent
+    - no user-facing `--format` flag in Phase 3
+  - `pull`:
+    - if `content_type` is `image/png`, write image to clipboard
+    - add `--stdout` behavior for binary:
+      - for text, keep current behavior
+      - for binary/image, require `--output <file>` by default
+      - add `--base64` to print base64 to stdout (explicit opt-in)
+      - default when binary and no explicit output flag: return a clear error
+    - if client can’t handle a format, fall back when possible; otherwise return a clear error
+- Server support:
+  - daemon accepts binary payloads once enabled; still enforces max size
+  - `PeekMeta` returns content_type and size so clients can decide how to handle
+
+### 4a. Peek-first ergonomics
+- Add `pull --peek` (or reuse `peek`) to allow scripts to check `content_type` and size before pulling.
+- Document a suggested flow:
+  - `peek` → decide handling → `pull`
+
+### 5. Security + operational ergonomics
+- Add a shipped systemd user unit example in `docs/server-setup.md` (and/or a `contrib/` folder).
+- Expand `docs/security.md` with:
+  - recommended `authorized_keys` forced command variants (absolute path)
+  - suggested SSH `Match` block examples for the dedicated clipboard user/key
+- Consider adding a dedicated server “install” doc section:
+  - where to place the binary, how to ensure it’s on PATH for non-interactive SSH.
+
+### 6. Tests
+- Unit tests:
+  - framing fuzz-ish tests for invalid input (magic/version/length)
+  - image payload encode/decode and size limit checks
+- Integration tests (Linux-only):
+  - daemon + proxy under timeout conditions
+  - binary payload round-trip through daemon/proxy without SSH
 
 ## Phase 4 — Hotkeys + background UX
 1. Add Windows/macOS global hotkeys for push/pull.

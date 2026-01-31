@@ -16,7 +16,7 @@ Each request/response is **one-shot** per connection/session.
 
 Wire format:
 1. `MAGIC` (4 bytes): `SCB1`
-2. `VERSION` (u16, little-endian): `1`
+2. `VERSION` (u16, little-endian): `2`
 3. `LEN` (u32, little-endian): number of payload bytes
 4. `PAYLOAD` (LEN bytes): `bincode`-encoded `Request` or `Response`
 
@@ -27,20 +27,24 @@ Wire format:
 ## Message Types
 
 ### Request
-- `Set { value }`
-- `Get`
-- `PeekMeta`
+Requests include a `request_id` (u64) used for correlation across client/proxy/daemon logs.
+
+- `Request { request_id, kind: Set { value } }`
+- `Request { request_id, kind: Get }`
+- `Request { request_id, kind: PeekMeta }`
 
 ### Response
-- `Ok`
-- `Value { value }`
-- `Meta { content_type, size, created_at }`
-- `Empty` (means: no value has been set yet)
-- `Error { code, message }`
+Responses echo the `request_id` from the corresponding request.
 
-## Clipboard Semantics (Phase 1)
-- Only UTF-8 text is supported.
-- Content type must be exactly: `text/plain; charset=utf-8`
+- `Response { request_id, kind: Ok }`
+- `Response { request_id, kind: Value { value } }`
+- `Response { request_id, kind: Meta { content_type, size, created_at } }`
+- `Response { request_id, kind: Empty }` (means: no value has been set yet)
+- `Response { request_id, kind: Error { code, message } }`
+
+## Clipboard Semantics (Phase 3)
+- UTF-8 text (`text/plain; charset=utf-8`) and PNG images (`image/png`) are supported.
+- Only **one format at a time** is stored (single `content_type` + `data`).
 - An **empty clipboard** is represented by `Set` with `data = []`.
 - An **unset value** is represented by `Empty` on `Get`/`PeekMeta`.
 

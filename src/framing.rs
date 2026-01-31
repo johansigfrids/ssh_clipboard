@@ -73,12 +73,15 @@ pub fn decode_message<T: DeserializeOwned>(payload: &[u8]) -> Result<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{Request, Response};
+    use crate::protocol::{Request, RequestKind, Response};
     use tokio::io::duplex;
 
     #[tokio::test]
     async fn round_trip_frame() {
-        let request = Request::Get;
+        let request = Request {
+            request_id: 1,
+            kind: RequestKind::Get,
+        };
         let payload = encode_message(&request).unwrap();
         let (mut a, mut b) = duplex(1024);
 
@@ -86,12 +89,15 @@ mod tests {
         let received = read_frame_payload(&mut b, 1024).await.unwrap();
         let decoded: Request = decode_message(&received).unwrap();
 
-        assert!(matches!(decoded, Request::Get));
+        assert!(matches!(decoded.kind, RequestKind::Get));
     }
 
     #[tokio::test]
     async fn rejects_oversized_payload() {
-        let response = Response::Ok;
+        let response = Response {
+            request_id: 1,
+            kind: crate::protocol::ResponseKind::Ok,
+        };
         let payload = encode_message(&response).unwrap();
         let (mut a, mut b) = duplex(1024);
 

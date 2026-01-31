@@ -1,10 +1,14 @@
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use clap::{Parser, Subcommand};
 use eyre::{Result, WrapErr, eyre};
 use ssh_clipboard::client::ssh::SshConfig;
-use ssh_clipboard::client::transport::{ClientConfig, send_request};
+use ssh_clipboard::client::transport::{ClientConfig, make_request, send_request};
 use ssh_clipboard::protocol::{
-    CONTENT_TYPE_TEXT, ClipboardValue, DEFAULT_MAX_SIZE, ErrorCode, Request, Response,
+    CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardValue, DEFAULT_MAX_SIZE, ErrorCode, RequestKind,
+    Response, ResponseKind,
 };
+use std::fs;
 use std::path::PathBuf;
 use tokio::io::{AsyncReadExt, BufReader};
 use tracing_subscriber::EnvFilter;
@@ -61,6 +65,14 @@ enum Commands {
         timeout_ms: u64,
         #[arg(long)]
         stdout: bool,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        base64: bool,
+        #[arg(long)]
+        peek: bool,
+        #[arg(long)]
+        json: bool,
     },
     Peek {
         #[arg(long)]
@@ -81,6 +93,8 @@ enum Commands {
         max_size: usize,
         #[arg(long, default_value_t = 7000)]
         timeout_ms: u64,
+        #[arg(long)]
+        json: bool,
     },
     #[cfg(target_os = "linux")]
     Daemon {
@@ -88,6 +102,8 @@ enum Commands {
         socket_path: Option<PathBuf>,
         #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
         max_size: usize,
+        #[arg(long, default_value_t = 7000)]
+        io_timeout_ms: u64,
     },
     #[cfg(target_os = "linux")]
     Proxy {
@@ -95,6 +111,8 @@ enum Commands {
         socket_path: Option<PathBuf>,
         #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
         max_size: usize,
+        #[arg(long, default_value_t = 7000)]
+        io_timeout_ms: u64,
     },
 }
 
@@ -123,27 +141,9 @@ async fn main() -> Result<()> {
             } else {
                 max_size
             };
-            let text = if stdin {
-                match read_stdin_text().await {
-                    Ok(text) => text,
-                    Err(err) => return exit_with_code(2, &err.to_string()),
-                }
-            } else {
-                match ssh_clipboard::client::clipboard::read_text() {
-                    Ok(text) => text,
-                    Err(err) => return exit_with_code(6, &err.to_string()),
-                }
-            };
-
-            let bytes = text.into_bytes();
-            if bytes.len() > effective_max_size {
-                return exit_with_code(3, "payload too large");
-            }
-
-            let value = ClipboardValue {
-                content_type: CONTENT_TYPE_TEXT.to_string(),
-                data: bytes,
-                created_at: now_epoch_millis(),
+            let value = match build_clipboard_value(stdin, effective_max_size).await {
+                Ok(value) => value,
+                Err(err) => return exit_with_code(err.code, &err.message),
             };
             let response = match send_request(
                 &ClientConfig {
@@ -159,7 +159,7 @@ async fn main() -> Result<()> {
                     max_size,
                     timeout_ms,
                 },
-                Request::Set { value },
+                make_request(RequestKind::Set { value }),
             )
             .await
             {
@@ -179,7 +179,43 @@ async fn main() -> Result<()> {
             max_size,
             timeout_ms,
             stdout,
+            output,
+            base64,
+            peek,
+            json,
         } => {
+            if stdout && output.is_some() {
+                return exit_with_code(2, "use either --stdout or --output, not both");
+            }
+            if base64 && !stdout {
+                return exit_with_code(2, "--base64 requires --stdout");
+            }
+
+            if peek {
+                let response = match send_request(
+                    &ClientConfig {
+                        ssh: SshConfig {
+                            target: target.unwrap_or_default(),
+                            port,
+                            user,
+                            host,
+                            identity_file,
+                            ssh_options: ssh_option,
+                            ssh_bin,
+                        },
+                        max_size,
+                        timeout_ms,
+                    },
+                    make_request(RequestKind::PeekMeta),
+                )
+                .await
+                {
+                    Ok(response) => response,
+                    Err(err) => return exit_with_code(5, &err.to_string()),
+                };
+                return handle_peek_response(response, json);
+            }
+
             let response = match send_request(
                 &ClientConfig {
                     ssh: SshConfig {
@@ -194,27 +230,79 @@ async fn main() -> Result<()> {
                     max_size,
                     timeout_ms,
                 },
-                Request::Get,
+                make_request(RequestKind::Get),
             )
             .await
             {
                 Ok(response) => response,
                 Err(err) => return exit_with_code(5, &err.to_string()),
             };
-            match response {
-                Response::Value { value } => {
-                    let text = match String::from_utf8(value.data) {
+            if let ResponseKind::Value { value } = &response.kind {
+                if value.content_type == CONTENT_TYPE_TEXT {
+                    let text = match String::from_utf8(value.data.clone()) {
                         Ok(text) => text,
                         Err(_) => return exit_with_code(2, "response was not valid UTF-8"),
                     };
                     if stdout {
                         println!("{text}");
-                    } else if let Err(err) = ssh_clipboard::client::clipboard::write_text(&text) {
+                        return Ok(());
+                    }
+                    if let Some(path) = output {
+                        if let Err(err) = fs::write(&path, text.as_bytes()) {
+                            return exit_with_code(2, &format!("failed to write output: {err}"));
+                        }
+                        return Ok(());
+                    }
+                    if let Err(err) = ssh_clipboard::client::clipboard::write_text(&text) {
                         return exit_with_code(6, &err.to_string());
                     }
+                    return Ok(());
                 }
-                other => handle_response(other, false)?,
+
+                if value.content_type == CONTENT_TYPE_PNG {
+                    if let Some(path) = output {
+                        if let Err(err) = fs::write(&path, &value.data) {
+                            return exit_with_code(2, &format!("failed to write output: {err}"));
+                        }
+                        return Ok(());
+                    }
+                    if base64 && stdout {
+                        let encoded = STANDARD.encode(&value.data);
+                        println!("{encoded}");
+                        return Ok(());
+                    }
+                    if stdout {
+                        return exit_with_code(2, "use --base64 or --output for image data");
+                    }
+                    let image = match ssh_clipboard::client::image::decode_png(&value.data, max_size)
+                    {
+                        Ok(image) => image,
+                        Err(err) => return exit_with_code(2, &err.to_string()),
+                    };
+                    if let Err(err) = ssh_clipboard::client::clipboard::write_image(image) {
+                        return exit_with_code(6, &err.to_string());
+                    }
+                    return Ok(());
+                }
+
+                if let Some(path) = output {
+                    if let Err(err) = fs::write(&path, &value.data) {
+                        return exit_with_code(2, &format!("failed to write output: {err}"));
+                    }
+                    return Ok(());
+                }
+                if base64 && stdout {
+                    let encoded = STANDARD.encode(&value.data);
+                    println!("{encoded}");
+                    return Ok(());
+                }
+                return exit_with_code(
+                    2,
+                    &format!("unsupported content type: {}", value.content_type),
+                );
             }
+
+            handle_response(response, false)?;
         }
         Commands::Peek {
             target,
@@ -226,6 +314,7 @@ async fn main() -> Result<()> {
             ssh_bin,
             max_size,
             timeout_ms,
+            json,
         } => {
             let response = match send_request(
                 &ClientConfig {
@@ -241,31 +330,23 @@ async fn main() -> Result<()> {
                     max_size,
                     timeout_ms,
                 },
-                Request::PeekMeta,
+                make_request(RequestKind::PeekMeta),
             )
             .await
             {
                 Ok(response) => response,
                 Err(err) => return exit_with_code(5, &err.to_string()),
             };
-            match response {
-                Response::Meta {
-                    content_type,
-                    size,
-                    created_at,
-                } => {
-                    println!("content_type={content_type} size={size} created_at={created_at}");
-                }
-                other => handle_response(other, true)?,
-            }
+            return handle_peek_response(response, json);
         }
         #[cfg(target_os = "linux")]
         Commands::Daemon {
             socket_path,
             max_size,
+            io_timeout_ms,
         } => {
             let socket_path = socket_path.unwrap_or(ssh_clipboard::daemon::default_socket_path()?);
-            ssh_clipboard::daemon::run_daemon(socket_path, max_size)
+            ssh_clipboard::daemon::run_daemon(socket_path, max_size, io_timeout_ms)
                 .await
                 .wrap_err("daemon failed")?;
         }
@@ -273,9 +354,10 @@ async fn main() -> Result<()> {
         Commands::Proxy {
             socket_path,
             max_size,
+            io_timeout_ms,
         } => {
             let socket_path = socket_path.unwrap_or(ssh_clipboard::daemon::default_socket_path()?);
-            let exit_code = ssh_clipboard::proxy::run_proxy(socket_path, max_size)
+            let exit_code = ssh_clipboard::proxy::run_proxy(socket_path, max_size, io_timeout_ms)
                 .await
                 .wrap_err("proxy failed")?;
             std::process::exit(exit_code);
@@ -285,17 +367,41 @@ async fn main() -> Result<()> {
 }
 
 fn handle_response(response: Response, allow_empty: bool) -> Result<()> {
-    match response {
-        Response::Ok => Ok(()),
-        Response::Empty if allow_empty => Ok(()),
-        Response::Empty => exit_with_code(2, "no clipboard value set"),
-        Response::Error { code, message } => match code {
+    match response.kind {
+        ResponseKind::Ok => Ok(()),
+        ResponseKind::Empty if allow_empty => Ok(()),
+        ResponseKind::Empty => exit_with_code(2, "no clipboard value set"),
+        ResponseKind::Error { code, message } => match code {
             ErrorCode::InvalidRequest | ErrorCode::InvalidUtf8 => exit_with_code(2, &message),
             ErrorCode::PayloadTooLarge => exit_with_code(3, &message),
             ErrorCode::DaemonNotRunning => exit_with_code(4, &message),
             ErrorCode::Internal => exit_with_code(2, &message),
         },
-        Response::Value { .. } | Response::Meta { .. } => Ok(()),
+        ResponseKind::Value { .. } | ResponseKind::Meta { .. } => Ok(()),
+    }
+}
+
+fn handle_peek_response(response: Response, json: bool) -> Result<()> {
+    match &response.kind {
+        ResponseKind::Meta {
+            content_type,
+            size,
+            created_at,
+        } => {
+            if json {
+                let value = serde_json::json!({
+                    "content_type": content_type,
+                    "size": size,
+                    "created_at": created_at
+                });
+                println!("{value}");
+            } else {
+                println!("content_type={content_type} size={size} created_at={created_at}");
+            }
+            Ok(())
+        }
+        ResponseKind::Empty => exit_with_code(2, "no clipboard value set"),
+        _ => handle_response(response, true),
     }
 }
 
@@ -310,6 +416,72 @@ fn now_epoch_millis() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as i64
+}
+
+struct ClipboardBuildError {
+    code: i32,
+    message: String,
+}
+
+async fn build_clipboard_value(
+    stdin: bool,
+    max_size: usize,
+) -> Result<ClipboardValue, ClipboardBuildError> {
+    if stdin {
+        let text = read_stdin_text().await.map_err(|err| ClipboardBuildError {
+            code: 2,
+            message: err.to_string(),
+        })?;
+        return build_text_value(text, max_size);
+    }
+
+    match ssh_clipboard::client::clipboard::read_text() {
+        Ok(text) => return build_text_value(text, max_size),
+        Err(text_err) => match ssh_clipboard::client::clipboard::read_image() {
+            Ok(image) => {
+                let png = ssh_clipboard::client::image::encode_png(image).map_err(|err| {
+                    ClipboardBuildError {
+                        code: 2,
+                        message: err.to_string(),
+                    }
+                })?;
+                if png.len() > max_size {
+                    return Err(ClipboardBuildError {
+                        code: 3,
+                        message: "payload too large".to_string(),
+                    });
+                }
+                return Ok(ClipboardValue {
+                    content_type: CONTENT_TYPE_PNG.to_string(),
+                    data: png,
+                    created_at: now_epoch_millis(),
+                });
+            }
+            Err(image_err) => {
+                return Err(ClipboardBuildError {
+                    code: 6,
+                    message: format!(
+                        "clipboard read failed (text: {text_err}; image: {image_err})"
+                    ),
+                });
+            }
+        },
+    }
+}
+
+fn build_text_value(text: String, max_size: usize) -> Result<ClipboardValue, ClipboardBuildError> {
+    let bytes = text.into_bytes();
+    if bytes.len() > max_size {
+        return Err(ClipboardBuildError {
+            code: 3,
+            message: "payload too large".to_string(),
+        });
+    }
+    Ok(ClipboardValue {
+        content_type: CONTENT_TYPE_TEXT.to_string(),
+        data: bytes,
+        created_at: now_epoch_millis(),
+    })
 }
 
 async fn read_stdin_text() -> Result<String> {

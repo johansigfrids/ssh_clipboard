@@ -103,7 +103,7 @@ To avoid memory and denial-of-service issues:
 ### Content types (initial)
 Start with a minimal, robust set:
 - `text/plain; charset=utf-8`
-- (Binary payloads/images are deferred to later phases)
+- `image/png` (PNG bytes; Phase 3+)
 
 ### Later extensions
 - macOS: NSPasteboard multiple representations

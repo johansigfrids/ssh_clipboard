@@ -1,9 +1,12 @@
-use crate::client::ssh::{SshConfig, spawn_ssh_proxy};
+use crate::client::ssh::{spawn_ssh_proxy, SshConfig};
 use crate::framing::{decode_message, encode_message, read_frame_payload, write_frame_payload};
-use crate::protocol::{DEFAULT_MAX_SIZE, ErrorCode, RESPONSE_OVERHEAD, Request, Response};
-use eyre::{Result, WrapErr, eyre};
+use crate::protocol::{
+    ErrorCode, Request, RequestKind, Response, ResponseKind, DEFAULT_MAX_SIZE, RESPONSE_OVERHEAD,
+};
+use eyre::{eyre, Result, WrapErr};
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::time::{Duration, timeout};
+use tokio::time::{timeout, Duration};
 
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
@@ -26,9 +29,12 @@ pub async fn send_request(config: &ClientConfig, request: Request) -> Result<Res
     let max_size = config.normalized_max_size();
     let payload = encode_message(&request)?;
     if payload.len() > max_size {
-        return Ok(Response::Error {
-            code: ErrorCode::PayloadTooLarge,
-            message: "payload too large".to_string(),
+        return Ok(Response {
+            request_id: request.request_id,
+            kind: ResponseKind::Error {
+                code: ErrorCode::PayloadTooLarge,
+                message: "payload too large".to_string(),
+            },
         });
     }
 
@@ -72,7 +78,7 @@ pub async fn send_request(config: &ClientConfig, request: Request) -> Result<Res
     if !status.success() {
         let mut stderr_buf = String::new();
         let _ = stderr.read_to_string(&mut stderr_buf).await;
-        if let Response::Error { .. } = &response {
+        if let ResponseKind::Error { .. } = &response.kind {
             return Ok(response);
         }
         if stderr_buf.trim().is_empty() {
@@ -82,4 +88,22 @@ pub async fn send_request(config: &ClientConfig, request: Request) -> Result<Res
     }
 
     Ok(response)
+}
+
+static REQUEST_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+pub fn new_request_id() -> u64 {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let counter = REQUEST_COUNTER.fetch_add(1, Ordering::Relaxed) & 0xffff;
+    (now << 16) | counter
+}
+
+pub fn make_request(kind: RequestKind) -> Request {
+    Request {
+        request_id: new_request_id(),
+        kind,
+    }
 }

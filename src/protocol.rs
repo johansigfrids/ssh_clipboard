@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 pub const MAGIC: [u8; 4] = *b"SCB1";
-pub const VERSION: u16 = 1;
+pub const VERSION: u16 = 2;
 pub const CONTENT_TYPE_TEXT: &str = "text/plain; charset=utf-8";
+pub const CONTENT_TYPE_PNG: &str = "image/png";
 pub const DEFAULT_MAX_SIZE: usize = 10 * 1024 * 1024;
 pub const RESPONSE_OVERHEAD: usize = 1024;
 
@@ -14,28 +15,35 @@ pub struct ClipboardValue {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Request {
+pub struct Request {
+    pub request_id: u64,
+    pub kind: RequestKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RequestKind {
     Set { value: ClipboardValue },
     Get,
     PeekMeta,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Response {
+pub struct Response {
+    pub request_id: u64,
+    pub kind: ResponseKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ResponseKind {
     Ok,
-    Value {
-        value: ClipboardValue,
-    },
+    Value { value: ClipboardValue },
     Meta {
         content_type: String,
         size: u64,
         created_at: i64,
     },
     Empty,
-    Error {
-        code: ErrorCode,
-        message: String,
-    },
+    Error { code: ErrorCode, message: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

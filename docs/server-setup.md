@@ -23,6 +23,11 @@ Run as the target user (per-user daemon):
 ssh_clipboard daemon
 ```
 
+Optional timeouts:
+```
+ssh_clipboard daemon --io-timeout-ms 7000
+```
+
 ### Socket location
 The daemon binds a UNIX socket under:
 - `$XDG_RUNTIME_DIR/ssh_clipboard/daemon.sock` (preferred)
@@ -40,6 +45,11 @@ The proxy is meant to be executed via SSH and will:
 Example:
 ```
 ssh user@server ssh_clipboard proxy
+```
+
+Optional timeouts:
+```
+ssh user@server ssh_clipboard proxy --io-timeout-ms 7000
 ```
 
 Ensure `ssh_clipboard` is on the server `PATH` for that SSH user, or invoke it via an absolute path.

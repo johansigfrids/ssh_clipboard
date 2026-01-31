@@ -32,11 +32,26 @@ Peek metadata:
 ssh_clipboard peek --target user@server
 ```
 
+Peek metadata as JSON:
+```
+ssh_clipboard peek --json --target user@server
+```
+
 ## Input/Output Modes
 - `push --stdin`: read text from stdin instead of the clipboard
   - Example: `cat note.txt | ssh_clipboard push --stdin --target user@server`
 - `pull --stdout`: print to stdout instead of writing to the clipboard
   - Example: `ssh_clipboard pull --stdout --target user@server`
+- `pull --output <file>`: write the raw payload to a file (PNG or text)
+  - Example: `ssh_clipboard pull --output ./clipboard.png --target user@server`
+- `pull --stdout --base64`: print binary/image data as base64 (explicit opt-in)
+  - Example: `ssh_clipboard pull --stdout --base64 --target user@server`
+- `pull --peek`: run `PeekMeta` and print metadata without fetching the full payload
+
+## Clipboard Formats (Phase 3)
+- Text: `text/plain; charset=utf-8`
+- Images: `image/png` (PNG bytes)
+- If the server holds an image and the client cannot write images, the client will error unless `--output` or `--base64` is used.
 
 ## SSH Configuration
 ### Target strings

@@ -1,0 +1,85 @@
+# CLI Reference
+
+## Purpose
+Concise command/flag reference for the `ssh_clipboard` CLI.
+
+## Key Files
+- `src/main.rs`
+- `README.md`
+
+## Commands
+
+### `push`
+Send local clipboard to server (text or PNG).
+
+Common usage:
+```
+ssh_clipboard push --target user@server
+```
+
+Flags:
+- `--stdin`: read text from stdin instead of clipboard
+- `--target user@host[:port]`
+- `--host`, `--user`, `--port`
+- `--identity-file <path>`
+- `--ssh-option <opt>` (repeatable; passed as `ssh -o <opt>`)
+- `--ssh-bin <path>`
+- `--timeout-ms <ms>`
+- `--max-size <bytes>`
+
+### `pull`
+Fetch from server and write to clipboard (default), or output to stdout/file.
+
+Common usage:
+```
+ssh_clipboard pull --target user@server
+```
+
+Flags:
+- `--stdout`: print text to stdout
+- `--output <file>`: write raw payload to file (PNG or text)
+- `--base64`: print binary/image as base64 (requires `--stdout`)
+- `--peek`: metadata-only (like `peek`)
+- `--json`: with `--peek`, print JSON output
+- SSH + timeout + size flags (same as `push`)
+
+### `peek`
+Fetch metadata only (no payload).
+
+Common usage:
+```
+ssh_clipboard peek --target user@server
+```
+
+Flags:
+- `--json`: output JSON
+- SSH + timeout + size flags (same as `push`)
+
+### `daemon` (Linux only)
+Run the per-user daemon that stores clipboard contents in memory.
+
+Flags:
+- `--socket-path <path>`
+- `--max-size <bytes>`
+- `--io-timeout-ms <ms>`
+
+### `proxy` (Linux only)
+Run the proxy (invoked over SSH).
+
+Flags:
+- `--socket-path <path>`
+- `--max-size <bytes>`
+- `--io-timeout-ms <ms>`
+
+## Exit Codes (client)
+- `0`: success
+- `2`: invalid request/response or unsupported content
+- `3`: payload too large
+- `4`: daemon not running / socket unavailable
+- `5`: SSH failure
+- `6`: clipboard read/write failure
+
+## Related Docs
+- `docs/client-setup.md`
+- `docs/server-setup.md`
+- `docs/protocol.md`

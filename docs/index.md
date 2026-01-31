@@ -21,6 +21,8 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/server-setup.md`: Linux daemon setup and proxy usage.
 - `docs/client-setup.md`: Windows/macOS client usage and SSH troubleshooting.
 - `docs/security.md`: Security model and recommended SSH hardening.
+- `docs/cli.md`: CLI command and flag reference.
+- `docs/troubleshooting.md`: Common errors and fixes.
 
 ## Doc Conventions
 - Each doc includes: `Purpose`, `Key Files`, `Update Triggers`, `Related Docs`.

@@ -48,6 +48,10 @@ Do not disable host key checking by default. If a user wants that behavior, it s
 - Avoid logging clipboard contents.
 - Prefer structured logs for errors (connection failures, protocol errors, size-limit rejections).
 
+## Phase 3 Notes
+- Protocol version is `2` and includes `request_id` for correlating client/proxy/daemon logs.
+- `--io-timeout-ms` is available on Linux `daemon`/`proxy` to avoid hung sessions.
+
 ## Update Triggers
 - Adding new clipboard formats (especially binary/image) or changing the protocol.
 - Adding server auto-start, shared daemon modes, or multi-user features.

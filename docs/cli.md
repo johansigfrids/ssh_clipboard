@@ -55,6 +55,31 @@ Flags:
 - `--json`: output JSON
 - SSH + timeout + size flags (same as `push`)
 
+### `agent` (Windows/macOS, requires `--features agent`)
+Run the background agent (tray icon + hotkeys).
+
+Flags:
+- `--no-tray`: disable tray UI
+- `--no-hotkeys`: disable hotkeys
+
+### `config` (requires `--features agent`)
+Manage agent configuration.
+
+Subcommands:
+- `config path`
+- `config show [--json]`
+- `config validate`
+- `config defaults`
+
+### `autostart` (requires `--features agent`)
+Manage “start at login” for the agent.
+
+Subcommands:
+- `autostart enable`
+- `autostart disable`
+- `autostart status`
+- `autostart refresh`
+
 ### `daemon` (Linux only)
 Run the per-user daemon that stores clipboard contents in memory.
 

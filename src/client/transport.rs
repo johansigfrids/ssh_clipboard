@@ -1,12 +1,12 @@
-use crate::client::ssh::{spawn_ssh_proxy, SshConfig};
+use crate::client::ssh::{SshConfig, spawn_ssh_proxy};
 use crate::framing::{decode_message, encode_message, read_frame_payload, write_frame_payload};
 use crate::protocol::{
-    ErrorCode, Request, RequestKind, Response, ResponseKind, DEFAULT_MAX_SIZE, RESPONSE_OVERHEAD,
+    DEFAULT_MAX_SIZE, ErrorCode, RESPONSE_OVERHEAD, Request, RequestKind, Response, ResponseKind,
 };
-use eyre::{eyre, Result, WrapErr};
+use eyre::{Result, WrapErr, eyre};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 #[derive(Debug, Clone)]
 pub struct ClientConfig {

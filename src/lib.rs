@@ -1,3 +1,4 @@
+pub mod client_actions;
 pub mod framing;
 pub mod protocol;
 
@@ -7,3 +8,6 @@ pub mod daemon;
 pub mod proxy;
 
 pub mod client;
+
+#[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+pub mod agent;

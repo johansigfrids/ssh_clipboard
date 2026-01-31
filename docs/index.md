@@ -23,6 +23,10 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/security.md`: Security model and recommended SSH hardening.
 - `docs/cli.md`: CLI command and flag reference.
 - `docs/troubleshooting.md`: Common errors and fixes.
+- Agent-related:
+  - `docs/cli.md` includes `agent`, `config`, and `autostart` command notes.
+  - `docs/agent.md`: Agent setup, config, hotkeys, tray UX, and logs.
+  - `docs/autostart.md`: Start-at-login behavior and refresh strategy.
 
 ## Doc Conventions
 - Each doc includes: `Purpose`, `Key Files`, `Update Triggers`, `Related Docs`.

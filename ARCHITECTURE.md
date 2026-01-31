@@ -16,7 +16,7 @@ All data transfer occurs over SSH. The Linux server does not persist clipboard c
 ## Non-goals (initially)
 - Multi-user sharing or access control beyond SSH user isolation.
 - Sync/streaming clipboard updates automatically (initially event-driven: push/pull).
-- Rich clipboard semantics (multiple formats, images, HTML) beyond a minimal initial payload.
+- Rich clipboard semantics beyond the current minimal set (e.g., HTML/RTF, multiple simultaneous formats).
 
 ## High-Level Design
 The system uses a **Linux daemon** that holds clipboard state in memory, plus a **remote proxy mode** that is invoked over SSH to talk to the daemon.
@@ -36,7 +36,7 @@ This yields a clean separation:
    - Reads local clipboard, sends it to server (push).
    - Receives clipboard from server, writes it to local clipboard (pull).
    - Uses the platform `ssh` binary and communicates via stdin/stdout frames.
-   - Later: registers global hotkeys; initially: CLI-triggered push/pull is acceptable for MVP.
+   - Supports both CLI-triggered push/pull and an optional background agent (tray + global hotkeys).
 
 ## Data Flow
 
@@ -83,15 +83,20 @@ Fallback if `XDG_RUNTIME_DIR` is unavailable:
   - `payload: [u8; len]`
 - `payload` is a serialized request/response (e.g., `serde` + `bincode` or `postcard`).
 
+Current implementation details are documented in `docs/protocol.md` (including protocol version and request IDs).
+
 ### Message types (logical)
-- `Set { content_type, data, created_at }`
-- `Get`
-- `PeekMeta` (optional: returns metadata without full body)
-- Responses:
-  - `Ok`
-  - `Value { content_type, data, created_at }`
-  - `Empty`
-  - `Error { code, message }`
+Logical operations:
+- `Set` (store a clipboard value: text or PNG)
+- `Get` (retrieve the current clipboard value)
+- `PeekMeta` (retrieve metadata without the full payload)
+
+Responses:
+- `Ok`
+- `Value`
+- `Meta`
+- `Empty`
+- `Error`
 
 ### Size limits
 To avoid memory and denial-of-service issues:
@@ -127,18 +132,13 @@ On the server, restrict what a key can do by pinning a forced command in `author
 - `command="ssh_clipboard proxy",no-port-forwarding,no-agent-forwarding,no-X11-forwarding ...`
 
 ## Proposed Rust Project Layout
-This repo currently has `src/main.rs`. As the project grows, split into modules and binaries:
+This repo currently uses `src/main.rs` + `src/lib.rs` modules, with optional “agent” functionality behind a Cargo feature.
 
 - `src/lib.rs`
-  - `protocol` (framing + message types)
-  - `io` (read/write frames on stdio and sockets)
-  - `daemon` (server state + unix listener)
-  - `proxy` (stdio ↔ unix socket bridge)
-  - `ssh` (client-side process spawning and error mapping)
-  - `clipboard` (platform clipboard adapters)
-  - `hotkey` (platform hotkey adapters; optional behind features)
-- `src/bin/ssh-clipboard.rs` (client CLI; push/pull; later hotkeys)
-- `src/bin/ssh-clipboardd.rs` (daemon entrypoint, Linux-only build gated)
+  - `protocol` / `framing` (message types + framing)
+  - `daemon` / `proxy` (Linux server side)
+  - `client` (SSH + clipboard adapters)
+  - `agent` (optional; tray + hotkeys; feature-gated)
 
 Conditional compilation:
 - `#[cfg(target_os = "linux")]` for daemon unix-socket server

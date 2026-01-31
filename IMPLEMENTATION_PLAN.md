@@ -251,8 +251,132 @@
   - binary payload round-trip through daemon/proxy without SSH
 
 ## Phase 4 — Hotkeys + background UX
-1. Add Windows/macOS global hotkeys for push/pull.
-2. Add tray/menu UX and auto-start options (optional).
+
+### Phase 4 Goals
+- Provide an always-running client “agent” that:
+  - registers global hotkeys for push/pull (and optionally peek)
+  - offers a tray/menu-bar UI for quick actions + status
+  - can launch on login (optional)
+- Keep the existing one-shot SSH model: hotkey triggers run the same `push`/`pull` logic from Phase 2/3.
+- Avoid blocking the UI/event loop thread during network operations.
+
+### Phase 4 Technology Decisions (based on research)
+- **Hotkeys:** `global-hotkey` (Windows/macOS; requires an event loop; macOS must run on main thread).
+- **Tray/menu:** `tray-icon` (Windows/macOS; supports being driven by a `winit`/`tao`-style event loop; macOS tray icon must be created on the main thread and only once the event loop is running).
+- **Event loop:** `tao` for a cross-platform event loop without creating a visible window; create on main thread for portability.
+- **Config storage:** `confy` for OS-appropriate config locations with serde-backed structs.
+- **Autostart:** `auto-launch` for Windows registry + macOS Launch Agent / AppleScript (prefer Launch Agent).
+- **Single-instance:** `single_instance` to avoid multiple background agents running.
+- **Agent log files (optional but recommended):** `tracing-appender` rolling file appender.
+- **Notifications:** `notify-rust` to show OS notifications (macOS Notification Center, Windows toast) with a fallback to stdout.
+  - Note: `notify-rust` has platform-specific feature differences on macOS/Windows; keep notification usage minimal (summary/body) and fall back cleanly if unsupported.
+
+### 0. Cargo features and build hygiene
+- Add a Cargo feature: `agent`
+  - Make GUI/hotkey/autostart/notification deps optional and enabled only with `--features agent`.
+  - Gate agent-only code behind `cfg(feature = "agent")` and `cfg(any(target_os = "windows", target_os = "macos"))`.
+- Keep server builds lean:
+  - The Linux daemon/proxy should not require GUI deps.
+
+### 1. Introduce an “agent” mode
+- Add a new subcommand: `agent` (Windows/macOS initially; Linux optional later).
+- `agent` responsibilities:
+  - load config
+  - enforce single-instance
+  - start event loop (main thread)
+  - create tray icon + menu
+  - register global hotkeys
+  - execute push/pull actions on demand
+- Provide `agent --no-tray` (hotkeys only) and `agent --no-hotkeys` (tray only) for troubleshooting.
+
+### 2. Configuration model
+- Define a `Config` struct (serde) with:
+  - server target (`user@host`), optional port
+  - optional `ssh_options` list
+  - max size / timeouts
+  - hotkey bindings (strings parsed by `global-hotkey`, e.g. `"cmdorctrl+shift+KeyC"`)
+  - autostart enabled flag
+- Add `config_version` for migration (start at `1`).
+- Store/load via `confy`.
+- Store/load via `confy` (be explicit about which config strategy/version we use so macOS paths are predictable).
+- Add CLI helpers:
+  - `config path` (print where confy stores it)
+  - `config show` (print current config)
+  - `config validate` (check hotkey parse + target presence)
+  - `config defaults` (print OS-specific defaults)
+
+### 3. Hotkey registration
+- Register at least:
+  - Push hotkey:
+    - macOS default: `CMD + SHIFT + C`
+    - Windows default: `CTRL + SHIFT + C`
+  - Pull hotkey:
+    - macOS default: `CMD + SHIFT + V`
+    - Windows default: `CTRL + SHIFT + V`
+- Implementation notes:
+  - `global-hotkey` requires an event loop on Windows (win32) and main thread on macOS.
+  - Avoid hotkeys that are known to be problematic on specific macOS versions; document “pick conservative combos” and allow user override.
+- Debounce/rate-limit hotkey triggers to avoid repeated runs when keys repeat.
+- If registration fails (already taken), show a tray warning and keep running.
+- Add a “Restore defaults” action (tray menu) that resets bindings to OS-specific defaults.
+
+### 3a. macOS permissions and failure handling (research-driven)
+- macOS can restrict apps that monitor input devices (Input Monitoring). If the hotkey implementation requires or triggers it, users must allow the app/terminal in:
+  - System Settings → Privacy & Security → Input Monitoring
+- Expectation: registering global hotkeys should work without special permissions in many setups, but macOS privacy controls vary by approach and OS version.
+- If hotkey registration fails or behaves inconsistently:
+  - show an OS notification (if enabled) and print to stdout explaining what to try
+  - direct the user to check **System Settings → Privacy & Security → Input Monitoring** and **Accessibility**, and enable the terminal/app if required
+- Treat “permission required” and “hotkey already taken” as separate error cases with distinct messages.
+
+### 4. Tray/menu UX
+- Create a tray icon with a menu:
+  - `Push`
+  - `Pull`
+  - `Peek` (show meta via OS notification and/or stdout)
+  - `Open config` / `Show config path`
+  - `Start at login` toggle
+  - `Quit`
+- Forward tray/menu events into the event loop using `EventLoopProxy` (avoid polling loops).
+- macOS note: create tray icon only once the event loop is actually running (winit example uses `StartCause::Init`); do equivalent in tao.
+
+### 5. Background execution model
+- Keep the event loop responsive:
+  - When a hotkey/menu action fires, schedule the work on a tokio runtime (multi-thread), and post a completion event back to the UI thread.
+- Prevent overlapping operations:
+  - If an operation is running, either queue one pending operation or ignore subsequent triggers with a status message.
+- Status feedback:
+  - Tray tooltip/menu item reflects “Last push/pull: success/fail + timestamp”.
+  - OS notification on success/failure and on peek results (fallback to stdout when notifications aren’t available).
+
+### 6. Autostart (optional, but planned in Phase 4)
+- Implement `autostart enable|disable|status` using `auto-launch`:
+  - Windows: current-user registry entry by default.
+  - macOS: Launch Agent mode with an absolute path.
+- Tray menu toggle should call the same code path.
+- Handling moved/updated binaries (recommended approach):
+  - Always store the current executable path when enabling autostart.
+  - On agent startup, if autostart is enabled, verify the autostart entry points to the current executable path.
+  - If it does not, automatically refresh/rewrite the entry and notify the user (this covers “binary moved” and most update workflows).
+  - If refresh fails because the path is not absolute or no longer exists, disable autostart and notify the user to re-enable it (auto-launch requires an absolute existing `app_path`).
+  - Provide `autostart refresh` as an explicit command to rewrite the entry.
+
+### 7. Logging for the agent
+- Add a dedicated log sink for `agent` mode:
+  - rolling log files with `tracing-appender` (daily or hourly).
+  - never log clipboard contents; log only sizes/types and error summaries.
+
+### 8. Testing + manual checklist
+- Unit tests:
+  - config load/store (confy) with defaults
+  - hotkey string parse/validate (no OS registration in unit tests)
+  - event dispatch state machine (hotkey/menu → action request)
+- Manual checklist (Windows + macOS):
+  - agent starts, tray icon appears
+  - hotkeys trigger push/pull
+  - repeated triggers are debounced
+  - autostart enable/disable works
+  - quitting unregisters hotkeys and exits cleanly
 
 ## Phase 5 — Packaging + release
 1. Provide systemd user service example for Linux daemon.

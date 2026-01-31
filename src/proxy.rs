@@ -1,10 +1,10 @@
 use crate::framing::{decode_message, encode_message, read_frame_payload, write_frame_payload};
-use crate::protocol::{ErrorCode, Request, Response, ResponseKind, RESPONSE_OVERHEAD};
+use crate::protocol::{ErrorCode, RESPONSE_OVERHEAD, Request, Response, ResponseKind};
 use eyre::{Result, WrapErr};
 use std::path::PathBuf;
 use tokio::io::{stdin, stdout};
 use tokio::net::UnixStream;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 pub const EXIT_OK: i32 = 0;
 pub const EXIT_INVALID_REQUEST: i32 = 2;
@@ -12,11 +12,7 @@ pub const EXIT_PAYLOAD_TOO_LARGE: i32 = 3;
 pub const EXIT_DAEMON_NOT_RUNNING: i32 = 4;
 pub const EXIT_INTERNAL: i32 = 5;
 
-pub async fn run_proxy(
-    socket_path: PathBuf,
-    max_size: usize,
-    io_timeout_ms: u64,
-) -> Result<i32> {
+pub async fn run_proxy(socket_path: PathBuf, max_size: usize, io_timeout_ms: u64) -> Result<i32> {
     let mut input = stdin();
     let mut output = stdout();
 

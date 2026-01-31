@@ -1,5 +1,5 @@
 use arboard::ImageData;
-use eyre::{eyre, Result};
+use eyre::{Result, eyre};
 use image::codecs::png::{PngDecoder, PngEncoder};
 use image::{ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat, Rgba};
 use std::io::Cursor;
@@ -26,7 +26,9 @@ pub fn decode_png(data: &[u8], max_decoded_bytes: usize) -> Result<ImageData<'st
     let decoder =
         PngDecoder::new(Cursor::new(data)).map_err(|err| eyre!("png decode failed: {err}"))?;
     let (width, height) = decoder.dimensions();
-    let decoded_bytes = (width as u64).saturating_mul(height as u64).saturating_mul(4);
+    let decoded_bytes = (width as u64)
+        .saturating_mul(height as u64)
+        .saturating_mul(4);
     if decoded_bytes > max_decoded_bytes as u64 {
         return Err(eyre!("png image too large to decode safely"));
     }

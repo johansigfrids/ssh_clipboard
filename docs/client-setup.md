@@ -37,6 +37,14 @@ Peek metadata as JSON:
 ssh_clipboard peek --json --target user@server
 ```
 
+## Agent Mode (Hotkeys + tray)
+The background agent is available when built with the `agent` Cargo feature:
+```
+cargo run --features agent -- agent
+```
+
+The agent uses the config file shown by `ssh_clipboard config path`.
+
 ## Input/Output Modes
 - `push --stdin`: read text from stdin instead of the clipboard
   - Example: `cat note.txt | ssh_clipboard push --stdin --target user@server`

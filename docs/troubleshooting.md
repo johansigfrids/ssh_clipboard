@@ -41,6 +41,13 @@ Common failure cases and how to resolve them.
   - Increase `--timeout-ms` on the client.
   - Increase `--io-timeout-ms` on daemon/proxy.
 
+## Agent Mode
+- **Agent won’t start:**
+  - Check `ssh_clipboard config validate` and ensure `target` is set.
+  - Ensure only one instance is running (agent enforces single-instance).
+- **Hotkeys don’t fire (macOS):**
+  - Some environments may require enabling the terminal/app under System Settings → Privacy & Security → Input Monitoring or Accessibility.
+
 ## Related Docs
 - `docs/client-setup.md`
 - `docs/server-setup.md`

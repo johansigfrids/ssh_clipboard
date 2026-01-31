@@ -114,15 +114,58 @@ enum Commands {
         #[arg(long, default_value_t = 7000)]
         io_timeout_ms: u64,
     },
+
+    #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+    Agent {
+        #[arg(long)]
+        no_tray: bool,
+        #[arg(long)]
+        no_hotkeys: bool,
+    },
+
+    #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommands,
+    },
+
+    #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+    Autostart {
+        #[command(subcommand)]
+        command: AutostartCommands,
+    },
+}
+
+#[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+#[derive(Subcommand)]
+enum ConfigCommands {
+    Path,
+    Show {
+        #[arg(long)]
+        json: bool,
+    },
+    Validate,
+    Defaults,
+}
+
+#[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+#[derive(Subcommand)]
+enum AutostartCommands {
+    Enable,
+    Disable,
+    Status,
+    Refresh,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
-
     let cli = Cli::parse();
+    #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+    let agent_mode = matches!(cli.command, Commands::Agent { .. });
+    #[cfg(not(all(feature = "agent", any(target_os = "windows", target_os = "macos"))))]
+    let agent_mode = false;
+    init_tracing(agent_mode)?;
+
     match cli.command {
         Commands::Push {
             target,
@@ -191,6 +234,12 @@ async fn main() -> Result<()> {
                 return exit_with_code(2, "--base64 requires --stdout");
             }
 
+            let effective_max_size = if max_size == 0 {
+                DEFAULT_MAX_SIZE
+            } else {
+                max_size
+            };
+
             if peek {
                 let response = match send_request(
                     &ClientConfig {
@@ -203,7 +252,7 @@ async fn main() -> Result<()> {
                             ssh_options: ssh_option,
                             ssh_bin,
                         },
-                        max_size,
+                        max_size: effective_max_size,
                         timeout_ms,
                     },
                     make_request(RequestKind::PeekMeta),
@@ -227,7 +276,7 @@ async fn main() -> Result<()> {
                         ssh_options: ssh_option,
                         ssh_bin,
                     },
-                    max_size,
+                    max_size: effective_max_size,
                     timeout_ms,
                 },
                 make_request(RequestKind::Get),
@@ -274,8 +323,10 @@ async fn main() -> Result<()> {
                     if stdout {
                         return exit_with_code(2, "use --base64 or --output for image data");
                     }
-                    let image = match ssh_clipboard::client::image::decode_png(&value.data, max_size)
-                    {
+                    let image = match ssh_clipboard::client::image::decode_png(
+                        &value.data,
+                        effective_max_size,
+                    ) {
                         Ok(image) => image,
                         Err(err) => return exit_with_code(2, &err.to_string()),
                     };
@@ -362,6 +413,61 @@ async fn main() -> Result<()> {
                 .wrap_err("proxy failed")?;
             std::process::exit(exit_code);
         }
+
+        #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+        Commands::Agent {
+            no_tray,
+            no_hotkeys,
+        } => {
+            ssh_clipboard::agent::run::run_agent(no_tray, no_hotkeys)?;
+        }
+
+        #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+        Commands::Config { command } => match command {
+            ConfigCommands::Path => {
+                let path = ssh_clipboard::agent::config_path()?;
+                println!("{}", path.display());
+            }
+            ConfigCommands::Show { json } => {
+                let config = ssh_clipboard::agent::load_config()
+                    .unwrap_or_else(|_| ssh_clipboard::agent::default_agent_config());
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&config)?);
+                } else {
+                    println!("{config:#?}");
+                }
+            }
+            ConfigCommands::Validate => {
+                let config = ssh_clipboard::agent::load_config()
+                    .unwrap_or_else(|_| ssh_clipboard::agent::default_agent_config());
+                ssh_clipboard::agent::validate_config(&config)?;
+                println!("ok");
+            }
+            ConfigCommands::Defaults => {
+                let config = ssh_clipboard::agent::default_agent_config();
+                println!("{}", serde_json::to_string_pretty(&config)?);
+            }
+        },
+
+        #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+        Commands::Autostart { command } => match command {
+            AutostartCommands::Enable => {
+                ssh_clipboard::agent::autostart::enable()?;
+                println!("enabled");
+            }
+            AutostartCommands::Disable => {
+                ssh_clipboard::agent::autostart::disable()?;
+                println!("disabled");
+            }
+            AutostartCommands::Status => {
+                let enabled = ssh_clipboard::agent::autostart::is_enabled()?;
+                println!("{}", if enabled { "enabled" } else { "disabled" });
+            }
+            AutostartCommands::Refresh => {
+                ssh_clipboard::agent::autostart::refresh()?;
+                println!("refreshed");
+            }
+        },
     }
     Ok(())
 }
@@ -495,4 +601,33 @@ async fn read_stdin_text() -> Result<String> {
         return Err(eyre!("stdin was empty"));
     }
     Ok(buffer)
+}
+
+fn init_tracing(agent_mode: bool) -> Result<()> {
+    #[cfg(not(all(feature = "agent", any(target_os = "windows", target_os = "macos"))))]
+    let _ = agent_mode;
+
+    #[cfg(all(feature = "agent", any(target_os = "windows", target_os = "macos")))]
+    if agent_mode {
+        let log_dir = ssh_clipboard::agent::config_path()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| ".".into()))
+            .join("logs");
+        let _ = std::fs::create_dir_all(&log_dir);
+        let file_appender = tracing_appender::rolling::daily(log_dir, "agent.log");
+        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+        Box::leak(Box::new(guard));
+
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .with_writer(non_blocking)
+            .init();
+        return Ok(());
+    }
+
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+    Ok(())
 }

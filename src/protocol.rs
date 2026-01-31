@@ -36,14 +36,19 @@ pub struct Response {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ResponseKind {
     Ok,
-    Value { value: ClipboardValue },
+    Value {
+        value: ClipboardValue,
+    },
     Meta {
         content_type: String,
         size: u64,
         created_at: i64,
     },
     Empty,
-    Error { code: ErrorCode, message: String },
+    Error {
+        code: ErrorCode,
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

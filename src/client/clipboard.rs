@@ -1,5 +1,5 @@
 use arboard::{Clipboard, ImageData};
-use eyre::{eyre, Result};
+use eyre::{Result, eyre};
 
 pub fn read_text() -> Result<String> {
     let mut clipboard = Clipboard::new().map_err(|err| eyre!("clipboard init failed: {err}"))?;

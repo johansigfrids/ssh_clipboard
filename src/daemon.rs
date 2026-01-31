@@ -2,8 +2,8 @@ use crate::framing::{
     FramingError, decode_message, encode_message, read_frame_payload, write_frame_payload,
 };
 use crate::protocol::{
-    ClipboardValue, ErrorCode, Request, RequestKind, Response, ResponseKind, CONTENT_TYPE_PNG,
-    CONTENT_TYPE_TEXT,
+    CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardValue, ErrorCode, Request, RequestKind, Response,
+    ResponseKind,
 };
 use eyre::{Result, WrapErr};
 use std::env;
@@ -13,7 +13,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 use tracing::{error, info};
 
 #[derive(Debug, Error)]
@@ -51,11 +51,7 @@ fn get_uid() -> u32 {
     unsafe { libc::getuid() }
 }
 
-pub async fn run_daemon(
-    socket_path: PathBuf,
-    max_size: usize,
-    io_timeout_ms: u64,
-) -> Result<()> {
+pub async fn run_daemon(socket_path: PathBuf, max_size: usize, io_timeout_ms: u64) -> Result<()> {
     prepare_socket_path(&socket_path)?;
     let old_umask = set_umask();
     let listener = UnixListener::bind(&socket_path);

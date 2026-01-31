@@ -72,6 +72,27 @@ ssh_clipboard pull --peek --target user@server
 - `--timeout-ms 7000`
 - `--max-size <bytes>` (default 10 MiB)
 
+## Agent Mode (Phase 4 - hotkeys + tray)
+The background agent (tray icon + global hotkeys) is behind the Cargo feature `agent`.
+
+Build and run:
+```
+cargo run --features agent -- agent
+```
+
+Useful commands:
+```
+ssh_clipboard config path
+ssh_clipboard config show --json
+ssh_clipboard config validate
+ssh_clipboard autostart status
+ssh_clipboard autostart enable
+```
+
+Notes:
+- The agent reads its settings from the config file (see `ssh_clipboard config path`).
+- Set `target` (e.g. `user@server`) in the agent config before running, otherwise `config validate` will fail.
+
 ## Linux Daemon/Proxy (Phase 1)
 
 ### Build

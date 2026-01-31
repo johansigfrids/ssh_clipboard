@@ -48,3 +48,7 @@ agent = [
   "dep:winrt-notification",
   "dep:notify-rust",
 ]
+
+[dev-dependencies]
+proptest = "1.4"
+tempfile = "3"

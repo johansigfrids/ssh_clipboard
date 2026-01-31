@@ -74,6 +74,8 @@ pub fn decode_message<T: DeserializeOwned>(payload: &[u8]) -> Result<T> {
 mod tests {
     use super::*;
     use crate::protocol::{Request, RequestKind, Response};
+    use proptest::prelude::*;
+    use tokio::io::AsyncWriteExt;
     use tokio::io::duplex;
 
     #[tokio::test]
@@ -104,5 +106,68 @@ mod tests {
         write_frame_payload(&mut a, &payload).await.unwrap();
         let result = read_frame_payload(&mut b, 0).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_magic() {
+        let (mut writer, mut reader) = duplex(64);
+        writer.write_all(b"BAD!").await.unwrap();
+        writer.write_all(&VERSION.to_le_bytes()).await.unwrap();
+        writer.write_all(&0u32.to_le_bytes()).await.unwrap();
+        writer.flush().await.unwrap();
+
+        let err = read_frame_payload(&mut reader, 16).await.unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<FramingError>(),
+            Some(FramingError::InvalidMagic)
+        ));
+    }
+
+    #[tokio::test]
+    async fn rejects_unsupported_version() {
+        let (mut writer, mut reader) = duplex(64);
+        writer.write_all(&MAGIC).await.unwrap();
+        writer
+            .write_all(&(VERSION + 1).to_le_bytes())
+            .await
+            .unwrap();
+        writer.write_all(&0u32.to_le_bytes()).await.unwrap();
+        writer.flush().await.unwrap();
+
+        let err = read_frame_payload(&mut reader, 16).await.unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<FramingError>(),
+            Some(FramingError::UnsupportedVersion(_))
+        ));
+    }
+
+    proptest! {
+        #[test]
+        fn frame_round_trip_random(payload in proptest::collection::vec(any::<u8>(), 0..512)) {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                let (mut writer, mut reader) = duplex(4096);
+                write_frame_payload(&mut writer, &payload).await.unwrap();
+                let received = read_frame_payload(&mut reader, 4096).await.unwrap();
+                prop_assert_eq!(received, payload);
+                Ok(())
+            })?;
+        }
+
+        #[test]
+        fn frame_rejects_payload_over_max(payload in proptest::collection::vec(any::<u8>(), 1..512)) {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                let max_size = payload.len() - 1;
+                let (mut writer, mut reader) = duplex(4096);
+                write_frame_payload(&mut writer, &payload).await.unwrap();
+                let err = read_frame_payload(&mut reader, max_size).await.unwrap_err();
+                prop_assert!(matches!(
+                    err.downcast_ref::<FramingError>(),
+                    Some(FramingError::PayloadTooLarge(_))
+                ));
+                Ok(())
+            })?;
+        }
     }
 }

@@ -44,3 +44,44 @@ pub fn decode_png(data: &[u8], max_decoded_bytes: usize) -> Result<ImageData<'st
         bytes: bytes.into(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_image() -> (ImageData<'static>, Vec<u8>) {
+        let bytes = vec![
+            255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255,
+        ];
+        let image = ImageData {
+            width: 2,
+            height: 2,
+            bytes: bytes.clone().into(),
+        };
+        (image, bytes)
+    }
+
+    #[test]
+    fn encode_decode_round_trip() {
+        let (image, original_bytes) = sample_image();
+        let png = encode_png(image).unwrap();
+        let decoded = decode_png(&png, 1024).unwrap();
+        assert_eq!(decoded.width, 2);
+        assert_eq!(decoded.height, 2);
+        assert_eq!(decoded.bytes.into_owned(), original_bytes);
+    }
+
+    #[test]
+    fn decode_rejects_oversize() {
+        let (image, _) = sample_image();
+        let png = encode_png(image).unwrap();
+        let err = decode_png(&png, 1).unwrap_err();
+        assert!(err.to_string().contains("too large"));
+    }
+
+    #[test]
+    fn decode_rejects_invalid_png() {
+        let err = decode_png(b"not a png", 1024).unwrap_err();
+        assert!(err.to_string().contains("png decode failed"));
+    }
+}

@@ -129,8 +129,7 @@ pub fn client_config_from_agent(config: &AgentConfig) -> ClientConfig {
 }
 
 pub async fn agent_push(config: &AgentConfig) -> Result<()> {
-    let value = crate::client_actions::build_clipboard_value(false, config.max_size)
-        .await
+    let value = crate::client_actions::build_clipboard_value_from_clipboard(config.max_size)
         .map_err(|err| eyre!(err.message))?;
     let response = send_request(
         &client_config_from_agent(config),

@@ -3,6 +3,7 @@ use base64::engine::general_purpose::STANDARD;
 use clap::{Parser, Subcommand};
 use eyre::{Result, WrapErr, eyre};
 use ssh_clipboard::client::ssh::SshConfig;
+use ssh_clipboard::client_actions::{ClipboardBuildError, PullApplyErrorKind};
 use ssh_clipboard::client::transport::{ClientConfig, make_request, send_request};
 use ssh_clipboard::protocol::{
     CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardValue, DEFAULT_MAX_SIZE, ErrorCode, RequestKind,
@@ -307,6 +308,10 @@ async fn main() -> Result<()> {
                 Ok(response) => response,
                 Err(err) => return exit_with_code(5, &err.to_string()),
             };
+            if !stdout && output.is_none() && !base64 {
+                return handle_pull_to_clipboard(response, effective_max_size);
+            }
+
             if let ResponseKind::Value { value } = &response.kind {
                 if value.content_type == CONTENT_TYPE_TEXT {
                     let text = match String::from_utf8(value.data.clone()) {
@@ -323,10 +328,6 @@ async fn main() -> Result<()> {
                         }
                         return Ok(());
                     }
-                    if let Err(err) = ssh_clipboard::client::clipboard::write_text(&text) {
-                        return exit_with_code(6, &err.to_string());
-                    }
-                    return Ok(());
                 }
 
                 if value.content_type == CONTENT_TYPE_PNG {
@@ -344,17 +345,6 @@ async fn main() -> Result<()> {
                     if stdout {
                         return exit_with_code(2, "use --base64 or --output for image data");
                     }
-                    let image = match ssh_clipboard::client::image::decode_png(
-                        &value.data,
-                        effective_max_size,
-                    ) {
-                        Ok(image) => image,
-                        Err(err) => return exit_with_code(2, &err.to_string()),
-                    };
-                    if let Err(err) = ssh_clipboard::client::clipboard::write_image(image) {
-                        return exit_with_code(6, &err.to_string());
-                    }
-                    return Ok(());
                 }
 
                 if let Some(path) = output {
@@ -541,22 +531,27 @@ fn handle_peek_response(response: Response, json: bool) -> Result<()> {
     }
 }
 
+fn handle_pull_to_clipboard(response: Response, max_decoded_bytes: usize) -> Result<()> {
+    match ssh_clipboard::client_actions::apply_pull_response_with_system_clipboard(
+        response,
+        max_decoded_bytes,
+    ) {
+        Ok(()) => Ok(()),
+        Err(err) => match err.kind {
+            PullApplyErrorKind::Clipboard => exit_with_code(6, &err.message),
+            PullApplyErrorKind::NoValue => exit_with_code(2, &err.message),
+            PullApplyErrorKind::InvalidUtf8
+            | PullApplyErrorKind::InvalidPayload
+            | PullApplyErrorKind::UnsupportedContentType
+            | PullApplyErrorKind::Server
+            | PullApplyErrorKind::Unexpected => exit_with_code(2, &err.message),
+        },
+    }
+}
+
 fn exit_with_code(code: i32, message: &str) -> Result<()> {
     eprintln!("{message}");
     std::process::exit(code);
-}
-
-fn now_epoch_millis() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
-}
-
-struct ClipboardBuildError {
-    code: i32,
-    message: String,
 }
 
 async fn build_clipboard_value(
@@ -568,56 +563,10 @@ async fn build_clipboard_value(
             code: 2,
             message: err.to_string(),
         })?;
-        return build_text_value(text, max_size);
+        return ssh_clipboard::client_actions::build_text_value(text, max_size);
     }
 
-    match ssh_clipboard::client::clipboard::read_text() {
-        Ok(text) => return build_text_value(text, max_size),
-        Err(text_err) => match ssh_clipboard::client::clipboard::read_image() {
-            Ok(image) => {
-                let png = ssh_clipboard::client::image::encode_png(image).map_err(|err| {
-                    ClipboardBuildError {
-                        code: 2,
-                        message: err.to_string(),
-                    }
-                })?;
-                if png.len() > max_size {
-                    return Err(ClipboardBuildError {
-                        code: 3,
-                        message: "payload too large".to_string(),
-                    });
-                }
-                return Ok(ClipboardValue {
-                    content_type: CONTENT_TYPE_PNG.to_string(),
-                    data: png,
-                    created_at: now_epoch_millis(),
-                });
-            }
-            Err(image_err) => {
-                return Err(ClipboardBuildError {
-                    code: 6,
-                    message: format!(
-                        "clipboard read failed (text: {text_err}; image: {image_err})"
-                    ),
-                });
-            }
-        },
-    }
-}
-
-fn build_text_value(text: String, max_size: usize) -> Result<ClipboardValue, ClipboardBuildError> {
-    let bytes = text.into_bytes();
-    if bytes.len() > max_size {
-        return Err(ClipboardBuildError {
-            code: 3,
-            message: "payload too large".to_string(),
-        });
-    }
-    Ok(ClipboardValue {
-        content_type: CONTENT_TYPE_TEXT.to_string(),
-        data: bytes,
-        created_at: now_epoch_millis(),
-    })
+    ssh_clipboard::client_actions::build_clipboard_value_from_clipboard(max_size)
 }
 
 async fn read_stdin_text() -> Result<String> {

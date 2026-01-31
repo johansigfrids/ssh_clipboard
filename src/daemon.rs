@@ -238,3 +238,104 @@ fn framing_error_response(err: &eyre::Report, request_id: u64) -> Response {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::framing::{decode_message, read_frame_payload};
+    use std::os::unix::fs::PermissionsExt;
+    use tokio::net::UnixListener;
+    use tokio::time::Duration;
+
+    #[tokio::test]
+    async fn read_timeout_returns_error_response() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket_path = dir.path().join("daemon.sock");
+        let listener = UnixListener::bind(&socket_path).unwrap();
+        let state = Arc::new(Mutex::new(ClipboardState { value: None }));
+
+        let server = tokio::spawn({
+            let state = Arc::clone(&state);
+            async move {
+                let (stream, _) = listener.accept().await.unwrap();
+                handle_connection(stream, state, 1024, 10).await.unwrap();
+            }
+        });
+
+        let mut client = UnixStream::connect(&socket_path).await.unwrap();
+        let response_payload = tokio::time::timeout(
+            Duration::from_millis(200),
+            read_frame_payload(&mut client, 2048),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+        let response: Response = decode_message(&response_payload).unwrap();
+        match response.kind {
+            ResponseKind::Error { code, message } => {
+                assert!(matches!(code, ErrorCode::Internal));
+                assert!(message.contains("read timeout"));
+            }
+            other => panic!("unexpected response: {other:?}"),
+        }
+
+        server.await.unwrap();
+    }
+
+    #[test]
+    fn prepare_socket_path_sets_directory_permissions() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket_path = dir.path().join("runtime").join("daemon.sock");
+
+        prepare_socket_path(&socket_path).unwrap();
+
+        let parent = socket_path.parent().unwrap();
+        let mode = std::fs::metadata(parent).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
+    }
+
+    #[tokio::test]
+    async fn validate_set_rejects_invalid_utf8() {
+        let value = ClipboardValue {
+            content_type: CONTENT_TYPE_TEXT.to_string(),
+            data: vec![0xff, 0xfe],
+            created_at: 0,
+        };
+        let err = validate_set(&value, 1024).unwrap_err();
+        assert!(matches!(err, DaemonError::InvalidUtf8));
+    }
+
+    #[tokio::test]
+    async fn validate_set_rejects_invalid_content_type() {
+        let value = ClipboardValue {
+            content_type: "application/octet-stream".to_string(),
+            data: vec![1, 2, 3],
+            created_at: 0,
+        };
+        let err = validate_set(&value, 1024).unwrap_err();
+        assert!(matches!(err, DaemonError::InvalidContentType));
+    }
+
+    #[tokio::test]
+    async fn validate_set_rejects_oversize() {
+        let value = ClipboardValue {
+            content_type: CONTENT_TYPE_TEXT.to_string(),
+            data: vec![b'a'; 5],
+            created_at: 0,
+        };
+        let err = validate_set(&value, 4).unwrap_err();
+        assert!(matches!(err, DaemonError::PayloadTooLarge));
+    }
+
+    #[tokio::test]
+    async fn handle_request_preserves_request_id() {
+        let state = Arc::new(Mutex::new(ClipboardState { value: None }));
+        let request = Request {
+            request_id: 7,
+            kind: RequestKind::Get,
+        };
+        let response = handle_request(request, state, 1024).await;
+        assert_eq!(response.request_id, 7);
+    }
+}

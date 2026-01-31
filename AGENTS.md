@@ -33,6 +33,14 @@ As the project grows, prefer adding Rust modules under `src/` (for example `src/
 - Pull requests should include: a clear description of changes, how to run/verify them, and any relevant usage notes.
 - If behavior changes, include updated docs or examples in `README.md`.
 
+## Documentation Knowledge Base
+
+- Docs entrypoint: `docs/index.md` (follow `docs/writing-docs.md`).
+- At minimum, read `docs/index.md` before making changes; for major changes, skim relevant `docs/*.md` for context.
+- As you learn: update existing docs or add `docs/<topic>.md`, then link it in `docs/index.md`.
+- After behavior changes or bug fixes: refresh related docs and keep cross-links current.
+- Do not include secrets in docs; reference where secrets/config are managed instead.
+
 ## Security & Configuration Tips
 
 - This project communicates over SSH; avoid committing secrets or host-specific configs.

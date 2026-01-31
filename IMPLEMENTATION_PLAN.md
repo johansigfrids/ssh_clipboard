@@ -475,7 +475,69 @@
 - Add proxy auto-start integration test (Linux-only, temp socket + stub daemon).
 - Add peer credential unit tests for the helper.
 
-## Phase 7 — Packaging + release
-1. Provide systemd user service example for Linux daemon.
-2. Document Windows/macOS distribution strategy.
-3. Package agent (Windows/macOS) in a user-friendly way (optional app bundle on macOS).
+## Phase 7 — Packaging + release (GitHub, CI, binaries)
+
+### Phase 7 Goals
+- Publish the repo to GitHub with clear release semantics and contribution workflow.
+- Add CI that runs tests on PRs and builds release artifacts on tags.
+- Produce user-friendly binaries for Linux/Windows/macOS (CLI + agent where supported).
+
+### 1. GitHub repo + release model
+- Create a GitHub repository and push the current `master` branch.
+- Add branch protection (require CI, no direct pushes to `master`).
+- Decide release naming and tagging scheme (e.g., `v0.3.0`).
+- Add `CHANGELOG.md` or use GitHub Releases notes (pick one).
+
+### 2. CI: build + test matrix (PRs)
+- Add a GitHub Actions workflow for PRs/pushes:
+  - `cargo fmt -- --check`
+  - `cargo clippy -- -D warnings`
+  - `cargo test`
+- OS matrix:
+  - `ubuntu-latest`
+  - `windows-latest`
+  - `macos-latest`
+- Cache Cargo builds to speed up CI.
+- Document CI workflow in `docs/testing.md`.
+
+### 3. Release workflow (tags)
+- Add a GitHub Actions workflow triggered on tags `v*`.
+- Build release artifacts:
+  - Linux: `ssh_clipboard` (CLI) + daemon (same binary)
+  - Windows: `ssh_clipboard.exe` + agent binary (if feature-gated)
+  - macOS: `ssh_clipboard` + optional `.app` bundle for agent
+- Use `cargo build --release` and package artifacts (zip/tar.gz).
+- Generate SHA256 checksums for each artifact.
+- Upload artifacts to GitHub Release.
+
+### 4. Packaging decisions
+- Linux:
+  - Provide systemd **user** service example for the daemon in `docs/server-setup.md`.
+  - Optionally add a `.deb` or `.rpm` later (document as follow-up).
+- Windows:
+  - Prefer a portable zip (CLI + agent).
+  - Document code-signing expectations (if/when added).
+- macOS:
+  - Provide `zip` of CLI + optional `.app` for agent.
+  - Document Gatekeeper quarantine handling.
+
+### 5. Agent distribution notes
+- Make agent build opt-in via `--features agent` in CI.
+- Decide whether to publish agent binaries for all OSes or only Windows/macOS.
+- Ensure agent artifacts include required runtime assets (icons, config templates).
+
+### 6. Docs updates
+- Update `docs/cli.md` with release install/download notes.
+- Add `docs/releasing.md` with:
+  - How to tag a release
+  - How to validate artifacts locally
+  - How to roll back a bad release
+- Update `ARCHITECTURE.md` if distribution changes affect component boundaries.
+
+### 7. Verification checklist
+- CI green on all OSes.
+- Release artifacts install and run:
+  - `ssh_clipboard --help`
+  - `ssh_clipboard proxy --help`
+  - `ssh_clipboard daemon --help`
+- Agent starts on Windows/macOS (smoke test).

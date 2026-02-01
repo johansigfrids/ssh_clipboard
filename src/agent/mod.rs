@@ -171,8 +171,10 @@ pub async fn agent_peek(config: &AgentConfig) -> Result<String> {
             content_type,
             size,
             created_at,
-        } => Ok(format!(
-            "content_type={content_type} size={size} created_at={created_at}"
+        } => Ok(crate::cli::format_peek_output(
+            &content_type,
+            size,
+            created_at,
         )),
         ResponseKind::Empty => Ok("no clipboard value set".to_string()),
         ResponseKind::Error { code: _, message } => Err(eyre!(message)),

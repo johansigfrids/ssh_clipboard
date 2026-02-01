@@ -103,6 +103,12 @@ Peek metadata:
 ```
 ssh_clipboard peek --target user@server
 ```
+Example output:
+```
+Content-Type: text/plain; charset=utf-8
+Size: 67 bytes (67 B)
+Created: 2026-02-01 08:24:10 UTC (2m 14s ago)
+```
 
 Peek metadata (JSON):
 ```

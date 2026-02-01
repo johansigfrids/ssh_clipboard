@@ -8,6 +8,7 @@ use tracing_subscriber::EnvFilter;
 use crate::client::ssh::SshConfig;
 use crate::client::transport::ClientConfig;
 use crate::protocol::{DEFAULT_MAX_SIZE, ErrorCode, Response, ResponseKind};
+use time::{Duration, OffsetDateTime};
 
 mod exit;
 mod peek;
@@ -322,12 +323,128 @@ pub(crate) fn handle_peek_response(response: Response, json: bool) -> Result<()>
                 });
                 println!("{value}");
             } else {
-                println!("content_type={content_type} size={size} created_at={created_at}");
+                println!("{}", format_peek_output(content_type, *size, *created_at));
             }
             Ok(())
         }
         ResponseKind::Empty => exit::exit_with_code(2, "no clipboard value set"),
         _ => handle_response(response, true),
+    }
+}
+
+pub(crate) fn format_peek_output(content_type: &str, size: u64, created_at_ms: i64) -> String {
+    format!(
+        "Content-Type: {content_type}\nSize: {size} bytes ({human_size})\nCreated: {created}",
+        human_size = humanize_bytes(size),
+        created = format_created_at(created_at_ms)
+    )
+}
+
+fn format_created_at(created_at_ms: i64) -> String {
+    if created_at_ms <= 0 {
+        return "unknown".to_string();
+    }
+    let created_at =
+        match OffsetDateTime::from_unix_timestamp_nanos(created_at_ms as i128 * 1_000_000) {
+            Ok(value) => value,
+            Err(_) => return "unknown".to_string(),
+        };
+
+    let now = OffsetDateTime::now_utc();
+    let time_part = match time::format_description::parse(
+        "[year]-[month]-[day] [hour]:[minute]:[second] UTC",
+    ) {
+        Ok(format) => created_at
+            .format(&format)
+            .unwrap_or_else(|_| "unknown".to_string()),
+        Err(_) => "unknown".to_string(),
+    };
+    if created_at > now {
+        return format!("{time_part} (in the future)");
+    }
+
+    let diff = now - created_at;
+    format!("{time_part} ({})", humanize_duration(diff))
+}
+
+fn humanize_duration(duration: Duration) -> String {
+    let mut seconds = duration.whole_seconds();
+    if seconds <= 0 {
+        return "just now".to_string();
+    }
+
+    let days = seconds / 86_400;
+    seconds %= 86_400;
+    let hours = seconds / 3_600;
+    seconds %= 3_600;
+    let minutes = seconds / 60;
+    seconds %= 60;
+
+    let mut parts = Vec::new();
+    if days > 0 {
+        parts.push(format!("{days}d"));
+    }
+    if hours > 0 && parts.len() < 2 {
+        parts.push(format!("{hours}h"));
+    }
+    if minutes > 0 && parts.len() < 2 {
+        parts.push(format!("{minutes}m"));
+    }
+    if seconds > 0 && parts.len() < 2 {
+        parts.push(format!("{seconds}s"));
+    }
+
+    if parts.is_empty() {
+        "just now".to_string()
+    } else {
+        format!("{} ago", parts.join(" "))
+    }
+}
+
+fn humanize_bytes(size: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = 1024.0 * 1024.0;
+    const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
+
+    let size_f = size as f64;
+    if size_f >= GIB {
+        format!("{:.1} GiB", size_f / GIB)
+    } else if size_f >= MIB {
+        format!("{:.1} MiB", size_f / MIB)
+    } else if size_f >= KIB {
+        format!("{:.1} KiB", size_f / KIB)
+    } else {
+        format!("{size} B")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn humanize_bytes_formats_units() {
+        assert_eq!(humanize_bytes(0), "0 B");
+        assert_eq!(humanize_bytes(512), "512 B");
+        assert_eq!(humanize_bytes(1024), "1.0 KiB");
+        assert_eq!(humanize_bytes(1024 * 1024), "1.0 MiB");
+    }
+
+    #[test]
+    fn humanize_duration_formats_compact() {
+        assert_eq!(humanize_duration(Duration::seconds(0)), "just now");
+        assert_eq!(humanize_duration(Duration::seconds(61)), "1m 1s ago");
+        assert_eq!(humanize_duration(Duration::seconds(3600)), "1h ago");
+        assert_eq!(humanize_duration(Duration::seconds(90061)), "1d 1h ago");
+    }
+
+    #[test]
+    fn format_created_at_handles_invalid_and_future() {
+        assert_eq!(format_created_at(0), "unknown");
+        let future = OffsetDateTime::now_utc() + Duration::seconds(60);
+        let future_ms = future.unix_timestamp() * 1000;
+        let formatted = format_created_at(future_ms);
+        assert!(formatted.contains("in the future"));
     }
 }
 

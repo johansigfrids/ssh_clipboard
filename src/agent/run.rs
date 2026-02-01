@@ -131,7 +131,9 @@ pub fn run_agent(no_tray: bool, no_hotkeys: bool) -> Result<()> {
             }
 
             Event::UserEvent(UserEvent::OperationOk(name)) => {
-                notify::notify("ssh_clipboard", &format!("{name}: ok"));
+                if name != "peek" {
+                    notify::notify("ssh_clipboard", &format!("{name}: ok"));
+                }
             }
 
             Event::UserEvent(UserEvent::OperationErr(name, message)) => {

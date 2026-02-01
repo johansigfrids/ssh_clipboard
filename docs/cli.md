@@ -55,7 +55,7 @@ ssh_clipboard peek --target user@server
 ```
 
 Flags:
-- `--json`: output JSON
+- `--json`: output JSON (default output is human-readable)
 - SSH + timeout + size flags (same as `push`)
 - `--strict-frames`, `--resync-max-bytes` (same as `push`)
 

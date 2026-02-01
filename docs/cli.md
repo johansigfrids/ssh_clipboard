@@ -19,7 +19,7 @@ ssh_clipboard push --target user@server
 
 Flags:
 - `--stdin`: read text from stdin instead of clipboard
-- `--target user@host[:port]`
+- `--target user@host[:port]` (for simple hostnames; use `--port` for IPv6)
 - `--host`, `--user`, `--port`
 - `--identity-file <path>`
 - `--ssh-option <opt>` (repeatable; passed as `ssh -o <opt>`)
@@ -59,7 +59,7 @@ Flags:
 - SSH + timeout + size flags (same as `push`)
 - `--strict-frames`, `--resync-max-bytes` (same as `push`)
 
-### `agent` (Windows/macOS/Linux, requires `--features agent`)
+### `agent` (Windows/macOS/Linux)
 Run the background agent (tray icon + hotkeys).
 
 Flags:
@@ -69,7 +69,7 @@ Flags:
 Notes:
 - Linux hotkeys require X11; on Wayland use `--no-hotkeys`.
 
-### `config` (requires `--features agent`)
+### `config`
 Manage agent configuration.
 
 Subcommands:
@@ -78,7 +78,7 @@ Subcommands:
 - `config validate`
 - `config defaults`
 
-### `autostart` (requires `--features agent`)
+### `autostart`
 Manage “start at login” for the agent.
 
 Subcommands:

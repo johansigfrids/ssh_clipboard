@@ -1,7 +1,7 @@
 # Protocol
 
 ## Purpose
-Document the Phase 1 protocol framing and message types used between:
+Document the protocol framing and message types used between:
 - client ↔ server proxy (over SSH stdin/stdout)
 - server proxy ↔ daemon (over UNIX socket)
 
@@ -46,10 +46,10 @@ Responses echo the `request_id` from the corresponding request.
 - `Response { request_id, kind: Empty }` (means: no value has been set yet)
 - `Response { request_id, kind: Error { code, message } }`
 
-## Clipboard Semantics (Phase 3)
+## Clipboard Semantics
 - UTF-8 text (`text/plain; charset=utf-8`) and PNG images (`image/png`) are supported.
 - Only **one format at a time** is stored (single `content_type` + `data`).
-- An **empty clipboard** is represented by `Set` with `data = []`.
+- Empty payloads are permitted (for example, an empty string).
 - An **unset value** is represented by `Empty` on `Get`/`PeekMeta`.
 
 ## Timestamps
@@ -81,4 +81,3 @@ Clients should treat the framed `Response` as the primary signal and use the pro
 
 ## Related Docs
 - `ARCHITECTURE.md`
-- `IMPLEMENTATION_PLAN.md`

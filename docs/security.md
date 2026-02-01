@@ -9,10 +9,10 @@ Describe how `ssh_clipboard` relies on SSH for transport security and provide re
 - `src/daemon.rs`
 - `docs/protocol.md`
 
-## Threat Model (Phase 1–2)
+## Threat Model
 In scope:
 - Confidentiality and integrity of clipboard data over the network (handled by SSH).
-- Preventing unintended remote access to the daemon socket (owner-only UNIX socket).
+- Preventing unintended access to the daemon socket (owner-only UNIX socket + peer credential checks).
 
 Out of scope (for now):
 - Protecting a user from their own account compromise.
@@ -48,13 +48,14 @@ Do not disable host key checking by default. If a user wants that behavior, it s
 - Avoid logging clipboard contents.
 - Prefer structured logs for errors (connection failures, protocol errors, size-limit rejections).
 
-## Phase 3 Notes
+## Implementation Notes
 - Protocol version is `2` and includes `request_id` for correlating client/proxy/daemon logs.
 - `--io-timeout-ms` is available on Linux `daemon`/`proxy` to avoid hung sessions.
 
 ## Update Triggers
 - Adding new clipboard formats (especially binary/image) or changing the protocol.
-- Adding server auto-start, shared daemon modes, or multi-user features.
+- Changes to daemon/proxy hardening (socket permissions, peer credential checks).
+- Changes to server lifecycle (autostart, systemd recommendations).
 
 ## Related Docs
 - `docs/server-setup.md`

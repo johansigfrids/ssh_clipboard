@@ -1,7 +1,7 @@
 # Autostart (Start at Login)
 
 ## Purpose
-Document how Phase 4 “start at login” works and what `autostart refresh` does.
+Document how “start at login” works and what `autostart refresh` does.
 
 ## Key Files
 - `src/agent/autostart.rs`

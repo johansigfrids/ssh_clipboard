@@ -1,7 +1,7 @@
 # Server Setup (Linux)
 
 ## Purpose
-Explain how to run the Phase 1 daemon on the Linux server and how the SSH-invoked proxy interacts with it.
+Explain how to run the daemon on the Linux server and how the SSH-invoked proxy interacts with it.
 
 ## Key Files
 - `src/main.rs`
@@ -10,9 +10,11 @@ Explain how to run the Phase 1 daemon on the Linux server and how the SSH-invoke
 - `README.md`
 
 ## Build
-On the Linux server:
+Preferred: download a Linux server release artifact and put `ssh_clipboard` on your `PATH`.
+
+Build from source on the Linux server:
 ```
-cargo build --release
+cargo build --release --no-default-features
 ```
 
 The resulting binary is `target/release/ssh_clipboard`.
@@ -82,9 +84,8 @@ This project does not ship a unit file yet, but a typical user unit would:
 
 ## Update Triggers
 - Changes to socket path logic, permissions, or exit codes.
-- Adding auto-start behavior for daemon (not planned for Phase 1).
+- Changes to proxy auto-start behavior (`--autostart-daemon`).
 
 ## Related Docs
 - `docs/protocol.md`
 - `ARCHITECTURE.md`
-- `IMPLEMENTATION_PLAN.md`

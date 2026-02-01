@@ -32,4 +32,3 @@ Document the GitHub Actions setup for tests and releases, including build varian
 
 ## Related Docs
 - `docs/testing.md`
-- `IMPLEMENTATION_PLAN.md`

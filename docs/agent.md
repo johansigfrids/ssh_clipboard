@@ -1,7 +1,7 @@
 # Agent (Hotkeys + Tray)
 
 ## Purpose
-Document the Phase 4 background agent: tray/menu UX, global hotkeys, config, and logs.
+Document the background agent: tray/menu UX, global hotkeys, config, and logs.
 
 ## Key Files
 - `src/agent/mod.rs`
@@ -12,11 +12,11 @@ Document the Phase 4 background agent: tray/menu UX, global hotkeys, config, and
 - `docs/cli.md`
 
 ## Build and Run
-The agent is behind the Cargo feature `agent`.
+The agent is enabled by default in client builds. For a Linux server-only build, use `--no-default-features`.
 
 Run from source:
 ```
-cargo run --features agent -- agent
+cargo run -- agent
 ```
 
 ## Configuration

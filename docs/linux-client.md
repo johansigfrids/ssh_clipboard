@@ -25,9 +25,9 @@ Expected to work out of the box with `arboard` for text and PNG images.
 - In sandboxed environments (Flatpak/Snap), ensure X11/Wayland sockets are exposed.
 
 ## Agent Mode (Tray + Hotkeys)
-Build and run:
+Run from source:
 ```
-cargo run --features agent -- agent
+cargo run -- agent
 ```
 
 ### Hotkeys

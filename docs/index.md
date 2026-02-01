@@ -8,7 +8,6 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/writing-docs.md`
 - `AGENTS.md`
 - `ARCHITECTURE.md`
-- `IMPLEMENTATION_PLAN.md`
 
 ## Where To Start
 - Skim this index, then jump to any topic docs listed below as they are added.
@@ -16,7 +15,6 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 ## Docs Map
 - `docs/writing-docs.md`: How to write and maintain internal docs in this repo.
 - `ARCHITECTURE.md`: System architecture.
-- `IMPLEMENTATION_PLAN.md`: Phased implementation checklist.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
 - `docs/server-setup.md`: Linux daemon setup and proxy usage.
 - `docs/client-setup.md`: Windows/macOS client usage and SSH troubleshooting.
@@ -24,6 +22,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/security.md`: Security model and recommended SSH hardening.
 - `docs/cli.md`: CLI command and flag reference.
 - `docs/ci.md`: CI workflows, build variants, and release packaging.
+- `docs/releasing.md`: How to tag releases and validate artifacts.
 - `docs/troubleshooting.md`: Common errors and fixes.
 - `docs/testing.md`: How to run tests and what’s covered.
 - Agent-related:

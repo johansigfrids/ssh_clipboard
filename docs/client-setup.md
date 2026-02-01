@@ -39,9 +39,9 @@ ssh_clipboard peek --json --target user@server
 ```
 
 ## Agent Mode (Hotkeys + tray)
-The background agent is available when built with the `agent` Cargo feature:
+The background agent is included in client builds by default. To run from source:
 ```
-cargo run --features agent -- agent
+cargo run -- agent
 ```
 
 The agent uses the config file shown by `ssh_clipboard config path`.
@@ -57,7 +57,7 @@ The agent uses the config file shown by `ssh_clipboard config path`.
   - Example: `ssh_clipboard pull --stdout --base64 --target user@server`
 - `pull --peek`: run `PeekMeta` and print metadata without fetching the full payload
 
-## Clipboard Formats (Phase 3)
+## Clipboard Formats
 - Text: `text/plain; charset=utf-8`
 - Images: `image/png` (PNG bytes)
 - If the server holds an image and the client cannot write images, the client will error unless `--output` or `--base64` is used.

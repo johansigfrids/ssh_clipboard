@@ -1,7 +1,7 @@
 # SSH Clipboard — Architecture
 
 ## Purpose
-Describe the intended architecture for `ssh_clipboard`: a cross-platform Rust tool to copy clipboard contents between:
+Describe the architecture for `ssh_clipboard`: a cross-platform Rust tool to copy clipboard contents between:
 - Windows client ↔ Linux server
 - macOS client ↔ Linux server
 - Linux client ↔ Linux server
@@ -13,6 +13,7 @@ All data transfer occurs over SSH. The Linux server does not persist clipboard c
 - Transport security via SSH (reuse existing SSH keys/agent/config).
 - Server-side clipboard state held in memory only (no on-disk persistence).
 - Simple operational model: a small daemon on the Linux server, and a client app on Windows/macOS/Linux.
+- User-friendly defaults: the agent is enabled by default for client builds.
 
 ## Non-goals (initially)
 - Multi-user sharing or access control beyond SSH user isolation.
@@ -37,7 +38,7 @@ This yields a clean separation:
    - Reads local clipboard, sends it to server (push).
    - Receives clipboard from server, writes it to local clipboard (pull).
    - Uses the platform `ssh` binary and communicates via stdin/stdout frames.
-   - Supports both CLI-triggered push/pull and an optional background agent (tray + global hotkeys).
+   - Supports both CLI-triggered push/pull and a background agent (tray + global hotkeys).
 
 ## Data Flow
 
@@ -83,6 +84,9 @@ Fallback if `XDG_RUNTIME_DIR` is unavailable:
   - `len: u32` (little endian)
   - `payload: [u8; len]`
 - `payload` is a serialized request/response (e.g., `serde` + `bincode` or `postcard`).
+
+### Resync for noisy shells
+Clients may encounter extra bytes before `MAGIC` (e.g., MOTD banners). The framing reader can resync by scanning for `MAGIC` and discarding garbage bytes (enabled by default; strict mode is available).
 
 Current implementation details are documented in `docs/protocol.md` (including protocol version and request IDs).
 
@@ -132,14 +136,17 @@ The Rust client will spawn `ssh` and communicate over stdin/stdout with the remo
 On the server, restrict what a key can do by pinning a forced command in `authorized_keys`:
 - `command="ssh_clipboard proxy",no-port-forwarding,no-agent-forwarding,no-X11-forwarding ...`
 
+### Daemon access hardening
+The daemon verifies peer credentials on the UNIX socket and rejects connections from other users.
+
 ## Proposed Rust Project Layout
-This repo currently uses `src/main.rs` + `src/lib.rs` modules, with optional “agent” functionality behind a Cargo feature.
+This repo currently uses `src/main.rs` + `src/lib.rs` modules. The agent feature is enabled by default for client builds, but can be disabled for server-only builds.
 
 - `src/lib.rs`
   - `protocol` / `framing` (message types + framing)
   - `daemon` / `proxy` (Linux server side)
   - `client` (SSH + clipboard adapters)
-  - `agent` (optional; tray + hotkeys; feature-gated)
+  - `agent` (tray + hotkeys; feature-gated but default-on for clients)
 
 Conditional compilation:
 - `#[cfg(target_os = "linux")]` for daemon unix-socket server
@@ -150,12 +157,14 @@ Conditional compilation:
 ### Linux server
 - Run daemon via `systemd --user` (recommended) or as a simple background process.
 - Daemon holds the clipboard value in memory until it exits/restarts.
+- Proxy can optionally autostart the daemon (useful for casual usage; systemd is preferred for production).
 
 ### Windows/macOS/Linux client
 - MVP: CLI push/pull commands.
-- Later: background app that registers hotkeys and invokes push/pull.
+- Background agent (default) registers hotkeys and invokes push/pull.
 
 ## Update Triggers
 - Changes to protocol framing or message types.
 - Changes in SSH invocation or required server setup.
 - Changes in clipboard format handling or hotkey behavior.
+- Changes in packaging, release, or default feature flags.

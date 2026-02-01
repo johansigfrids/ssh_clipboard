@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build (${{ matrix.name }})
@@ -18,26 +22,26 @@ jobs:
         include:
           - name: windows-agent
             os: windows-latest
-            features: "agent"
+            agent: true
             artifact: ssh_clipboard-windows-agent
           - name: mac-agent
             os: macos-latest
-            features: "agent"
+            agent: true
             artifact: ssh_clipboard-macos-agent
           - name: linux-agent
             os: ubuntu-latest
-            features: "agent"
+            agent: true
             artifact: ssh_clipboard-linux-agent
           - name: linux-server
             os: ubuntu-latest
-            features: ""
+            agent: false
             artifact: ssh_clipboard-linux-server
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Linux GUI deps (agent)
-        if: runner.os == 'Linux' && matrix.features == 'agent'
+        if: runner.os == 'Linux' && matrix.agent
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -69,17 +73,24 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ matrix.name }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.name }}-
             ${{ runner.os }}-cargo-
 
-      - name: Build (release)
-        run: |
-          if [ "${{ matrix.features }}" = "agent" ]; then
-            cargo build --release --features agent
-          else
-            cargo build --release --no-default-features
-          fi
+      - name: Build (release, agent) (Linux/macOS)
+        if: matrix.agent && runner.os != 'Windows'
+        run: cargo build --release --features agent
+        shell: bash
+
+      - name: Build (release, agent) (Windows)
+        if: matrix.agent && runner.os == 'Windows'
+        run: cargo build --release --features agent
+        shell: pwsh
+
+      - name: Build (release, server)
+        if: ${{ !matrix.agent }}
+        run: cargo build --release --no-default-features
         shell: bash
 
       - name: Package (Linux/macOS)
@@ -88,18 +99,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          bin="ssh_clipboard"
-          cp "target/release/$bin" "dist/$bin"
-          tar -C dist -czf "dist/${{ matrix.artifact }}.tar.gz" "$bin"
-          shasum -a 256 "dist/${{ matrix.artifact }}.tar.gz" > "dist/${{ matrix.artifact }}.tar.gz.sha256"
+          # Only publish uniquely-named archives/checksums to GitHub Releases.
+          # Avoid uploading raw binaries like `ssh_clipboard` multiple times (Linux/macOS jobs).
+          tar -C target/release -czf "dist/${{ matrix.artifact }}.tar.gz" "ssh_clipboard"
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "dist/${{ matrix.artifact }}.tar.gz" > "dist/${{ matrix.artifact }}.tar.gz.sha256"
+          else
+            shasum -a 256 "dist/${{ matrix.artifact }}.tar.gz" > "dist/${{ matrix.artifact }}.tar.gz.sha256"
+          fi
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item "target/release/ssh_clipboard.exe" "dist/ssh_clipboard.exe"
-          Compress-Archive -Path "dist/ssh_clipboard.exe" -DestinationPath "dist/${{ matrix.artifact }}.zip" -Force
+          # Only publish uniquely-named archives/checksums to GitHub Releases.
+          Compress-Archive -Path "target/release/ssh_clipboard.exe" -DestinationPath "dist/${{ matrix.artifact }}.zip" -Force
           $hash = (Get-FileHash "dist/${{ matrix.artifact }}.zip" -Algorithm SHA256).Hash.ToLower()
           "$hash  ${{ matrix.artifact }}.zip" | Out-File -FilePath "dist/${{ matrix.artifact }}.zip.sha256" -Encoding ASCII
 
@@ -126,4 +141,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/**/*
+            dist/**/*.zip
+            dist/**/*.zip.sha256
+            dist/**/*.tar.gz
+            dist/**/*.tar.gz.sha256

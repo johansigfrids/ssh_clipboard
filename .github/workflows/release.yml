@@ -106,7 +106,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ runner.os }}
+          name: release-${{ matrix.name }}
           path: dist/*
 
   release:

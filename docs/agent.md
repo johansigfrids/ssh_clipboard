@@ -46,9 +46,9 @@ ssh_clipboard config validate
 
 ### Hotkey bindings
 Bindings are stored as strings parsed by `global-hotkey` (examples):
-- `CmdOrCtrl+Shift+KeyC` (push)
-- `CmdOrCtrl+Shift+KeyV` (pull)
-- Linux default uses `Ctrl+Shift+KeyC` / `Ctrl+Shift+KeyV`.
+- `CmdOrCtrl+Alt+KeyC` (push)
+- `CmdOrCtrl+Alt+KeyV` (pull)
+- Linux default uses `Ctrl+Alt+KeyC` / `Ctrl+Alt+KeyV`.
 
 If a hotkey fails to register (already taken or blocked), the agent will still run; you can change bindings in the config file and restart the agent.
 

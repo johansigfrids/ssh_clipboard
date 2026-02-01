@@ -48,14 +48,14 @@ pub fn platform_defaults() -> PlatformDefaults {
 pub fn default_agent_config() -> AgentConfig {
     let (push, pull) = match platform_defaults() {
         PlatformDefaults::Macos => (
-            "CmdOrCtrl+Shift+KeyC".to_string(),
-            "CmdOrCtrl+Shift+KeyV".to_string(),
+            "CmdOrCtrl+Alt+KeyC".to_string(),
+            "CmdOrCtrl+Alt+KeyV".to_string(),
         ),
         PlatformDefaults::Windows => (
-            "CmdOrCtrl+Shift+KeyC".to_string(),
-            "CmdOrCtrl+Shift+KeyV".to_string(),
+            "CmdOrCtrl+Alt+KeyC".to_string(),
+            "CmdOrCtrl+Alt+KeyV".to_string(),
         ),
-        PlatformDefaults::Linux => ("Ctrl+Shift+KeyC".to_string(), "Ctrl+Shift+KeyV".to_string()),
+        PlatformDefaults::Linux => ("Ctrl+Alt+KeyC".to_string(), "Ctrl+Alt+KeyV".to_string()),
     };
 
     AgentConfig {

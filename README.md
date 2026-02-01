@@ -49,8 +49,8 @@ Download the appropriate release artifact from GitHub Releases and put the `ssh_
    target = "user@server"
 
    [hotkeys]
-   push = "CmdOrCtrl+Shift+KeyC"
-   pull = "CmdOrCtrl+Shift+KeyV"
+   push = "CmdOrCtrl+Alt+KeyC"
+   pull = "CmdOrCtrl+Alt+KeyV"
    ```
 4. Run the agent:
    ```

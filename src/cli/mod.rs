@@ -11,6 +11,8 @@ use crate::protocol::{DEFAULT_MAX_SIZE, ErrorCode, Response, ResponseKind};
 use time::{Duration, OffsetDateTime};
 
 mod exit;
+#[cfg(target_os = "linux")]
+mod install_daemon;
 mod peek;
 mod pull;
 mod push;
@@ -37,6 +39,10 @@ enum Commands {
     Daemon(DaemonArgs),
     #[cfg(target_os = "linux")]
     Proxy(ProxyArgs),
+    #[cfg(target_os = "linux")]
+    InstallDaemon(InstallDaemonArgs),
+    #[cfg(target_os = "linux")]
+    UninstallDaemon(UninstallDaemonArgs),
     #[cfg(all(
         feature = "agent",
         any(target_os = "windows", target_os = "macos", target_os = "linux")
@@ -170,6 +176,32 @@ pub struct ProxyArgs {
     pub autostart_daemon: bool,
 }
 
+#[cfg(target_os = "linux")]
+#[derive(Args, Clone)]
+pub struct InstallDaemonArgs {
+    #[arg(long)]
+    pub dry_run: bool,
+    #[arg(long)]
+    pub force: bool,
+    #[arg(long)]
+    pub no_sudo: bool,
+    #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
+    pub max_size: usize,
+    #[arg(long, default_value_t = 7000)]
+    pub io_timeout_ms: u64,
+    #[arg(long)]
+    pub socket_path: Option<PathBuf>,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Args, Clone)]
+pub struct UninstallDaemonArgs {
+    #[arg(long)]
+    pub dry_run: bool,
+    #[arg(long)]
+    pub no_sudo: bool,
+}
+
 #[cfg(all(
     feature = "agent",
     any(target_os = "windows", target_os = "macos", target_os = "linux")
@@ -296,6 +328,10 @@ pub async fn run() -> Result<()> {
             .wrap_err("proxy failed")?;
             std::process::exit(exit_code);
         }
+        #[cfg(target_os = "linux")]
+        Commands::InstallDaemon(args) => install_daemon::run(args).await,
+        #[cfg(target_os = "linux")]
+        Commands::UninstallDaemon(args) => install_daemon::run_uninstall(args).await,
         #[cfg(all(
             feature = "agent",
             any(target_os = "windows", target_os = "macos", target_os = "linux")

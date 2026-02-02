@@ -105,6 +105,34 @@ Flags:
 - `--io-timeout-ms <ms>`
 - `--autostart-daemon`: attempt to start the daemon if the socket is unavailable
 
+### `install-daemon` (Linux only)
+Set up the daemon and systemd user service in one command.
+
+Common usage:
+```
+./ssh_clipboard install-daemon
+```
+
+Flags:
+- `--dry-run`: print actions and unit contents without changing the system
+- `--force`: overwrite existing unit source/link
+- `--no-sudo`: do not use sudo (fails if `/usr/local/bin` cannot be updated)
+- `--max-size <bytes>`
+- `--io-timeout-ms <ms>`
+- `--socket-path <path>`
+
+### `uninstall-daemon` (Linux only)
+Remove the systemd user service and PATH symlink created by `install-daemon`.
+
+Common usage:
+```
+./ssh_clipboard uninstall-daemon
+```
+
+Flags:
+- `--dry-run`: print actions without changing the system
+- `--no-sudo`: do not use sudo (fails if `/usr/local/bin` cannot be removed)
+
 ## Exit Codes (client)
 - `0`: success
 - `2`: invalid request/response or unsupported content

@@ -22,6 +22,11 @@ Download the appropriate release artifact from GitHub Releases and put the `ssh_
 ## Getting Started (Most Common Setup)
 ### 1) Linux Server
 1. Install `ssh_clipboard` on the server and ensure it is on `PATH` for your SSH user.
+   - Ubuntu quick setup from an extracted release folder:
+     ```
+     ./ssh_clipboard install-daemon
+     ```
+     Do not move or delete the extracted folder after install; rerun `install-daemon` if you do.
 2. Start the daemon:
    ```
    ssh_clipboard daemon

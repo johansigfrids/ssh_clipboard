@@ -1,4 +1,4 @@
 - Fix app icon
-- config target cli option
 - automate service setup ubuntu
 - mac intel support
+- jpeg support

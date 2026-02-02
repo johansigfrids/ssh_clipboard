@@ -30,6 +30,26 @@ Optional timeouts:
 ssh_clipboard daemon --io-timeout-ms 7000
 ```
 
+## Quick setup (Ubuntu)
+From the extracted release folder (e.g., `~/ssh_clipboard`):
+```
+./ssh_clipboard install-daemon
+```
+
+This will:
+- create/update `/usr/local/bin/ssh_clipboard` (via sudo)
+- write `./ssh_clipboard.service`
+- link it into `~/.config/systemd/user/ssh_clipboard.service`
+- enable and start the service
+
+Note:
+- Do not move or delete the extracted folder after install; rerun `install-daemon` if you do.
+
+### Uninstall
+```
+./ssh_clipboard uninstall-daemon
+```
+
 ### Socket location
 The daemon binds a UNIX socket under:
 - `$XDG_RUNTIME_DIR/ssh_clipboard/daemon.sock` (preferred)

@@ -38,9 +38,7 @@ pub fn run_config(args: ConfigArgs) -> Result<()> {
                 Ok(config) => config,
                 Err(err) => {
                     let path = crate::agent::config_path().ok();
-                    let missing = path
-                        .as_ref()
-                        .is_some_and(|path| !path.exists());
+                    let missing = path.as_ref().is_some_and(|path| !path.exists());
                     if missing {
                         crate::agent::default_agent_config()
                     } else {

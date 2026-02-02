@@ -69,6 +69,19 @@ Flags:
 Notes:
 - Linux hotkeys require X11; on Wayland use `--no-hotkeys`.
 
+### `setup-agent` (Windows/macOS/Linux)
+One-command setup for the agent: writes config (sets target) and enables autostart.
+
+Common usage:
+```
+ssh_clipboard setup-agent --target user@server
+```
+
+Flags:
+- `--no-autostart`: do not enable autostart (disables if already enabled)
+- `--dry-run`: print the resulting config and planned actions without changing the system
+- accepts the same connection options as `config set` (port/identity/ssh-option/etc.)
+
 ### `config`
 Manage agent configuration.
 

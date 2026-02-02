@@ -37,6 +37,11 @@ Set config via CLI:
 ssh_clipboard config set --target user@server --port 2222
 ```
 
+One-command setup (recommended):
+```
+ssh_clipboard setup-agent --target user@server
+```
+
 Validate config:
 ```
 ssh_clipboard config validate

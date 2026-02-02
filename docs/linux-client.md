@@ -30,6 +30,11 @@ Run from source:
 cargo run -- agent
 ```
 
+Recommended one-command setup:
+```
+ssh_clipboard setup-agent --target user@server
+```
+
 ### Hotkeys
 - Global hotkeys are X11-only; on Wayland they may fail or be compositor-dependent.
 - If hotkeys do not register, rerun with `--no-hotkeys`.

@@ -22,6 +22,8 @@ ssh_clipboard autostart refresh
 ## How it works
 Autostart is implemented via `auto-launch` and points to the current `ssh_clipboard` executable path with the `agent` subcommand.
 
+`autostart enable/disable/refresh` also updates the agent config field `autostart_enabled` (used for tray state and best-effort refresh at agent startup).
+
 ## Handling moved/updated binaries
 If you move or replace the `ssh_clipboard` binary after enabling autostart, the stored autostart entry might point to the old path.
 

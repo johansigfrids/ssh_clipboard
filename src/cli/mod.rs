@@ -16,6 +16,11 @@ mod install_daemon;
 mod peek;
 mod pull;
 mod push;
+#[cfg(all(
+    feature = "agent",
+    any(target_os = "windows", target_os = "macos", target_os = "linux")
+))]
+mod setup_agent;
 
 #[cfg(all(
     feature = "agent",
@@ -58,6 +63,11 @@ enum Commands {
         any(target_os = "windows", target_os = "macos", target_os = "linux")
     ))]
     Autostart(AutostartArgs),
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
+    SetupAgent(SetupAgentArgs),
 }
 
 #[derive(Args, Clone)]
@@ -284,6 +294,36 @@ pub enum AutostartCommands {
     Refresh,
 }
 
+#[cfg(all(
+    feature = "agent",
+    any(target_os = "windows", target_os = "macos", target_os = "linux")
+))]
+#[derive(Args, Clone)]
+pub struct SetupAgentArgs {
+    #[arg(long)]
+    pub target: String,
+    #[arg(long)]
+    pub port: Option<u16>,
+    #[arg(long)]
+    pub identity_file: Option<PathBuf>,
+    #[arg(long)]
+    pub ssh_option: Vec<String>,
+    #[arg(long)]
+    pub clear_ssh_options: bool,
+    #[arg(long)]
+    pub max_size: Option<usize>,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
+    #[arg(long, value_parser = clap::value_parser!(bool))]
+    pub resync_frames: Option<bool>,
+    #[arg(long)]
+    pub resync_max_bytes: Option<usize>,
+    #[arg(long)]
+    pub no_autostart: bool,
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
 pub async fn run() -> Result<()> {
     let cli = Cli::parse();
     #[cfg(all(
@@ -347,6 +387,11 @@ pub async fn run() -> Result<()> {
             any(target_os = "windows", target_os = "macos", target_os = "linux")
         ))]
         Commands::Autostart(args) => agent::run_autostart(args),
+        #[cfg(all(
+            feature = "agent",
+            any(target_os = "windows", target_os = "macos", target_os = "linux")
+        ))]
+        Commands::SetupAgent(args) => setup_agent::run(args),
     }
 }
 

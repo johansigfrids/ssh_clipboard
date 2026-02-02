@@ -46,6 +46,11 @@ cargo run -- agent
 
 The agent uses the config file shown by `ssh_clipboard config path`.
 
+Recommended one-command setup:
+```
+ssh_clipboard setup-agent --target user@server
+```
+
 ## Input/Output Modes
 - `push --stdin`: read text from stdin instead of the clipboard
   - Example: `cat note.txt | ssh_clipboard push --stdin --target user@server`

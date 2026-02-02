@@ -59,10 +59,12 @@ pub fn run_autostart(args: AutostartArgs) -> Result<()> {
     match args.command {
         AutostartCommands::Enable => {
             crate::agent::autostart::enable().wrap_err("autostart enable failed")?;
+            update_autostart_enabled_flag(true);
             println!("enabled");
         }
         AutostartCommands::Disable => {
             crate::agent::autostart::disable().wrap_err("autostart disable failed")?;
+            update_autostart_enabled_flag(false);
             println!("disabled");
         }
         AutostartCommands::Status => {
@@ -71,13 +73,37 @@ pub fn run_autostart(args: AutostartArgs) -> Result<()> {
         }
         AutostartCommands::Refresh => {
             crate::agent::autostart::refresh().wrap_err("autostart refresh failed")?;
+            update_autostart_enabled_flag(true);
             println!("refreshed");
         }
     }
     Ok(())
 }
 
-fn apply_config_set(config: &mut crate::agent::AgentConfig, args: &ConfigSetArgs) {
+fn update_autostart_enabled_flag(enabled: bool) {
+    let mut config = match crate::agent::load_config() {
+        Ok(config) => config,
+        Err(err) => {
+            let path = crate::agent::config_path().ok();
+            let missing = path.as_ref().is_some_and(|path| !path.exists());
+            if missing {
+                crate::agent::default_agent_config()
+            } else {
+                eprintln!("warning: failed to load config; autostart flag not updated: {err}");
+                return;
+            }
+        }
+    };
+    config.autostart_enabled = enabled;
+    let _ = crate::agent::store_config(&config);
+    if config.target.trim().is_empty() {
+        eprintln!(
+            "warning: autostart toggled but config target is empty; set it with `ssh_clipboard setup-agent --target ...`"
+        );
+    }
+}
+
+pub(crate) fn apply_config_set(config: &mut crate::agent::AgentConfig, args: &ConfigSetArgs) {
     if let Some(target) = &args.target {
         config.target = target.clone();
     }

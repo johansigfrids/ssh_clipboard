@@ -1,4 +1,3 @@
 - Fix app icon
-- automate service setup ubuntu
 - mac intel support
 - jpeg support

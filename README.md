@@ -1,79 +1,59 @@
-# SSH Clipboard
-
-Disclaimer: This project is 100% vibecoded and has not had human code review.
+# ssh_clipboard
 
 `ssh_clipboard` copies clipboard content between machines over SSH.
 
 - Clients: Windows / macOS / Linux
 - Server: Linux (daemon + proxy)
 
-Press a hotkey to **push** your current clipboard to the server, and another hotkey to **pull** the server clipboard onto your current machine.
+The Linux server keeps the latest clipboard value **in memory only** (no on-disk persistence).
 
-Communication happens over the system `ssh` client. The Linux server keeps the latest clipboard value **in memory only** (no on-disk persistence).
+## Quick Start (recommended)
 
-## Status
-- Linux server: daemon/proxy implemented.
-- Clients: `push`/`pull`/`peek` implemented (text + PNG images) on Windows/macOS/Linux.
-- Agent (tray + hotkeys): implemented; Linux hotkeys require X11 (Wayland best effort).
+### 1) Linux server (daemon + proxy)
+1) Download a Linux release artifact on the server and extract it (example folder: `~/ssh_clipboard`).
 
-## Installation
-Download the appropriate release artifact from GitHub Releases and put the `ssh_clipboard` binary on your `PATH`.
+2) Run the one-command setup (Ubuntu/systemd user service):
+```
+./ssh_clipboard install-daemon
+```
 
-## Getting Started (Most Common Setup)
-### 1) Linux Server
-1. Install `ssh_clipboard` on the server and ensure it is on `PATH` for your SSH user.
-   - Ubuntu quick setup from an extracted release folder:
-     ```
-     ./ssh_clipboard install-daemon
-     ```
-     Do not move or delete the extracted folder after install; rerun `install-daemon` if you do.
-2. Start the daemon:
-   ```
-   ssh_clipboard daemon
-   ```
-3. Verify the proxy can be invoked over SSH:
-   ```
-   ssh user@server ssh_clipboard proxy --help
-   ```
+This will:
+- symlink `/usr/local/bin/ssh_clipboard` → `./ssh_clipboard` (uses `sudo`)
+- write `./ssh_clipboard.service`
+- symlink it into `~/.config/systemd/user/ssh_clipboard.service`
+- enable + start the service
 
-### 2) Agent Client (Windows/macOS/Linux)
-1. Ensure SSH key authentication works non-interactively (recommended for hotkeys):
-   ```
-   ssh user@server true
-   ```
-2. Find the agent config path:
-   ```
-   ssh_clipboard config path
-   ```
-3. Edit the config to set `target` (for example `user@server`), then validate:
-   ```
-   ssh_clipboard config validate
-   ```
-   Minimal config example (TOML):
-   ```toml
-   target = "user@server"
+Important:
+- Do not move or delete the extracted folder after install; rerun `install-daemon` if you do.
 
-   [hotkeys]
-   push = "CmdOrCtrl+Alt+KeyC"
-   pull = "CmdOrCtrl+Alt+KeyV"
-   ```
-4. Run the agent:
-   ```
-   ssh_clipboard agent
-   ```
-5. Use the tray/hotkeys to push and pull clipboard contents.
+3) Verify the proxy works over SSH:
+```
+ssh -T user@server ssh_clipboard proxy --help
+```
+
+### 2) Client (agent: tray + hotkeys)
+1) Make sure SSH works non-interactively (recommended for hotkeys):
+```
+ssh user@server true
+```
+
+2) One-command client setup (writes config + enables autostart):
+```
+ssh_clipboard setup-agent --target user@server
+```
+
+3) Run the agent:
+```
+ssh_clipboard agent
+```
 
 Notes:
-- Linux agent: hotkeys require X11 (Wayland best-effort).
-- The client uses the system `ssh` binary.
+- Linux hotkeys require X11; on Wayland use `ssh_clipboard agent --no-hotkeys`.
+- If tray init fails, run `ssh_clipboard agent --no-tray`.
 
-## CLI Usage (Ad Hoc / Scripts)
+## Essentials (daily usage)
 
-### Requirements
-- The `ssh_clipboard` binary must be available on the server `PATH` for the SSH user (so `ssh user@server ssh_clipboard proxy` works).
-- The client uses the system `ssh` binary.
-
-### Examples
+### CLI (ad hoc / scripts)
 Push clipboard to server:
 ```
 ssh_clipboard push --target user@server
@@ -84,7 +64,13 @@ Pull clipboard from server:
 ssh_clipboard pull --target user@server
 ```
 
-Push from stdin:
+Peek metadata:
+```
+ssh_clipboard peek --target user@server
+```
+
+### Input/output modes
+Push text from stdin:
 ```
 cat note.txt | ssh_clipboard push --stdin --target user@server
 ```
@@ -94,117 +80,54 @@ Pull to stdout (instead of clipboard):
 ssh_clipboard pull --stdout --target user@server
 ```
 
-Pull PNG image to a file:
+Pull PNG to a file:
 ```
 ssh_clipboard pull --output ./clipboard.png --target user@server
 ```
 
-Pull binary/image as base64:
-```
-ssh_clipboard pull --stdout --base64 --target user@server
-```
+### Robust defaults
+- The client tolerates “noisy shells” / MOTD bytes before the protocol by resyncing frames by default.
+  - Use `--strict-frames` to disable resync and fail fast instead.
+- Default max payload is **10 MiB** (`--max-size`).
 
-Peek metadata:
-```
-ssh_clipboard peek --target user@server
-```
-Example output:
-```
-Content-Type: text/plain; charset=utf-8
-Size: 67 bytes (67 B)
-Created: 2026-02-01 08:24:10 UTC (2m 14s ago)
-```
-
-Peek metadata (JSON):
-```
-ssh_clipboard peek --json --target user@server
-```
-
-Peek metadata via pull:
-```
-ssh_clipboard pull --peek --target user@server
-```
-
-### Common options
-- `--target user@host` (preferred) or `--host host --user user`
-- `--port 2222`
-- `--identity-file ~/.ssh/id_ed25519`
-- `--ssh-option <opt>` (repeatable; passed as `ssh -o <opt>`)
-- `--timeout-ms 7000`
-- `--max-size <bytes>` (default 10 MiB)
-- `--strict-frames` / `--resync-max-bytes <bytes>` (noisy shell/MOTD protection)
-
-## Agent Mode (hotkeys + tray)
-The agent provides a tray icon + global hotkeys for push/pull.
-
-Run:
-```
-ssh_clipboard agent
-```
-
-Build and run from source:
-```
-cargo run --features agent -- agent
-```
-
-Useful commands:
-```
-ssh_clipboard config path
-ssh_clipboard config show --json
-ssh_clipboard config set --target user@server
-ssh_clipboard config validate
-ssh_clipboard autostart status
-ssh_clipboard autostart enable
-```
-
-Notes:
-- The agent reads its settings from the config file (see `ssh_clipboard config path`).
-- Set `target` (e.g. `user@server`) in the agent config before running, otherwise `config validate` will fail.
-- Linux notes: tray/hotkeys depend on GTK + X11; Wayland support depends on the desktop environment.
-
-## Linux Daemon/Proxy
-
-### Build
-```
-cargo build
-```
-
-### Run the daemon
-```
-ssh_clipboard daemon
-```
-
-### Run the proxy (invoked via SSH)
-```
-ssh user@server ssh_clipboard proxy
-```
-
-Optional proxy auto-start (starts the daemon if the socket is unavailable):
-```
-ssh user@server ssh_clipboard proxy --autostart-daemon
-```
-
-### Defaults
-- Socket path: `$XDG_RUNTIME_DIR/ssh_clipboard/daemon.sock` or `/tmp/ssh_clipboard-$UID/daemon.sock`
-- Max payload: 10 MiB
+## Feature overview
+- Clipboard formats: UTF-8 text and PNG images
 - One-shot request/response per SSH session
-- Content types: `text/plain; charset=utf-8` and `image/png`
+- Agent: tray menu (Push/Pull/Peek), global hotkeys, notifications, optional autostart
+- Server: per-user daemon, UNIX socket permissions, peer credential checks (Linux)
 
-### Options
-- `--socket-path <path>`
-- `--max-size <bytes>`
-- `--io-timeout-ms 7000`
+## More help (user docs)
+This repo’s `docs/` folder is intended for internal/dev documentation.
 
-## Build From Source
-Build client (includes agent by default):
+For user-facing help, rely on CLI help:
+```
+ssh_clipboard --help
+ssh_clipboard <command> --help
+```
+
+Useful starting points:
+- `ssh_clipboard setup-agent --help`
+- `ssh_clipboard install-daemon --help`
+- `ssh_clipboard push --help`
+- `ssh_clipboard pull --help`
+- `ssh_clipboard peek --help`
+
+## Developer docs (internal)
+If you’re hacking on the project or packaging it, start at `docs/index.md`.
+
+## Build from source
+Client build (agent enabled by default):
 ```
 cargo build --release
 ```
 
-Build Linux server-only (no agent/UI deps):
+Linux server-only build (no agent/UI deps):
 ```
 cargo build --release --no-default-features
 ```
 
 ## License
 MIT. See `LICENSE`.
+
+## Disclaimer
+This project is 100% vibecoded and has not had human code review.

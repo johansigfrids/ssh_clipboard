@@ -77,6 +77,7 @@ Subcommands:
 - `config show [--json]`
 - `config validate`
 - `config defaults`
+- `config set --target user@host [--port 2222] [--identity-file <path>] [--ssh-option <opt>] [--clear-ssh-options] [--max-size <bytes>] [--timeout-ms <ms>] [--resync-frames <bool>] [--resync-max-bytes <bytes>]`
 
 ### `autostart`
 Manage “start at login” for the agent.

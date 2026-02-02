@@ -146,6 +146,7 @@ Useful commands:
 ```
 ssh_clipboard config path
 ssh_clipboard config show --json
+ssh_clipboard config set --target user@server
 ssh_clipboard config validate
 ssh_clipboard autostart status
 ssh_clipboard autostart enable

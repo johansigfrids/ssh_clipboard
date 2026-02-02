@@ -32,6 +32,11 @@ Show current config:
 ssh_clipboard config show --json
 ```
 
+Set config via CLI:
+```
+ssh_clipboard config set --target user@server --port 2222
+```
+
 Validate config:
 ```
 ssh_clipboard config validate

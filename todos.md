@@ -1,6 +1,4 @@
 - Fix app icon
 - config target cli option
-- dont notify about peek
-- Better formatting for time in peek
 - automate service setup ubuntu
 - mac intel support

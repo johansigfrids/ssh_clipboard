@@ -205,6 +205,29 @@ pub enum ConfigCommands {
     },
     Validate,
     Defaults,
+    Set(ConfigSetArgs),
+}
+
+#[derive(Args, Clone, Default)]
+pub struct ConfigSetArgs {
+    #[arg(long)]
+    pub target: Option<String>,
+    #[arg(long)]
+    pub port: Option<u16>,
+    #[arg(long)]
+    pub identity_file: Option<PathBuf>,
+    #[arg(long)]
+    pub ssh_option: Vec<String>,
+    #[arg(long)]
+    pub clear_ssh_options: bool,
+    #[arg(long)]
+    pub max_size: Option<usize>,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
+    #[arg(long, value_parser = clap::value_parser!(bool))]
+    pub resync_frames: Option<bool>,
+    #[arg(long)]
+    pub resync_max_bytes: Option<usize>,
 }
 
 #[cfg(all(

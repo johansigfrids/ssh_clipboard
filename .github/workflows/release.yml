@@ -25,11 +25,11 @@ jobs:
             agent: true
             artifact: ssh_clipboard-windows-agent
           - name: mac-agent-arm64
-            os: macos-14
+            os: macos-latest
             agent: true
             artifact: ssh_clipboard-macos-aarch64-agent
           - name: mac-agent-x86_64
-            os: macos-13
+            os: macos-15-intel
             agent: true
             artifact: ssh_clipboard-macos-x86_64-agent
           - name: linux-agent

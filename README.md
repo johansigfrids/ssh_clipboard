@@ -9,6 +9,9 @@ The Linux server keeps the latest clipboard value **in memory only** (no on-disk
 
 ## Quick Start (recommended)
 
+Download the release artifact that matches your platform and CPU architecture.
+- macOS: `x86_64` = Intel, `aarch64` = Apple Silicon
+
 ### 1) Linux server (daemon + proxy)
 1) Download a Linux release artifact on the server and extract it (example folder: `~/ssh_clipboard`).
 

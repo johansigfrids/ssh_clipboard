@@ -21,6 +21,9 @@ Describe how to cut and publish releases, validate artifacts, and roll back if n
 
 ## Validate Artifacts
 - Download the artifacts from the GitHub Release page.
+- macOS publishes two agent artifacts:
+  - `ssh_clipboard-macos-x86_64-agent` (Intel)
+  - `ssh_clipboard-macos-aarch64-agent` (Apple Silicon)
 - Smoke test:
   - `ssh_clipboard --help`
   - `ssh_clipboard proxy --help`

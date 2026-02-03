@@ -132,7 +132,11 @@ fn print_dry_run(
     unit_link: &Path,
     unit_contents: &str,
 ) -> Result<()> {
-    println!("dry-run: would link {bin_link} -> {}", exe.display());
+    println!(
+        "dry-run: would link {} -> {}",
+        bin_link.display(),
+        exe.display()
+    );
     println!(
         "dry-run: would write unit file to {}",
         unit_source.display()

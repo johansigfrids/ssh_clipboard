@@ -25,6 +25,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/releasing.md`: How to tag releases and validate artifacts.
 - `docs/troubleshooting.md`: Common errors and fixes.
 - `docs/testing.md`: How to run tests and what’s covered.
+- `docs/icon.md`: Icon assets and regeneration steps.
 - Agent-related:
   - `docs/cli.md` includes `agent`, `config`, and `autostart` command notes.
   - `docs/agent.md`: Agent setup, config, hotkeys, tray UX, and logs.

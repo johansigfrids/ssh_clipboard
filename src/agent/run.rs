@@ -188,7 +188,7 @@ fn build_tray(config: Arc<Mutex<AgentConfig>>) -> Result<TrayState> {
     let tray = TrayIconBuilder::new()
         .with_tooltip("ssh_clipboard")
         .with_menu(Box::new(menu))
-        .with_icon(default_icon()?)
+        .with_icon(load_tray_icon()?)
         .build()
         .map_err(|err| eyre!(err.to_string()))?;
 
@@ -406,7 +406,26 @@ fn start_operation<F, Fut>(
     });
 }
 
-fn default_icon() -> Result<Icon> {
+fn load_tray_icon() -> Result<Icon> {
+    static ICON_PNG: &[u8] =
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/icon.png"));
+    match icon_from_png(ICON_PNG) {
+        Ok(icon) => Ok(icon),
+        Err(err) => {
+            tracing::warn!("failed to load tray icon from PNG: {err}");
+            fallback_icon()
+        }
+    }
+}
+
+fn icon_from_png(bytes: &[u8]) -> Result<Icon> {
+    let image = image::load_from_memory(bytes).wrap_err("decode png icon failed")?;
+    let rgba = image.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    Icon::from_rgba(rgba.into_raw(), width, height).map_err(|err| eyre!(err.to_string()))
+}
+
+fn fallback_icon() -> Result<Icon> {
     let size = 32u32;
     let mut rgba = Vec::with_capacity((size * size * 4) as usize);
     for y in 0..size {

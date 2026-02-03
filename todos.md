@@ -1,3 +1,1 @@
-- Fix app icon
 - mac intel support
-- jpeg support

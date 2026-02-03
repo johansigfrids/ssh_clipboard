@@ -53,3 +53,6 @@ agent = [
 [dev-dependencies]
 proptest = "1.4"
 tempfile = "3"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"

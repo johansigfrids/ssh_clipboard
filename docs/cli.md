@@ -67,6 +67,7 @@ Flags:
 - `--no-hotkeys`: disable hotkeys
 
 Notes:
+- `ssh_clipboard agent` launches the `ssh_clipboard_agent` binary for parity with autostart behavior.
 - Linux hotkeys require X11; on Wayland use `--no-hotkeys`.
 
 ### `setup-agent` (Windows/macOS/Linux)

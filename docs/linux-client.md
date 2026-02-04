@@ -27,7 +27,7 @@ Expected to work out of the box with `arboard` for text and PNG images.
 ## Agent Mode (Tray + Hotkeys)
 Run from source:
 ```
-cargo run -- agent
+cargo run --bin ssh_clipboard_agent
 ```
 
 Recommended one-command setup:

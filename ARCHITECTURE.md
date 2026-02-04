@@ -39,6 +39,7 @@ This yields a clean separation:
    - Receives clipboard from server, writes it to local clipboard (pull).
    - Uses the platform `ssh` binary and communicates via stdin/stdout frames.
    - Supports both CLI-triggered push/pull and a background agent (tray + global hotkeys).
+   - The agent runs as a separate `ssh_clipboard_agent` binary to avoid console windows on Windows/macOS.
 
 ## Data Flow
 

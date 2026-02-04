@@ -53,6 +53,7 @@ ssh_clipboard agent
 Notes:
 - Linux hotkeys require X11; on Wayland use `ssh_clipboard agent --no-hotkeys`.
 - If tray init fails, run `ssh_clipboard agent --no-tray`.
+- Autostart uses the `ssh_clipboard_agent` binary (bundled alongside `ssh_clipboard`) to avoid opening a terminal window on Windows/macOS.
 
 ## Essentials (daily usage)
 

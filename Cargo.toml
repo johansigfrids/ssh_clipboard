@@ -3,6 +3,11 @@ name = "ssh_clipboard"
 version = "0.2.0"
 edition = "2024"
 
+[[bin]]
+name = "ssh_clipboard_agent"
+path = "src/bin/ssh_clipboard_agent.rs"
+required-features = ["agent"]
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }

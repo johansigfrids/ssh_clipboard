@@ -1,11 +1,47 @@
 use eyre::{Result, WrapErr};
+use std::io::{self, IsTerminal};
+use std::process::Command;
 
 use crate::cli::{
     AgentArgs, AutostartArgs, AutostartCommands, ConfigArgs, ConfigCommands, ConfigSetArgs,
 };
 
 pub fn run_agent(args: AgentArgs) -> Result<()> {
-    crate::agent::run::run_agent(args.no_tray, args.no_hotkeys)
+    let run_in_process = !args.force_exec && (io::stdout().is_terminal() || io::stderr().is_terminal());
+
+    if run_in_process {
+        return crate::agent::run::run_agent(args.no_tray, args.no_hotkeys, args.autostart);
+    }
+
+    let agent_path = match crate::agent::autostart::agent_binary_path() {
+        Ok(path) => path,
+        Err(err) => {
+            eprintln!("warning: failed to locate agent binary for exec: {err}");
+            return crate::agent::run::run_agent(args.no_tray, args.no_hotkeys, args.autostart);
+        }
+    };
+
+    let mut cmd = Command::new(&agent_path);
+    if args.no_tray {
+        cmd.arg("--no-tray");
+    }
+    if args.no_hotkeys {
+        cmd.arg("--no-hotkeys");
+    }
+    if args.autostart {
+        cmd.arg("--autostart");
+    }
+
+    match cmd.spawn() {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            eprintln!(
+                "warning: failed to launch {}: {err}",
+                agent_path.display()
+            );
+            crate::agent::run::run_agent(args.no_tray, args.no_hotkeys, args.autostart)
+        }
+    }
 }
 
 pub fn run_config(args: ConfigArgs) -> Result<()> {

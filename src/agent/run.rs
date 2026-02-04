@@ -21,7 +21,7 @@ enum UserEvent {
     OperationErr(&'static str, String),
 }
 
-pub fn run_agent(no_tray: bool, no_hotkeys: bool) -> Result<()> {
+pub fn run_agent(no_tray: bool, no_hotkeys: bool, autostart: bool) -> Result<()> {
     let config = load_config().unwrap_or_else(|_| default_agent_config());
     store_config(&config).ok();
     validate_config(&config)
@@ -30,6 +30,9 @@ pub fn run_agent(no_tray: bool, no_hotkeys: bool) -> Result<()> {
     let instance = single_instance::SingleInstance::new("ssh_clipboard_agent")
         .map_err(|err| eyre!("failed to create single instance lock: {err}"))?;
     if !instance.is_single() {
+        if autostart {
+            return Ok(());
+        }
         return Err(eyre!("ssh_clipboard agent is already running"));
     }
 

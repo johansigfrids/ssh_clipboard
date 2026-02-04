@@ -222,6 +222,10 @@ pub struct AgentArgs {
     pub no_tray: bool,
     #[arg(long)]
     pub no_hotkeys: bool,
+    #[arg(long, hide = true)]
+    pub autostart: bool,
+    #[arg(long, hide = true)]
+    pub force_exec: bool,
 }
 
 #[cfg(all(
@@ -617,4 +621,8 @@ fn init_tracing(agent_mode: bool) -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
     Ok(())
+}
+
+pub fn init_tracing_for_agent() -> Result<()> {
+    init_tracing(true)
 }

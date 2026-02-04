@@ -24,6 +24,7 @@ Document the GitHub Actions setup for tests and releases, including build varian
 - `release.yml` runs on tags matching `v*`.
 - Builds the same four variants as CI.
 - Packages artifacts per OS and uploads to GitHub Releases with SHA256 checksums.
+  - Agent builds include both `ssh_clipboard` and `ssh_clipboard_agent`.
 - Uses concurrency per tag (`github.ref`) to avoid overlapping release runs.
 
 ## Update Triggers

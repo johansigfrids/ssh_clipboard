@@ -14,9 +14,14 @@ Document the background agent: tray/menu UX, global hotkeys, config, and logs.
 ## Build and Run
 The agent is enabled by default in client builds. For a Linux server-only build, use `--no-default-features`.
 
-Run from source:
+Run from source (agent binary):
 ```
-cargo run -- agent
+cargo run --bin ssh_clipboard_agent
+```
+
+You can also run via the CLI wrapper:
+```
+ssh_clipboard agent
 ```
 
 ## Configuration

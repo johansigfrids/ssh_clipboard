@@ -41,7 +41,7 @@ ssh_clipboard peek --json --target user@server
 ## Agent Mode (Hotkeys + tray)
 The background agent is included in client builds by default. To run from source:
 ```
-cargo run -- agent
+cargo run --bin ssh_clipboard_agent
 ```
 
 The agent uses the config file shown by `ssh_clipboard config path`.

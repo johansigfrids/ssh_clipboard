@@ -60,7 +60,7 @@ ssh_clipboard agent
 ```
 
 Notes:
-- Linux hotkeys require X11; on Wayland use `ssh_clipboard agent --no-hotkeys`.
+- Linux on Wayland auto-disables global hotkeys at startup with a single notice; use tray actions, or run under X11 to enable hotkeys.
 - If tray init fails, run `ssh_clipboard agent --no-tray`.
 - Autostart uses the `ssh_clipboard_agent` binary (bundled alongside `ssh_clipboard`) to avoid opening a terminal window on Windows/macOS.
 

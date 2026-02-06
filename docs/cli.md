@@ -94,7 +94,8 @@ Flags:
 
 Notes:
 - `ssh_clipboard agent` runs in-process when attached to a terminal; otherwise it launches the `ssh_clipboard_agent` binary (matching autostart behavior).
-- Linux hotkeys require X11; on Wayland use `--no-hotkeys`.
+- On Linux Wayland sessions, hotkeys are auto-disabled at startup with a single notice; use tray actions, or run under X11 to enable global hotkeys.
+- `--no-hotkeys` remains available as a manual override on all platforms.
 
 ### `install-client` (Windows/macOS/Linux)
 Install client binaries to a stable user-local location, update PATH, run setup, verify, and start the agent.

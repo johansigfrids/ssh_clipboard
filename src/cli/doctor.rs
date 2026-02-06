@@ -67,6 +67,14 @@ struct AgentConfigInfo {
     load_error: Option<String>,
 }
 
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LinuxSession {
+    Wayland,
+    X11,
+    Unknown,
+}
+
 pub async fn run(args: DoctorArgs) -> Result<()> {
     let timeout_ms = args.timeout_ms.max(1);
     let mut ssh = SshConfig {
@@ -98,6 +106,9 @@ pub async fn run(args: DoctorArgs) -> Result<()> {
             err.to_string(),
             "install OpenSSH client or pass `--ssh-bin <path>`",
         )),
+    }
+    if let Some(check) = maybe_linux_hotkey_check() {
+        checks.push(check);
     }
 
     if target.trim().is_empty() {
@@ -217,6 +228,62 @@ pub async fn run(args: DoctorArgs) -> Result<()> {
         );
     }
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn maybe_linux_hotkey_check() -> Option<CheckOutcome> {
+    match detect_linux_session() {
+        LinuxSession::Wayland => Some(CheckOutcome::warn(
+            "local hotkeys",
+            "Wayland session detected; global hotkeys are auto-disabled",
+            "use tray actions, or run under X11 to enable global hotkeys",
+        )),
+        LinuxSession::X11 => Some(CheckOutcome::ok(
+            "local hotkeys",
+            "X11 session detected; global hotkeys are available",
+        )),
+        LinuxSession::Unknown => Some(CheckOutcome::warn(
+            "local hotkeys",
+            "could not determine local display session type",
+            "set XDG_SESSION_TYPE/WAYLAND_DISPLAY/DISPLAY, or run under X11 for global hotkeys",
+        )),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn maybe_linux_hotkey_check() -> Option<CheckOutcome> {
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn detect_linux_session() -> LinuxSession {
+    detect_linux_session_from_env(|name| std::env::var(name).ok())
+}
+
+#[cfg(target_os = "linux")]
+fn detect_linux_session_from_env<F>(mut get_var: F) -> LinuxSession
+where
+    F: FnMut(&str) -> Option<String>,
+{
+    if let Some(session_type) = get_var("XDG_SESSION_TYPE") {
+        let session_type = session_type.trim().to_ascii_lowercase();
+        if session_type == "wayland" {
+            return LinuxSession::Wayland;
+        }
+        if session_type == "x11" {
+            return LinuxSession::X11;
+        }
+    }
+
+    if get_var("WAYLAND_DISPLAY").is_some_and(|value| !value.trim().is_empty()) {
+        return LinuxSession::Wayland;
+    }
+
+    if get_var("DISPLAY").is_some_and(|value| !value.trim().is_empty()) {
+        return LinuxSession::X11;
+    }
+
+    LinuxSession::Unknown
 }
 
 async fn run_local_ssh_version(config: &SshConfig, timeout_ms: u64) -> Result<()> {

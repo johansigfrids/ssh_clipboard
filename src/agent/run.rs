@@ -13,6 +13,21 @@ use tokio::runtime::Runtime;
 use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuId, MenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HotkeyMode {
+    Enabled,
+    DisabledByUser,
+    DisabledForWayland,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinuxSession {
+    Wayland,
+    X11,
+    Unknown,
+}
+
 #[derive(Debug, Clone)]
 enum UserEvent {
     Menu(MenuId),
@@ -62,6 +77,8 @@ pub fn run_agent(no_tray: bool, no_hotkeys: bool, autostart: bool) -> Result<()>
 
     let mut tray_state: Option<TrayState> = None;
     let mut hotkeys: Option<Hotkeys> = None;
+    let hotkey_mode = decide_hotkey_mode(no_hotkeys);
+    let effective_no_hotkeys = hotkey_mode != HotkeyMode::Enabled;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -79,7 +96,14 @@ pub fn run_agent(no_tray: bool, no_hotkeys: bool, autostart: bool) -> Result<()>
                     }
                 }
 
-                if !no_hotkeys {
+                if hotkey_mode == HotkeyMode::DisabledForWayland {
+                    notify::notify(
+                        "ssh_clipboard",
+                        "Wayland detected: global hotkeys are disabled automatically. Use tray actions, or run under X11 to enable hotkeys.",
+                    );
+                }
+
+                if !effective_no_hotkeys {
                     match register_hotkeys(config.clone()) {
                         Ok(state) => hotkeys = Some(state),
                         Err(err) => {
@@ -146,6 +170,50 @@ pub fn run_agent(no_tray: bool, no_hotkeys: bool, autostart: bool) -> Result<()>
             _ => {}
         }
     });
+}
+
+fn decide_hotkey_mode(no_hotkeys: bool) -> HotkeyMode {
+    if no_hotkeys {
+        return HotkeyMode::DisabledByUser;
+    }
+
+    #[cfg(target_os = "linux")]
+    if detect_linux_session() == LinuxSession::Wayland {
+        return HotkeyMode::DisabledForWayland;
+    }
+
+    HotkeyMode::Enabled
+}
+
+#[cfg(target_os = "linux")]
+fn detect_linux_session() -> LinuxSession {
+    detect_linux_session_from_env(|name| std::env::var(name).ok())
+}
+
+#[cfg(target_os = "linux")]
+fn detect_linux_session_from_env<F>(mut get_var: F) -> LinuxSession
+where
+    F: FnMut(&str) -> Option<String>,
+{
+    if let Some(session_type) = get_var("XDG_SESSION_TYPE") {
+        let session_type = session_type.trim().to_ascii_lowercase();
+        if session_type == "wayland" {
+            return LinuxSession::Wayland;
+        }
+        if session_type == "x11" {
+            return LinuxSession::X11;
+        }
+    }
+
+    if get_var("WAYLAND_DISPLAY").is_some_and(|value| !value.trim().is_empty()) {
+        return LinuxSession::Wayland;
+    }
+
+    if get_var("DISPLAY").is_some_and(|value| !value.trim().is_empty()) {
+        return LinuxSession::X11;
+    }
+
+    LinuxSession::Unknown
 }
 
 struct TrayState {
@@ -442,4 +510,102 @@ fn fallback_icon() -> Result<Icon> {
         }
     }
     Icon::from_rgba(rgba, size, size).map_err(|err| eyre!(err.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(target_os = "linux")]
+    use std::collections::HashMap;
+
+    #[cfg(target_os = "linux")]
+    fn linux_session_for(vars: &[(&str, &str)]) -> LinuxSession {
+        let vars = vars
+            .iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect::<HashMap<_, _>>();
+        detect_linux_session_from_env(|name| vars.get(name).cloned())
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn detect_wayland_from_xdg_session_type() {
+        assert_eq!(
+            linux_session_for(&[("XDG_SESSION_TYPE", " wayland ")]),
+            LinuxSession::Wayland
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn detect_x11_from_xdg_session_type() {
+        assert_eq!(
+            linux_session_for(&[("XDG_SESSION_TYPE", "X11")]),
+            LinuxSession::X11
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn detect_wayland_from_wayland_display_fallback() {
+        assert_eq!(
+            linux_session_for(&[("WAYLAND_DISPLAY", "wayland-0")]),
+            LinuxSession::Wayland
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn detect_x11_from_display_fallback() {
+        assert_eq!(linux_session_for(&[("DISPLAY", ":0")]), LinuxSession::X11);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn detect_unknown_when_no_env() {
+        assert_eq!(linux_session_for(&[]), LinuxSession::Unknown);
+    }
+
+    #[test]
+    fn decide_hotkey_mode_user_disable_wins() {
+        assert_eq!(decide_hotkey_mode(true), HotkeyMode::DisabledByUser);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn decide_hotkey_mode_wayland_auto_disables() {
+        assert_eq!(
+            decide_hotkey_mode_for_env(false, &[("XDG_SESSION_TYPE", "wayland")]),
+            HotkeyMode::DisabledForWayland
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn decide_hotkey_mode_user_disable_not_classified_as_wayland_auto_disable() {
+        assert_eq!(
+            decide_hotkey_mode_for_env(true, &[("XDG_SESSION_TYPE", "wayland")]),
+            HotkeyMode::DisabledByUser
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn decide_hotkey_mode_x11_enables_hotkeys() {
+        assert_eq!(
+            decide_hotkey_mode_for_env(false, &[("XDG_SESSION_TYPE", "x11")]),
+            HotkeyMode::Enabled
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    fn decide_hotkey_mode_for_env(no_hotkeys: bool, vars: &[(&str, &str)]) -> HotkeyMode {
+        if no_hotkeys {
+            return HotkeyMode::DisabledByUser;
+        }
+        if linux_session_for(vars) == LinuxSession::Wayland {
+            return HotkeyMode::DisabledForWayland;
+        }
+        HotkeyMode::Enabled
+    }
 }

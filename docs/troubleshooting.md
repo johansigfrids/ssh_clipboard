@@ -74,7 +74,8 @@ Common failure cases and how to resolve them.
 - **Hotkeys don’t fire (macOS):**
   - Some environments may require enabling the terminal/app under System Settings → Privacy & Security → Input Monitoring or Accessibility.
 - **Hotkeys don’t fire (Linux):**
-  - Hotkeys are X11-only; on Wayland, use `--no-hotkeys`.
+  - On Wayland, hotkeys are auto-disabled by the agent with a single startup notice.
+  - Use tray actions on Wayland, or run under X11 to enable global hotkeys.
 - **Tray icon missing (Linux):**
   - Ensure GTK + appindicator packages are installed for your distro.
 

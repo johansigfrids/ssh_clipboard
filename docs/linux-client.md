@@ -36,8 +36,10 @@ ssh_clipboard setup-agent --target user@server
 ```
 
 ### Hotkeys
-- Global hotkeys are X11-only; on Wayland they may fail or be compositor-dependent.
-- If hotkeys do not register, rerun with `--no-hotkeys`.
+- Global hotkeys are X11-only.
+- On Wayland, the agent auto-disables hotkeys at startup and emits one notice.
+- Use tray actions on Wayland, or run under X11 to enable global hotkeys.
+- `--no-hotkeys` remains available as a manual override.
 
 ### Tray
 - Tray support uses GTK on Linux. Ensure GTK and an appindicator implementation are installed.
@@ -54,7 +56,7 @@ ssh_clipboard autostart refresh
 
 ## Troubleshooting
 - **Clipboard init fails:** Ensure a display server is available (`DISPLAY` for X11, `WAYLAND_DISPLAY` for Wayland).
-- **Hotkeys don’t work:** On Wayland, hotkeys may not be supported; try X11 or `--no-hotkeys`.
+- **Hotkeys don’t work:** On Wayland, hotkeys are auto-disabled; use tray actions or try X11.
 - **Tray missing:** Install GTK + appindicator packages for your distro.
 
 ## Update Triggers

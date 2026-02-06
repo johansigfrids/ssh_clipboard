@@ -96,7 +96,9 @@ If notifications do not appear on macOS:
 - Inspect `logs/agent.log` for notification delivery errors.
 
 ### Linux notes
-- Hotkeys are X11-only; Wayland may not support global hotkeys. Use `--no-hotkeys` if registration fails.
+- Hotkeys are X11-only. In Wayland sessions, the agent automatically disables hotkeys at startup and emits one notice.
+- To use global hotkeys on Linux, run under X11.
+- `--no-hotkeys` remains available as a manual override.
 - Tray support uses GTK; ensure a GTK/appindicator implementation is installed.
 - Notifications rely on a working desktop notification daemon (DBus).
 

@@ -51,8 +51,14 @@ fn split_target_and_port(target: &str) -> (String, Option<u16>) {
     }
 }
 
-pub fn spawn_ssh_proxy(config: &SshConfig) -> Result<Child> {
+pub fn resolve_target_and_port(config: &SshConfig) -> (String, Option<u16>) {
     let (target, target_port) = split_target_and_port(&config.resolve_target());
+    let port = config.port.or(target_port);
+    (target, port)
+}
+
+pub fn spawn_ssh_proxy(config: &SshConfig) -> Result<Child> {
+    let (target, port) = resolve_target_and_port(config);
     if target.trim().is_empty() {
         return Err(eyre!("missing SSH target (use --target or --host)"));
     }
@@ -66,7 +72,6 @@ pub fn spawn_ssh_proxy(config: &SshConfig) -> Result<Child> {
     command.kill_on_drop(true);
     command.arg("-T");
 
-    let port = config.port.or(target_port);
     if let Some(port) = port {
         command.arg("-p").arg(port.to_string());
     }
@@ -89,4 +94,46 @@ pub fn spawn_ssh_proxy(config: &SshConfig) -> Result<Child> {
         .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|err| eyre!("failed to spawn ssh: {err}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn base_config(target: &str) -> SshConfig {
+        SshConfig {
+            target: target.to_string(),
+            port: None,
+            user: None,
+            host: None,
+            identity_file: None,
+            ssh_options: Vec::new(),
+            ssh_bin: None,
+        }
+    }
+
+    #[test]
+    fn resolve_target_and_port_parses_inline_port() {
+        let config = base_config("user@example.com:2222");
+        let (target, port) = resolve_target_and_port(&config);
+        assert_eq!(target, "user@example.com");
+        assert_eq!(port, Some(2222));
+    }
+
+    #[test]
+    fn resolve_target_and_port_keeps_ipv6_like_target_untouched() {
+        let config = base_config("user@[2001:db8::1]");
+        let (target, port) = resolve_target_and_port(&config);
+        assert_eq!(target, "user@[2001:db8::1]");
+        assert_eq!(port, None);
+    }
+
+    #[test]
+    fn resolve_target_and_port_prefers_explicit_port_flag() {
+        let mut config = base_config("user@example.com:2222");
+        config.port = Some(2200);
+        let (target, port) = resolve_target_and_port(&config);
+        assert_eq!(target, "user@example.com");
+        assert_eq!(port, Some(2200));
+    }
 }

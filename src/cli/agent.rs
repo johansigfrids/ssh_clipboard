@@ -7,7 +7,8 @@ use crate::cli::{
 };
 
 pub fn run_agent(args: AgentArgs) -> Result<()> {
-    let run_in_process = !args.force_exec && (io::stdout().is_terminal() || io::stderr().is_terminal());
+    let run_in_process =
+        !args.force_exec && (io::stdout().is_terminal() || io::stderr().is_terminal());
 
     if run_in_process {
         return crate::agent::run::run_agent(args.no_tray, args.no_hotkeys, args.autostart);
@@ -35,10 +36,7 @@ pub fn run_agent(args: AgentArgs) -> Result<()> {
     match cmd.spawn() {
         Ok(_) => Ok(()),
         Err(err) => {
-            eprintln!(
-                "warning: failed to launch {}: {err}",
-                agent_path.display()
-            );
+            eprintln!("warning: failed to launch {}: {err}", agent_path.display());
             crate::agent::run::run_agent(args.no_tray, args.no_hotkeys, args.autostart)
         }
     }

@@ -9,6 +9,9 @@ Common failure cases and how to resolve them.
 - `docs/protocol.md`
 
 ## SSH Issues
+- **Not sure where setup is failing:**
+  - Run `ssh_clipboard doctor --target user@server` first.
+  - Follow the reported failing check and hint.
 - **`ssh` fails with auth/host key errors:**
   - Try `ssh -T user@server ssh_clipboard proxy` directly.
   - Fix `known_hosts` or key permissions.
@@ -18,6 +21,19 @@ Common failure cases and how to resolve them.
 - **Noisy shell / MOTD corrupts protocol:**
   - Use `ssh -T` (already default in the client) and consider forced commands.
   - Client resync is enabled by default; disable with `--strict-frames` if needed.
+
+## Install/Uninstall Issues
+- **`install-client` fails with existing files:**
+  - Re-run with `--force` to overwrite existing installed binaries.
+- **`install-client` succeeded but command still not found:**
+  - Start a new shell/session so PATH changes are picked up.
+  - Or run binaries directly from the install directory.
+- **`uninstall-client` on Windows leaves `ssh_clipboard.exe`:**
+  - If uninstall was launched from that same binary, deletion is deferred.
+  - Close remaining processes and remove the file manually if it persists.
+- **`uninstall-client` on Windows leaves `ssh_clipboard_agent.exe`:**
+  - Uninstall tries to stop running agent processes, but file deletion may still be deferred if the binary is in use.
+  - Close remaining processes and remove the file manually if it persists.
 
 ## Daemon/Proxy Issues
 - **`daemon not running` error:**

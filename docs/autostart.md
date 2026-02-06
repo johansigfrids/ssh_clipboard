@@ -31,6 +31,7 @@ If you move or replace the binaries after enabling autostart, the stored autosta
 Recommended workflow:
 - Run `ssh_clipboard autostart refresh` after moving/updating the binary.
 - The agent also attempts a best-effort refresh at startup if `autostart_enabled` is set in config.
+- `ssh_clipboard autostart status` and `ssh_clipboard autostart disable` can still be used even if the agent binary is currently missing.
 
 If the current executable path cannot be resolved to a usable absolute path, autostart may fail; disable and re-enable autostart after fixing the installation location.
 

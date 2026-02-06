@@ -4,7 +4,11 @@ use clap::Parser;
 use eyre::Result;
 
 #[derive(Parser)]
-#[command(name = "ssh_clipboard_agent", version, about = "SSH clipboard agent (tray + hotkeys)")]
+#[command(
+    name = "ssh_clipboard_agent",
+    version,
+    about = "SSH clipboard agent (tray + hotkeys)"
+)]
 struct AgentCli {
     #[arg(long)]
     no_tray: bool,

@@ -16,13 +16,19 @@ Document the GitHub Actions setup for tests and releases, including build varian
   - `cargo build --release --features agent`
 - Matrix variants:
   - `windows-agent`
-  - `mac-agent`
+  - `mac-agent` (host default architecture on macOS runner)
   - `linux-agent`
   - `linux-server` (`--no-default-features`)
 
 ## Release Overview
 - `release.yml` runs on tags matching `v*`.
-- Builds the same four variants as CI.
+- Builds five variants:
+  - `windows-agent`
+  - `mac-agent-arm64` (`aarch64-apple-darwin`)
+  - `mac-agent-x86_64` (`x86_64-apple-darwin`)
+  - `linux-agent`
+  - `linux-server` (`--no-default-features`)
+- Uses explicit `--target` builds so artifact names match architecture deterministically.
 - Packages artifacts per OS and uploads to GitHub Releases with SHA256 checksums.
   - Agent builds include both `ssh_clipboard` and `ssh_clipboard_agent`.
 - Uses concurrency per tag (`github.ref`) to avoid overlapping release runs.

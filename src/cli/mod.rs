@@ -10,7 +10,13 @@ use crate::client::transport::ClientConfig;
 use crate::protocol::{DEFAULT_MAX_SIZE, ErrorCode, Response, ResponseKind};
 use time::{Duration, OffsetDateTime};
 
+mod doctor;
 mod exit;
+#[cfg(all(
+    feature = "agent",
+    any(target_os = "windows", target_os = "macos", target_os = "linux")
+))]
+mod install_client;
 #[cfg(target_os = "linux")]
 mod install_daemon;
 mod peek;
@@ -40,6 +46,7 @@ enum Commands {
     Push(PushArgs),
     Pull(PullArgs),
     Peek(PeekArgs),
+    Doctor(DoctorArgs),
     #[cfg(target_os = "linux")]
     Daemon(DaemonArgs),
     #[cfg(target_os = "linux")]
@@ -48,6 +55,16 @@ enum Commands {
     InstallDaemon(InstallDaemonArgs),
     #[cfg(target_os = "linux")]
     UninstallDaemon(UninstallDaemonArgs),
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
+    InstallClient(InstallClientArgs),
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
+    UninstallClient(UninstallClientArgs),
     #[cfg(all(
         feature = "agent",
         any(target_os = "windows", target_os = "macos", target_os = "linux")
@@ -162,6 +179,26 @@ pub struct PeekArgs {
     pub resync_max_bytes: usize,
 }
 
+#[derive(Args, Clone)]
+pub struct DoctorArgs {
+    #[arg(long)]
+    pub target: Option<String>,
+    #[arg(long)]
+    pub host: Option<String>,
+    #[arg(long)]
+    pub user: Option<String>,
+    #[arg(long)]
+    pub port: Option<u16>,
+    #[arg(long)]
+    pub identity_file: Option<PathBuf>,
+    #[arg(long)]
+    pub ssh_option: Vec<String>,
+    #[arg(long)]
+    pub ssh_bin: Option<PathBuf>,
+    #[arg(long, default_value_t = 7000)]
+    pub timeout_ms: u64,
+}
+
 #[cfg(target_os = "linux")]
 #[derive(Args, Clone)]
 pub struct DaemonArgs {
@@ -210,6 +247,58 @@ pub struct UninstallDaemonArgs {
     pub dry_run: bool,
     #[arg(long)]
     pub no_sudo: bool,
+}
+
+#[cfg(all(
+    feature = "agent",
+    any(target_os = "windows", target_os = "macos", target_os = "linux")
+))]
+#[derive(Args, Clone)]
+pub struct InstallClientArgs {
+    #[arg(long)]
+    pub target: String,
+    #[arg(long)]
+    pub port: Option<u16>,
+    #[arg(long)]
+    pub identity_file: Option<PathBuf>,
+    #[arg(long)]
+    pub ssh_option: Vec<String>,
+    #[arg(long)]
+    pub clear_ssh_options: bool,
+    #[arg(long)]
+    pub max_size: Option<usize>,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
+    #[arg(long, value_parser = clap::value_parser!(bool))]
+    pub resync_frames: Option<bool>,
+    #[arg(long)]
+    pub resync_max_bytes: Option<usize>,
+    #[arg(long)]
+    pub install_dir: Option<PathBuf>,
+    #[arg(long)]
+    pub no_path_update: bool,
+    #[arg(long)]
+    pub no_start_now: bool,
+    #[arg(long)]
+    pub dry_run: bool,
+    #[arg(long)]
+    pub force: bool,
+}
+
+#[cfg(all(
+    feature = "agent",
+    any(target_os = "windows", target_os = "macos", target_os = "linux")
+))]
+#[derive(Args, Clone)]
+pub struct UninstallClientArgs {
+    #[arg(long)]
+    pub install_dir: Option<PathBuf>,
+    #[arg(long)]
+    pub no_path_cleanup: bool,
+    #[arg(long)]
+    pub dry_run: bool,
+    #[arg(long)]
+    pub force: bool,
 }
 
 #[cfg(all(
@@ -347,6 +436,7 @@ pub async fn run() -> Result<()> {
         Commands::Push(args) => push::run(args).await,
         Commands::Pull(args) => pull::run(args).await,
         Commands::Peek(args) => peek::run(args).await,
+        Commands::Doctor(args) => doctor::run(args).await,
         #[cfg(target_os = "linux")]
         Commands::Daemon(args) => {
             let socket_path = args
@@ -376,6 +466,16 @@ pub async fn run() -> Result<()> {
         Commands::InstallDaemon(args) => install_daemon::run(args).await,
         #[cfg(target_os = "linux")]
         Commands::UninstallDaemon(args) => install_daemon::run_uninstall(args).await,
+        #[cfg(all(
+            feature = "agent",
+            any(target_os = "windows", target_os = "macos", target_os = "linux")
+        ))]
+        Commands::InstallClient(args) => install_client::run_install(args),
+        #[cfg(all(
+            feature = "agent",
+            any(target_os = "windows", target_os = "macos", target_os = "linux")
+        ))]
+        Commands::UninstallClient(args) => install_client::run_uninstall(args),
         #[cfg(all(
             feature = "agent",
             any(target_os = "windows", target_os = "macos", target_os = "linux")
@@ -553,6 +653,16 @@ mod tests {
         let future_ms = future.unix_timestamp() * 1000;
         let formatted = format_created_at(future_ms);
         assert!(formatted.contains("in the future"));
+    }
+
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
+    #[test]
+    fn install_client_requires_target() {
+        let parsed = Cli::try_parse_from(["ssh_clipboard", "install-client"]);
+        assert!(parsed.is_err());
     }
 }
 

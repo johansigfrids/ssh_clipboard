@@ -59,6 +59,32 @@ Flags:
 - SSH + timeout + size flags (same as `push`)
 - `--strict-frames`, `--resync-max-bytes` (same as `push`)
 
+### `doctor`
+Run connectivity diagnostics for SSH/proxy/protocol setup.
+
+Common usage:
+```
+ssh_clipboard doctor --target user@server
+```
+
+Checks include:
+- local `ssh` binary availability
+- target resolution
+- non-interactive SSH auth (`ssh -T ... true`)
+- remote proxy command availability (`ssh_clipboard proxy --help`)
+- protocol roundtrip (`PeekMeta`)
+
+Flags:
+- `--target user@host[:port]` (for simple hostnames; use `--port` for IPv6)
+- `--host`, `--user`, `--port`
+- `--identity-file <path>`
+- `--ssh-option <opt>` (repeatable; passed as `ssh -o <opt>`)
+- `--ssh-bin <path>`
+- `--timeout-ms <ms>` (default 7000)
+
+Notes:
+- If `--target`/`--host` is omitted, `doctor` will try the saved agent config target (when the agent feature is enabled).
+
 ### `agent` (Windows/macOS/Linux)
 Run the background agent (tray icon + hotkeys).
 
@@ -67,8 +93,52 @@ Flags:
 - `--no-hotkeys`: disable hotkeys
 
 Notes:
-- `ssh_clipboard agent` launches the `ssh_clipboard_agent` binary for parity with autostart behavior.
+- `ssh_clipboard agent` runs in-process when attached to a terminal; otherwise it launches the `ssh_clipboard_agent` binary (matching autostart behavior).
 - Linux hotkeys require X11; on Wayland use `--no-hotkeys`.
+
+### `install-client` (Windows/macOS/Linux)
+Install client binaries to a stable user-local location, update PATH, run setup, verify, and start the agent.
+
+Common usage:
+```
+# from extracted release folder
+./ssh_clipboard install-client --target user@server
+```
+
+Flags:
+- `--target <user@host>` (required)
+- setup/connectivity flags: `--port`, `--identity-file`, `--ssh-option`, `--clear-ssh-options`, `--max-size`, `--timeout-ms`, `--resync-frames`, `--resync-max-bytes`
+- `--install-dir <path>`: override default install directory
+- `--no-path-update`: skip PATH persistence changes
+- `--no-start-now`: skip immediate agent launch after install
+- `--dry-run`: print planned actions only
+- `--force`: overwrite existing binaries in the install directory
+
+Defaults:
+- install directory:
+  - Windows: `%LOCALAPPDATA%\\ssh_clipboard\\bin`
+  - macOS/Linux: `~/.local/bin`
+- verifies autostart and runs `doctor` after setup
+- remote verification failures are warnings (local install still succeeds)
+
+### `uninstall-client` (Windows/macOS/Linux)
+Remove binaries and PATH/autostart integration created by `install-client`.
+
+Common usage:
+```
+ssh_clipboard uninstall-client
+```
+
+Flags:
+- `--install-dir <path>`: override default install directory
+- `--no-path-cleanup`: skip PATH cleanup
+- `--dry-run`: print planned actions only
+- `--force`: continue on non-critical cleanup errors
+
+Notes:
+- Keeps agent config/log files by default.
+- On Windows, uninstall attempts to stop running `ssh_clipboard_agent.exe` processes before removing binaries.
+- If a Windows binary is still in use, removal is best-effort deferred.
 
 ### `setup-agent` (Windows/macOS/Linux)
 One-command setup for the agent: writes config (sets target) and enables autostart.

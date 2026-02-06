@@ -11,6 +11,9 @@ The Linux server keeps the latest clipboard value **in memory only** (no on-disk
 
 Download the release artifact that matches your platform and CPU architecture.
 - macOS: `x86_64` = Intel, `aarch64` = Apple Silicon
+- If the binary is not on `PATH`, run it from the extracted folder:
+  - macOS/Linux: `./ssh_clipboard`
+  - Windows PowerShell: `.\ssh_clipboard.exe`
 
 ### 1) Linux server (daemon + proxy)
 1) Download a Linux release artifact on the server and extract it (example folder: `~/ssh_clipboard`).
@@ -40,12 +43,18 @@ ssh -T user@server ssh_clipboard proxy --help
 ssh user@server true
 ```
 
-2) One-command client setup (writes config + enables autostart):
+2) One-command client install + setup (recommended for first-time use):
 ```
-ssh_clipboard setup-agent --target user@server
-```
+# macOS/Linux
+./ssh_clipboard install-client --target user@server
 
-3) Run the agent:
+# Windows PowerShell
+.\ssh_clipboard.exe install-client --target user@server
+```
+This installs `ssh_clipboard` + `ssh_clipboard_agent` to a stable user-local location, updates your user PATH, runs `setup-agent`, verifies autostart, runs `doctor`, and starts the agent once.
+To remove the client install later, run `ssh_clipboard uninstall-client`.
+
+3) For later sessions, use from PATH:
 ```
 ssh_clipboard agent
 ```
@@ -110,6 +119,9 @@ ssh_clipboard <command> --help
 ```
 
 Useful starting points:
+- `ssh_clipboard doctor --target user@server`
+- `ssh_clipboard install-client --help`
+- `ssh_clipboard uninstall-client --help`
 - `ssh_clipboard setup-agent --help`
 - `ssh_clipboard install-daemon --help`
 - `ssh_clipboard push --help`

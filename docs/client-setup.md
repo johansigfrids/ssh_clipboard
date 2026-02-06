@@ -18,6 +18,19 @@ For Linux desktop specifics (Wayland/X11, tray/hotkeys), see `docs/linux-client.
   - macOS: OpenSSH is included.
 
 ## Basic Usage
+Recommended first-time setup:
+```
+# run from extracted release folder
+./ssh_clipboard install-client --target user@server
+```
+
+This installs client binaries to a stable user-local path, updates PATH, configures autostart, runs `doctor`, and starts the agent once.
+
+Run diagnostics directly:
+```
+ssh_clipboard doctor --target user@server
+```
+
 Push clipboard to server:
 ```
 ssh_clipboard push --target user@server
@@ -50,6 +63,7 @@ Recommended one-command setup:
 ```
 ssh_clipboard setup-agent --target user@server
 ```
+`setup-agent` is still useful when you already have binaries on PATH and only want to refresh config/autostart.
 
 ## Input/Output Modes
 - `push --stdin`: read text from stdin instead of the clipboard
@@ -81,6 +95,12 @@ ssh_clipboard push --target user@server --ssh-option "ConnectTimeout=5" --ssh-op
 ```
 
 ## Troubleshooting
+- **Unsure what is broken (SSH vs proxy vs daemon):**
+  - Run: `ssh_clipboard doctor --target user@server`
+  - Follow the failing check’s hint output.
+- **Client binary not found on PATH after install:**
+  - Open a new terminal/session (PATH updates are not always immediate in existing shells).
+  - Run from install dir directly or rerun with `install-client --install-dir ... --no-path-update` and manage PATH manually.
 - **SSH errors (host key / auth / network):** run the equivalent SSH command manually:
   - `ssh -T user@server ssh_clipboard proxy`
   - Fix SSH issues first (keys, known_hosts, config).

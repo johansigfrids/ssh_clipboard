@@ -81,11 +81,19 @@ The tray menu includes:
 - Quit
 
 ## Notifications
-The agent uses OS notifications when available and falls back to stderr.
+The agent uses OS notifications when available and falls back to stderr/logs.
+- Windows: WinRT toast notifications.
+- macOS: `osascript` (`display notification`) for reliable delivery from the background agent.
+- Linux: `notify-rust`/DBus desktop notifications.
 
 If hotkeys appear not to work on macOS, you may need to enable permissions for the terminal/app under:
 - System Settings → Privacy & Security → Input Monitoring
 - System Settings → Privacy & Security → Accessibility
+
+If notifications do not appear on macOS:
+- Check System Settings → Notifications and ensure notifications are allowed for Script Editor / `osascript`.
+- Check Focus/Do Not Disturb settings.
+- Inspect `logs/agent.log` for notification delivery errors.
 
 ### Linux notes
 - Hotkeys are X11-only; Wayland may not support global hotkeys. Use `--no-hotkeys` if registration fails.

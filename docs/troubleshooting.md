@@ -51,6 +51,10 @@ Common failure cases and how to resolve them.
 - **Agent won’t start:**
   - Check `ssh_clipboard config validate` and ensure `target` is set.
   - Ensure only one instance is running (agent enforces single-instance).
+- **Notifications don’t appear (macOS):**
+  - The agent sends notifications via `osascript`; ensure notifications are allowed for Script Editor / `osascript` in System Settings → Notifications.
+  - Check Focus/Do Not Disturb settings.
+  - Check `logs/agent.log` for `notification delivery failed` messages.
 - **Hotkeys don’t fire (macOS):**
   - Some environments may require enabling the terminal/app under System Settings → Privacy & Security → Input Monitoring or Accessibility.
 - **Hotkeys don’t fire (Linux):**

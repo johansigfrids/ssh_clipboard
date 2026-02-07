@@ -16,6 +16,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/writing-docs.md`: How to write and maintain internal docs in this repo.
 - `ARCHITECTURE.md`: System architecture.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
+- `docs/dependency-decisions.md`: Rationale and guardrails for high-impact dependency choices.
 - `docs/server-setup.md`: Linux daemon setup and proxy usage.
 - `docs/client-setup.md`: Windows/macOS client usage and SSH troubleshooting.
 - `docs/linux-client.md`: Linux desktop client notes (Wayland/X11, tray, hotkeys).

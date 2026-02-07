@@ -22,6 +22,7 @@ As the project grows, prefer adding Rust modules under `src/` (for example `src/
 - Use standard Rust formatting (4-space indentation, rustfmt defaults). If you format, use `cargo fmt`.
 - Prefer `snake_case` for functions and variables, `CamelCase` for types, and `SCREAMING_SNAKE_CASE` for constants.
 - Keep modules small and focused; name files after their primary responsibility (e.g., `clipboard.rs`, `ssh.rs`).
+- Keep platform `#[cfg(...)]` usage consistent: if a helper is only used in a platform-gated branch, gate the helper similarly (or with `#[cfg(any(..., test))]` when tests need it).
 
 ## Testing Guidelines
 
@@ -42,6 +43,7 @@ As the project grows, prefer adding Rust modules under `src/` (for example `src/
 - As you learn: update existing docs or add `docs/<topic>.md`, then link it in `docs/index.md`.
 - Keep `ARCHITECTURE.md` up to date as the system design or component boundaries change.
 - After behavior changes or bug fixes: refresh related docs and keep cross-links current.
+- When fixing issues, capture the prevention guidance in docs (root cause + guardrail) so the same mistake is less likely to recur.
 - Do not include secrets in docs; reference where secrets/config are managed instead.
 
 ## Security & Configuration Tips

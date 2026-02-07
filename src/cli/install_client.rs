@@ -828,6 +828,9 @@ fn cleanup_path_for_uninstall(
     force: bool,
     checks: &mut Vec<CheckOutcome>,
 ) -> Result<()> {
+    #[cfg(not(target_os = "windows"))]
+    let _ = install_dir;
+
     #[cfg(target_os = "windows")]
     {
         match remove_windows_user_path_entry(install_dir, dry_run) {
@@ -1118,6 +1121,7 @@ fn remove_unix_shell_path_block(dry_run: bool) -> Result<String> {
     }
 }
 
+#[cfg(any(target_os = "windows", test))]
 fn add_path_entry(
     path_list: &str,
     entry: &str,
@@ -1137,6 +1141,7 @@ fn add_path_entry(
     (joined, changed)
 }
 
+#[cfg(any(target_os = "windows", test))]
 fn remove_path_entry(
     path_list: &str,
     entry: &str,
@@ -1155,6 +1160,7 @@ fn remove_path_entry(
     (joined, changed)
 }
 
+#[cfg(any(target_os = "windows", test))]
 fn split_path_list(path_list: &str, sep: char) -> Vec<String> {
     path_list
         .split(sep)

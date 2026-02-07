@@ -65,6 +65,16 @@ sudo apt-get install -y \
 - CI runs four variants: Windows agent, macOS agent, Linux agent, and Linux server (`--no-default-features`).
 - CI installs Linux GUI deps so the agent feature can build.
 
+## Platform `cfg` Hygiene
+- Keep function/item `#[cfg(...)]` aligned with where it is used.
+- If a helper is only called from Windows-gated code, gate the helper too (for example `#[cfg(target_os = "windows")]`).
+- If tests need a platform-gated helper on other platforms, use `#[cfg(any(target_os = "windows", test))]`.
+- For parameters only used on one platform branch, mark intentional non-use in the other branch (for example `#[cfg(not(target_os = "windows"))] let _ = install_dir;`).
+- Before pushing, run the CI lint command locally:
+```
+cargo clippy --features agent -- -D warnings
+```
+
 ## Update Triggers
 - New features or protocol changes.
 - Changes to clipboard handling or agent behavior.

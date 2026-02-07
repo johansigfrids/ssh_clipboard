@@ -13,11 +13,15 @@ Describe how to cut and publish releases, validate artifacts, and roll back if n
 2. Update docs for the release:
    - Update `CHANGELOG.md` with the release notes.
    - Verify `README.md` is accurate for installation and the common setup.
-3. Bump the version in `Cargo.toml` and commit the change.
-4. Decide the next version (e.g., `0.2.0`) and tag with `v` prefix:
+3. Verify `.github/workflows/release.yml` is up to date with current release outputs:
+   - Build matrix entries (platforms/targets and agent vs server variants).
+   - Artifact names and packaging format (`.zip`/`.tar.gz`) match docs and expected release assets.
+   - Added/removed binaries are reflected in packaging commands.
+4. Bump the version in `Cargo.toml` and commit the change.
+5. Decide the next version (e.g., `0.2.0`) and tag with `v` prefix:
    - `git tag v0.2.0`
    - `git push origin v0.2.0`
-5. GitHub Actions runs `release.yml` and publishes artifacts + checksums.
+6. GitHub Actions runs `release.yml` and publishes artifacts + checksums.
 
 ## Validate Artifacts
 - Download the artifacts from the GitHub Release page.

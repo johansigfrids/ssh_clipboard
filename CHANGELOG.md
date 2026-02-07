@@ -3,10 +3,25 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+### Added
+
 ### Changed
+
+### Fixed
+
+## [0.3.0] - 2026-02-07
+### Added
+- Background agent support and related agent command surface (`agent`, setup/autostart flow improvements).
+- Added `install-client` / `uninstall-client` flow and expanded `doctor` diagnostics.
+
+### Changed
+- Linux Wayland behavior now auto-disables global hotkeys with an explicit startup notice.
+- macOS notification backend behavior changed to an `osascript`-based path.
+- Replaced `bincode` with `wincode` for protocol payload serialization while keeping protocol version `2` wire format stable with explicit fixture tests.
 - Upgraded direct dependencies to latest compatible versions (`clap`, `notify-rust`, `proptest`, `thiserror`, `time`, `winreg`).
-- Replaced `bincode` with `wincode` for protocol payload serialization.
-- Kept protocol version `2` wire format stable with explicit fixture tests.
+
+### Fixed
+- Cross-platform `clippy` and `cfg` hygiene issues.
 
 ## [0.2.0] - 2026-02-03
 ### Added

@@ -1,10 +1,25 @@
 use crate::protocol::{MAGIC, VERSION};
-use bincode::config;
-use bincode::serde::{decode_from_slice, encode_to_vec};
 use eyre::Result;
-use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use wincode::config;
+use wincode::int_encoding::{LittleEndian, VarInt};
+use wincode::len::BincodeLen;
+use wincode::{SchemaRead, SchemaWrite};
+
+pub(crate) type CodecConfig = config::Configuration<
+    true,
+    { config::PREALLOCATION_SIZE_LIMIT_DISABLED },
+    BincodeLen,
+    LittleEndian,
+    VarInt,
+>;
+
+pub(crate) const fn codec_config() -> CodecConfig {
+    config::Configuration::default()
+        .with_varint_encoding()
+        .disable_preallocation_size_limit()
+}
 
 #[derive(Debug, Error)]
 pub enum FramingError {
@@ -117,21 +132,24 @@ pub async fn write_frame_payload<W: AsyncWrite + Unpin>(
     Ok(())
 }
 
-pub fn encode_message<T: Serialize>(message: &T) -> Result<Vec<u8>> {
-    let config = config::standard();
-    Ok(encode_to_vec(message, config)?)
+pub fn encode_message<T>(message: &T) -> Result<Vec<u8>>
+where
+    T: SchemaWrite<CodecConfig, Src = T> + ?Sized,
+{
+    Ok(config::serialize(message, codec_config())?)
 }
 
-pub fn decode_message<T: DeserializeOwned>(payload: &[u8]) -> Result<T> {
-    let config = config::standard();
-    let (value, _) = decode_from_slice(payload, config)?;
-    Ok(value)
+pub fn decode_message<T>(payload: &[u8]) -> Result<T>
+where
+    T: for<'de> SchemaRead<'de, CodecConfig, Dst = T>,
+{
+    Ok(config::deserialize(payload, codec_config())?)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{Request, RequestKind, Response};
+    use crate::protocol::{ClipboardValue, Request, RequestKind, Response};
     use proptest::prelude::*;
     use tokio::io::AsyncWriteExt;
     use tokio::io::duplex;
@@ -236,6 +254,28 @@ mod tests {
             err.downcast_ref::<FramingError>(),
             Some(FramingError::InvalidMagic)
         ));
+    }
+
+    #[test]
+    fn encode_allows_payload_larger_than_default_preallocation_limit() {
+        let request = Request {
+            request_id: 77,
+            kind: RequestKind::Set {
+                value: ClipboardValue {
+                    content_type: "text/plain; charset=utf-8".to_string(),
+                    data: vec![b'a'; 5 * 1024 * 1024],
+                    created_at: 1234,
+                },
+            },
+        };
+
+        let payload = encode_message(&request).unwrap();
+        let decoded: Request = decode_message(&payload).unwrap();
+
+        match decoded.kind {
+            RequestKind::Set { value } => assert_eq!(value.data.len(), 5 * 1024 * 1024),
+            other => panic!("unexpected request kind: {other:?}"),
+        }
     }
 
     proptest! {

@@ -18,7 +18,7 @@ Wire format:
 1. `MAGIC` (4 bytes): `SCB1`
 2. `VERSION` (u16, little-endian): `2`
 3. `LEN` (u32, little-endian): number of payload bytes
-4. `PAYLOAD` (LEN bytes): `bincode`-encoded `Request` or `Response`
+4. `PAYLOAD` (LEN bytes): `wincode`-encoded (`bincode`-compatible) `Request` or `Response`
 
 ### Resync (noisy shell / MOTD)
 If the client receives unexpected bytes before `MAGIC` (e.g., shell banners), it may resync by scanning for the next `MAGIC` sequence and discarding garbage bytes.

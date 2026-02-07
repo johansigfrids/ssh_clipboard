@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### Changed
+- Upgraded direct dependencies to latest compatible versions (`clap`, `notify-rust`, `proptest`, `thiserror`, `time`, `winreg`).
+- Replaced `bincode` with `wincode` for protocol payload serialization.
+- Kept protocol version `2` wire format stable with explicit fixture tests.
+
 ## [0.2.0] - 2026-02-03
 ### Added
 - Proxy auto-start support and improved daemon socket checks.

@@ -31,6 +31,7 @@ export interface PanelView {
   settingsWritable: boolean;
   settingsNotice: string | null;
   activeShortcut: string | null;
+  settingsRevision: string | null;
 }
 
 export const initialView: PanelView = {
@@ -46,6 +47,7 @@ export const initialView: PanelView = {
   settingsWritable: true,
   settingsNotice: null,
   activeShortcut: null,
+  settingsRevision: null,
 };
 
 export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
@@ -53,11 +55,15 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
   return invoke<T>(name, args);
 }
 
-export async function subscribe(navigate: (page: string) => void, notice: (message: string) => void) {
+export async function subscribe(navigate: (page: string) => void, notice: (message: string) => void, settingsChanged: () => void) {
   if (!isTauri()) return () => {};
-  const stops = await Promise.all([
+  const results = await Promise.allSettled([
     listen<string>("navigate", (event) => navigate(event.payload)),
     listen<string>("operation-notice", (event) => notice(event.payload)),
+    listen("settings-changed", settingsChanged),
   ]);
+  const failed = results.find((result) => result.status === "rejected");
+  const stops = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+  if (failed?.status === "rejected") { stops.forEach((stop) => stop()); throw failed.reason; }
   return () => stops.forEach((stop) => stop());
 }

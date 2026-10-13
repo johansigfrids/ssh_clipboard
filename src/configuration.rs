@@ -119,7 +119,7 @@ pub enum ConfigError {
     Invalid,
     #[error("Settings use unsupported schema version {0}. Use the matching application version.")]
     UnsupportedVersion(u32),
-    #[error("Settings changed in another process. Quit and reopen before editing again.")]
+    #[error("Settings changed in another process. Reload saved settings before editing again.")]
     Conflict,
     #[error("Another process is saving settings. Try again after it finishes.")]
     Busy,

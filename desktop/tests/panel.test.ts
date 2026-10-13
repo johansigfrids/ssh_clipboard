@@ -21,6 +21,7 @@ beforeEach(() => {
     if (name === "apply_settings") {
       state.settings = args!.settings;
       state.settingsSaved = true;
+      state.settingsRevision = String(Number(state.settingsRevision ?? "0") + 1);
       state.item = null;
       state.clipboardChecked = false;
       state.connected = false;
@@ -31,6 +32,106 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("a failed subscription removes the listeners already installed and still loads the panel", async () => {
+    const stop = vi.fn();
+    bridge.listen.mockImplementation((name) => name === "settings-changed" ? Promise.reject("Unavailable") : Promise.resolve(stop));
+    render(App);
+    await screen.findByText("Could not listen for tray or settings changes. Reopen through the launcher.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
+    expect(stop).toHaveBeenCalledTimes(2);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+  });
+
+  it("a settings change during the initial snapshot is delivered after startup", async () => {
+    state.settings.target = "first-hub";
+    state.settingsRevision = "1";
+    const firstReply = structuredClone(state);
+    let finish!: (view: PanelView) => void;
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementationOnce(() => new Promise<PanelView>((resolve) => { finish = resolve; }));
+    render(App);
+    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledOnce());
+    state.settings.target = "second-hub";
+    state.settingsRevision = "2";
+    bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
+    expect(bridge.invoke).toHaveBeenCalledOnce();
+    bridge.invoke.mockImplementation(normal);
+    finish(firstReply);
+    await screen.findByText("second-hub");
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
+  });
+
+  it("settings notifications during a transfer reload after its reply without starting another transfer", async () => {
+    state.settings.target = "first-hub";
+    state.settingsRevision = "1";
+    const reply = structuredClone(state);
+    let finish!: (view: PanelView) => void;
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => name === "refresh_item" ? new Promise<PanelView>((resolve) => { finish = resolve; }) : normal(name, args));
+    render(App);
+    await screen.findByText("first-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Refresh shared clipboard" }));
+    state.settings.target = "second-hub";
+    state.settingsRevision = "2";
+    bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "refresh_item"]);
+    finish(reply);
+    await screen.findByText("second-hub");
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "refresh_item", "get_panel"]);
+  });
+
+  it("transfer clicks carry the displayed settings revision and recover a stale clean form", async () => {
+    state.settings.target = "first-hub";
+    state.settingsRevision = "1";
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => name === "share_clipboard" ? Promise.reject("Saved settings changed. Reload the panel before continuing.") : normal(name, args));
+    render(App);
+    await screen.findByText("first-hub");
+    state.settings.target = "second-hub";
+    state.settingsRevision = "2";
+    await fireEvent.click(screen.getByRole("button", { name: "Share current clipboard" }));
+    await screen.findByRole("alert");
+    await screen.findByText("second-hub");
+    expect(bridge.invoke.mock.calls.find(([name]) => name === "share_clipboard")![1].expectedRevision).toBe("1");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("second-hub");
+    expect(screen.getByRole("button", { name: "Discard changes" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("external settings reload without a transfer and preserve an edited draft until discarded", async () => {
+    state.settings.target = "first-hub";
+    state.settingsRevision = "1";
+    render(App);
+    await screen.findByText("first-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "draft-hub" } });
+    state.settings.target = "cli-hub";
+    state.settingsRevision = "2";
+    const changed = bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1];
+    changed();
+    await screen.findByText("Saved settings changed. Discard your draft to load them before editing again.");
+    expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("draft-hub");
+    expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(true);
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("cli-hub");
+    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "edited-hub" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("Settings applied.");
+    expect(bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1].expectedRevision).toBe("2");
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel", "apply_settings"]);
+  });
+
+  it("external settings update a clean form while leaving clipboard actions explicit", async () => {
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    state.settings.target = "cli-hub";
+    state.settingsRevision = "1";
+    bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
+    await waitFor(() => expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("cli-hub"));
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
+  });
+
   it("corrupt settings show a recovery message and prevent overwriting the file", async () => {
     state.settingsWritable = false;
     state.settingsNotice = "Settings are invalid. Preserve the file and repair it before saving.";

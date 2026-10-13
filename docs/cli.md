@@ -23,7 +23,7 @@ ssh_clipboard settings select-profile second
 
 `settings set` changes supplied fields only: `--target`, `--name`, `--port`, `--identity-file`, `--clear-port`, `--clear-identity-file`, `--show-preview true|false`, `--close-after-copy true|false`. `--settings-file <path>` selects a separate file for these commands. Corrupt or concurrently modified settings are preserved and reported; Show never creates a default file.
 
-Rework push/pull/peek/doctor commands accept `--profile <id>` and `--settings-file <path>`. Without a destination, they use the selected saved profile. An explicit profile allows command-line target/host/port/key overrides. With an explicit destination and no profile flag, they use an independent connection and do not inherit another profile's port/key. Desktop changes made through CLI currently require Quit/relaunch; automatic reload is pending. See [shared configuration](shared-configuration.md) for the complete precedence and recovery rules.
+Rework push/pull/peek/doctor commands accept `--profile <id>` and `--settings-file <path>`. Without a destination, they use the selected saved profile. An explicit profile allows command-line target/host/port/key overrides. With an explicit destination and no profile flag, they use an independent connection and do not inherit another profile's port/key. The desktop reloads CLI edits approximately every two seconds, deferring them during a transfer. It preserves edited drafts and blocks stale saves/transfers. See [shared configuration](shared-configuration.md) for the complete precedence and recovery rules.
 
 ### `push`
 Send local clipboard to server (text or PNG).

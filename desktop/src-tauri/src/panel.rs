@@ -41,9 +41,23 @@ struct PanelView {
     settings_writable: bool,
     settings_notice: Option<String>,
     active_shortcut: Option<String>,
+    settings_revision: Option<String>,
 }
 
 impl Session {
+    fn check_revision(&self, expected: Option<&str>) -> Result<(), String> {
+        if expected
+            != self
+                .saved_config
+                .as_ref()
+                .map(|c| c.revision.to_string())
+                .as_deref()
+        {
+            return Err("Saved settings changed. Reload the panel before continuing.".into());
+        }
+        Ok(())
+    }
+
     fn view(&self) -> Result<PanelView, String> {
         Ok(PanelView {
             settings: self.settings.clone(),
@@ -62,8 +76,94 @@ impl Session {
             settings_writable: self.settings_notice.is_none(),
             settings_notice: self.settings_notice.clone(),
             active_shortcut: self.shortcut_active.clone(),
+            settings_revision: self.saved_config.as_ref().map(|c| c.revision.to_string()),
         })
     }
+}
+
+/// Reloading is local configuration work only: never sample, transfer, or replay a clipboard.
+fn synchronize_settings(
+    session: &mut Session,
+    loaded: Result<Option<Configuration>, String>,
+    configure: impl FnOnce(&mut Session, &SessionSettings) -> Result<String, String>,
+) -> bool {
+    let loaded = match loaded {
+        Ok(loaded) => loaded,
+        Err(notice) => {
+            if session.settings_notice.as_ref() == Some(&notice) {
+                return false;
+            }
+            session.settings_notice = Some(notice);
+            return true;
+        }
+    };
+    if loaded == session.saved_config {
+        return session.settings_notice.take().is_some();
+    }
+    let next = match loaded
+        .as_ref()
+        .map(SessionSettings::from_configuration)
+        .transpose()
+    {
+        Ok(settings) => settings.unwrap_or_default(),
+        Err(notice) => {
+            session.settings_notice = Some(notice);
+            return true;
+        }
+    };
+    let status = match configure(session, &next) {
+        Ok(status) => status,
+        Err(error) => {
+            let notice = format!(
+                "Saved settings could not be activated: {error} Previous settings remain active. Repair the saved file to retry."
+            );
+            if session.settings_notice.as_ref() == Some(&notice) {
+                return false;
+            }
+            session.settings_notice = Some(notice);
+            return true;
+        }
+    };
+    let profile_changed = loaded.as_ref().map(|c| &c.default_profile)
+        != session.saved_config.as_ref().map(|c| &c.default_profile);
+    if profile_changed
+        || next.target != session.settings.target
+        || next.port != session.settings.port
+        || next.identity_file != session.settings.identity_file
+    {
+        session.item = None;
+        session.clipboard_checked = false;
+        session.connected = false;
+    }
+    session.settings = next;
+    session.saved_config = loaded;
+    session.settings_notice = None;
+    session.shortcut_status = status;
+    true
+}
+
+fn watch_settings(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            let Some(state) = app.try_state::<Desktop>() else {
+                break;
+            };
+            // Defer changes while a transfer or settings application holds the operation lock.
+            let Ok(mut session) = state.session.try_lock() else {
+                continue;
+            };
+            let Some(store) = state.config_store.as_ref() else {
+                continue;
+            };
+            let loaded = store.load().map_err(|error| format!("{error} Settings were left untouched at {}. Repair the file to reload it automatically.", store.path().display()));
+            if synchronize_settings(&mut session, loaded, |session, settings| {
+                configure_shortcut(&app, session, settings)
+            }) {
+                let _ = app.emit("settings-changed", ());
+            }
+        }
+    });
 }
 
 #[tauri::command]
@@ -123,6 +223,7 @@ async fn apply_settings(
     app: AppHandle,
     state: State<'_, Desktop>,
     mut settings: SessionSettings,
+    expected_revision: Option<String>,
 ) -> Result<PanelView, String> {
     settings.target = settings.target.trim().into();
     settings.validate()?;
@@ -130,6 +231,7 @@ async fn apply_settings(
         .session
         .try_lock()
         .map_err(|_| "Wait for the current operation to finish.".to_string())?;
+    session.check_revision(expected_revision.as_deref()).map_err(|_| "Saved settings changed while you were editing. Discard your draft to load them before applying changes.".to_string())?;
     if let Some(notice) = &session.settings_notice {
         return Err(notice.clone());
     }
@@ -197,11 +299,15 @@ async fn request(session: &mut Session, kind: RequestKind) -> Result<ResponseKin
 }
 
 #[tauri::command]
-async fn test_connection(state: State<'_, Desktop>) -> Result<PanelView, String> {
+async fn test_connection(
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+) -> Result<PanelView, String> {
     let mut session = state
         .session
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
+    session.check_revision(expected_revision.as_deref())?;
     match request(&mut session, RequestKind::PeekMeta).await? {
         ResponseKind::Meta { .. } | ResponseKind::Empty => session.view(),
         _ => Err("Unexpected server response to connection test.".into()),
@@ -209,11 +315,15 @@ async fn test_connection(state: State<'_, Desktop>) -> Result<PanelView, String>
 }
 
 #[tauri::command]
-async fn refresh_item(state: State<'_, Desktop>) -> Result<PanelView, String> {
+async fn refresh_item(
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+) -> Result<PanelView, String> {
     let mut session = state
         .session
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
+    session.check_revision(expected_revision.as_deref())?;
     match request(&mut session, RequestKind::Get).await? {
         ResponseKind::Value { value } => {
             ItemPreview::from_value(&value, session.settings.show_preview)?;
@@ -227,11 +337,15 @@ async fn refresh_item(state: State<'_, Desktop>) -> Result<PanelView, String> {
 }
 
 #[tauri::command]
-async fn share_clipboard(state: State<'_, Desktop>) -> Result<PanelView, String> {
+async fn share_clipboard(
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+) -> Result<PanelView, String> {
     let mut session = state
         .session
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
+    session.check_revision(expected_revision.as_deref())?;
     session.settings.validate_connection()?;
     let value = state.clipboard.read().await?;
     ItemPreview::from_value(&value, session.settings.show_preview)?;
@@ -251,11 +365,16 @@ async fn share_clipboard(state: State<'_, Desktop>) -> Result<PanelView, String>
 }
 
 #[tauri::command]
-async fn copy_item(app: AppHandle, state: State<'_, Desktop>) -> Result<PanelView, String> {
+async fn copy_item(
+    app: AppHandle,
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+) -> Result<PanelView, String> {
     let session = state
         .session
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
+    session.check_revision(expected_revision.as_deref())?;
     // Copy the snapshot being shown, never silently substitute a newer remote value.
     let value = session
         .item
@@ -402,6 +521,7 @@ pub fn run() {
                 app.state::<Desktop>().session.blocking_lock().tray_status =
                     "Unavailable: reopen through the app launcher.".into();
             }
+            watch_settings(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -428,4 +548,137 @@ pub fn run() {
             app.state::<Desktop>().clipboard.stop();
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn session() -> Session {
+        let mut config = Configuration {
+            revision: 1,
+            ..Default::default()
+        };
+        config.profiles[0].target = "first-hub".into();
+        Session {
+            settings: SessionSettings::from_configuration(&config).unwrap(),
+            saved_config: Some(config),
+            settings_notice: None,
+            item: Some(ClipboardValue {
+                content_type: ssh_clipboard::protocol::CONTENT_TYPE_TEXT.into(),
+                data: b"retained snapshot".to_vec(),
+                created_at: 1,
+            }),
+            clipboard_checked: true,
+            connected: true,
+            shortcut_active: Some("CommandOrControl+Shift+V".into()),
+            shortcut_status: "Registered".into(),
+            tray_status: "Available".into(),
+        }
+    }
+
+    #[test]
+    fn profile_reload_clears_snapshots_even_when_the_destination_is_identical() {
+        let mut session = session();
+        let mut next = session.saved_config.clone().unwrap();
+        let mut second = next.profiles[0].clone();
+        second.id = "second".into();
+        next.profiles.push(second);
+        next.default_profile = "second".into();
+        next.revision = 2;
+        assert!(synchronize_settings(
+            &mut session,
+            Ok(Some(next)),
+            |_, _| Ok("Registered".into())
+        ));
+        assert!(session.item.is_none());
+        assert!(!session.clipboard_checked);
+        assert!(!session.connected);
+        assert!(session.check_revision(Some("1")).is_err());
+        assert!(session.check_revision(Some("2")).is_ok());
+    }
+
+    #[test]
+    fn preference_reload_preserves_snapshot_and_unchanged_files_do_not_reconfigure() {
+        let mut session = session();
+        let mut next = session.saved_config.clone().unwrap();
+        next.preferences.show_preview = false;
+        next.preferences.close_after_copy = true;
+        next.revision = 2;
+        assert!(synchronize_settings(
+            &mut session,
+            Ok(Some(next.clone())),
+            |_, _| Ok("Registered".into())
+        ));
+        assert!(session.item.is_some());
+        assert!(session.connected);
+        assert!(!session.settings.show_preview);
+        assert!(session.settings.close_after_copy);
+        assert!(!synchronize_settings(
+            &mut session,
+            Ok(Some(next)),
+            |_, _| panic!("unchanged settings must not register shortcuts")
+        ));
+    }
+
+    #[test]
+    fn corrupt_reload_preserves_active_settings_until_the_file_recovers() {
+        let mut session = session();
+        let original = session.saved_config.clone();
+        assert!(synchronize_settings(
+            &mut session,
+            Err("Invalid settings".into()),
+            |_, _| panic!("invalid file must not activate")
+        ));
+        assert_eq!(session.saved_config, original);
+        assert_eq!(session.settings.target, "first-hub");
+        assert!(session.item.is_some());
+        assert!(!session.view().unwrap().settings_writable);
+        assert!(!synchronize_settings(
+            &mut session,
+            Err("Invalid settings".into()),
+            |_, _| unreachable!()
+        ));
+        assert!(synchronize_settings(
+            &mut session,
+            Ok(original),
+            |_, _| unreachable!()
+        ));
+        assert!(session.view().unwrap().settings_writable);
+    }
+
+    #[test]
+    fn rejected_os_settings_preserve_the_previous_active_profile_and_report_once() {
+        let mut session = session();
+        let original = session.saved_config.clone();
+        let mut next = original.clone().unwrap();
+        next.profiles[0].target = "second-hub".into();
+        next.revision = 2;
+        assert!(synchronize_settings(
+            &mut session,
+            Ok(Some(next.clone())),
+            |_, _| Err("Shortcut conflict".into())
+        ));
+        assert_eq!(session.saved_config, original);
+        assert_eq!(session.settings.target, "first-hub");
+        assert!(session.item.is_some());
+        assert!(!synchronize_settings(
+            &mut session,
+            Ok(Some(next)),
+            |_, _| Err("Shortcut conflict".into())
+        ));
+    }
+
+    #[test]
+    fn deleting_saved_settings_returns_to_setup_and_clears_the_previous_item() {
+        let mut session = session();
+        assert!(synchronize_settings(&mut session, Ok(None), |_, _| Ok(
+            "Registered".into()
+        )));
+        assert!(session.settings.target.is_empty());
+        assert!(session.item.is_none());
+        assert!(session.saved_config.is_none());
+        assert!(session.check_revision(None).is_ok());
+        assert!(session.check_revision(Some("1")).is_err());
+    }
 }

@@ -13,25 +13,56 @@
   let recording = $state(false);
   let ready = $state(false);
   let content = $state<HTMLElement>();
+  let draftRevision = $state<string | null>(null);
+  let reloadPending = false;
+  let reloading = false;
+  let disposed = false;
+  let operationEpoch = 0;
 
   const configured = $derived(view.settings.target.trim().length > 0);
   const dirty = $derived(JSON.stringify(draft) !== JSON.stringify(view.settings));
+  const staleDraft = $derived(dirty && draftRevision !== view.settingsRevision);
 
   function inform(text: string, failed = false) { message = text; error = failed; }
 
+  function discardDraft() { draft = { ...view.settings }; draftRevision = view.settingsRevision; recording = false; }
+
+  async function reloadSavedSettings() {
+    if (disposed) return;
+    if (busy || reloading) { reloadPending = true; return; }
+    reloadPending = false;
+    reloading = true;
+    const epoch = operationEpoch;
+    try {
+      const next = await command<PanelView>("get_panel");
+      if (disposed || epoch !== operationEpoch) return;
+      const retainDraft = dirty && JSON.stringify(draft) !== JSON.stringify(next.settings);
+      view = next;
+      if (retainDraft && draftRevision !== next.settingsRevision) inform("Saved settings changed. Discard your draft to load them before editing again.", true);
+      else if (!retainDraft) discardDraft();
+    } catch (cause) { if (!disposed) inform(String(cause), true); }
+    finally {
+      reloading = false;
+      if (reloadPending && !busy && !disposed) void reloadSavedSettings();
+    }
+  }
+
   async function perform(name: string, success: string, args?: Record<string, unknown>) {
-    if (busy) return;
+    if (busy || !ready) return;
+    const hadDraft = dirty;
     busy = true;
+    operationEpoch++;
     inform("");
     try {
-      view = await command<PanelView>(name, args);
-      if (name === "apply_settings") draft = { ...view.settings };
+      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
+      view = await command<PanelView>(name, guardedArgs);
+      if (name === "apply_settings") discardDraft();
       inform(name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success);
     } catch (cause) {
       inform(cause instanceof Error ? cause.message : String(cause), true);
       // Reflect connection/registration state even after a failed operation.
-      try { view = await command<PanelView>("get_panel"); } catch { /* Keep the last view. */ }
-    } finally { busy = false; }
+      try { view = await command<PanelView>("get_panel"); if (!hadDraft) discardDraft(); } catch { /* Keep the last view. */ }
+    } finally { busy = false; if (reloadPending) void reloadSavedSettings(); }
   }
 
   function navigate(next: string) {
@@ -68,15 +99,22 @@
   }
 
   onMount(() => {
-    let disposed = false;
     let stop = () => {};
     void (async () => {
-      try { view = await command<PanelView>("get_panel"); draft = { ...view.settings }; ready = true; }
-      catch (cause) { inform(cause instanceof Error ? cause.message : String(cause), true); }
       try {
-        const unsubscribe = await subscribe(navigate, (text) => inform(text, true));
+        // Subscribe before taking the initial snapshot so startup changes cannot be missed.
+        const unsubscribe = await subscribe(navigate, (text) => inform(text, true), () => {
+          if (!ready) reloadPending = true; else void reloadSavedSettings();
+        });
         if (disposed) unsubscribe(); else stop = unsubscribe;
-      } catch { inform("Could not listen for tray events. Reopen through the launcher.", true); }
+      } catch { inform("Could not listen for tray or settings changes. Reopen through the launcher.", true); }
+      if (disposed) return;
+      try {
+        const next = await command<PanelView>("get_panel");
+        if (disposed) return;
+        view = next; discardDraft(); ready = true;
+        if (reloadPending) void reloadSavedSettings();
+      } catch (cause) { inform(cause instanceof Error ? cause.message : String(cause), true); }
     })();
     return () => { disposed = true; stop(); };
   });
@@ -89,9 +127,9 @@
     <div class="brand-mark" aria-hidden="true">↔</div>
     <div class="brand"><h1>SSH Clipboard</h1><span>{configured ? view.settings.target : "Connect your machines"}</span></div>
     {#if page === "panel"}
-      <button class="icon-button" aria-label="Open settings" onclick={() => navigate("settings")} disabled={busy}>⚙</button>
+      <button class="icon-button" aria-label="Open settings" onclick={() => navigate("settings")} disabled={!ready || busy}>⚙</button>
     {:else}
-      <button class="text-button" onclick={() => navigate("panel")} disabled={busy}>Done</button>
+      <button class="text-button" onclick={() => navigate("panel")} disabled={!ready || busy}>Done</button>
     {/if}
   </header>
 
@@ -134,30 +172,31 @@
           <button class:active={section === id} aria-current={section === id ? "page" : undefined} onclick={() => selectSection(id)}>{label}</button>
         {/each}
       </nav>
-      <form onsubmit={(event) => { event.preventDefault(); void perform("apply_settings", "Settings applied.", { settings: { ...draft } }); }}>
+      <form onsubmit={(event) => { event.preventDefault(); void perform("apply_settings", "Settings applied.", { settings: { ...draft }, expectedRevision: draftRevision }); }}>
         {#if section === "connection"}
-          <label for="target">SSH alias or user@host</label><input id="target" bind:value={draft.target} placeholder="clipboard-hub" autocomplete="off" disabled={busy} />
+          <label for="target">SSH alias or user@host</label><input id="target" bind:value={draft.target} placeholder="clipboard-hub" autocomplete="off" disabled={!ready || busy} />
           <p class="field-help">Uses your existing SSH configuration and unlocked key. The server must already be installed.</p>
-          <label for="port">Port <span>(optional)</span></label><input id="port" type="number" min="1" max="65535" value={draft.port ?? ""} oninput={(event) => draft.port = event.currentTarget.value === "" ? null : Number(event.currentTarget.value)} placeholder="From SSH config" disabled={busy} />
-          <label for="identity">Identity file <span>(optional)</span></label><input id="identity" bind:value={draft.identityFile} placeholder="From SSH config or agent" autocomplete="off" disabled={busy} />
+          <label for="port">Port <span>(optional)</span></label><input id="port" type="number" min="1" max="65535" value={draft.port ?? ""} oninput={(event) => draft.port = event.currentTarget.value === "" ? null : Number(event.currentTarget.value)} placeholder="From SSH config" disabled={!ready || busy} />
+          <label for="identity">Identity file <span>(optional)</span></label><input id="identity" bind:value={draft.identityFile} placeholder="From SSH config or agent" autocomplete="off" disabled={!ready || busy} />
           <button type="button" class="test-button" disabled={!ready || !configured || dirty || busy} onclick={() => perform("test_connection", "SSH proxy and clipboard daemon responded.")}>Test saved connection</button>
           {#if dirty}<p class="field-help">Apply your changes before testing the connection.</p>{/if}
         {:else if section === "shortcuts"}
           <p class="section-intro">One shortcut opens the clipboard panel. You can also use the tray menu or launch the app.</p>
-          <label class="toggle"><input type="checkbox" bind:checked={draft.shortcutEnabled} disabled={busy} />Enable Open panel shortcut</label>
+          <label class="toggle"><input type="checkbox" bind:checked={draft.shortcutEnabled} disabled={!ready || busy} />Enable Open panel shortcut</label>
           <label for="shortcut">Open panel</label>
-          <button id="shortcut" type="button" class:recording class="shortcut-recorder" disabled={!draft.shortcutEnabled || busy} onclick={() => recording = !recording}>{recording ? "Press a shortcut · Esc to cancel" : displayShortcut(draft.openShortcut)}</button>
+          <button id="shortcut" type="button" class:recording class="shortcut-recorder" disabled={!ready || !draft.shortcutEnabled || busy} onclick={() => recording = !recording}>{recording ? "Press a shortcut · Esc to cancel" : displayShortcut(draft.openShortcut)}</button>
           <p class="field-help">{recording ? "Use Ctrl/Cmd or Alt with a key." : view.shortcutStatus}</p>
-          <button type="button" class="text-button" disabled={busy} onclick={() => draft.openShortcut = "CommandOrControl+Shift+V"}>Restore default shortcut</button>
+          <button type="button" class="text-button" disabled={!ready || busy} onclick={() => draft.openShortcut = "CommandOrControl+Shift+V"}>Restore default shortcut</button>
         {:else}
-          <label class="toggle"><input type="checkbox" bind:checked={draft.showPreview} disabled={busy} />Show content previews</label>
+          <label class="toggle"><input type="checkbox" bind:checked={draft.showPreview} disabled={!ready || busy} />Show content previews</label>
           <p class="field-help">Hide text and image previews when sharing your screen.</p>
-          <label class="toggle"><input type="checkbox" bind:checked={draft.closeAfterCopy} disabled={busy} />Hide panel after copying</label>
+          <label class="toggle"><input type="checkbox" bind:checked={draft.closeAfterCopy} disabled={!ready || busy} />Hide panel after copying</label>
           <p class="field-help">The app keeps running so the copied content stays available.</p>
           <div class="capability"><strong>Tray menu</strong><span>{view.trayStatus}</span></div>
           <p class="field-help">Start at login and updates will be added after the desktop foundation is verified.</p>
         {/if}
-        <div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !view.settingsWritable || !dirty || busy || recording}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { draft = { ...view.settings }; recording = false; }}>Discard changes</button></div>
+        {#if staleDraft}<p class="field-help">Saved settings changed. Discard your draft to load them.</p>{/if}
+        <div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !view.settingsWritable || !dirty || staleDraft || busy || recording}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { discardDraft(); inform("Loaded current saved settings."); }}>Discard changes</button></div>
       </form>
     {/if}
 

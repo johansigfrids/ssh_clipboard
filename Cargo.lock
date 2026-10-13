@@ -3180,6 +3180,7 @@ dependencies = [
  "base64",
  "clap",
  "confy",
+ "dirs",
  "eyre",
  "global-hotkey",
  "image",

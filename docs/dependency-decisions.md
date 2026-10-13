@@ -56,6 +56,10 @@ Evaluate Tauri 2 with Svelte/TypeScript in an isolated `desktop/` project before
 
 See [the prototype guide](desktop-prototype.md) for current evidence and open checks.
 
+## Shared Configuration Storage
+
+The first shared configuration slice uses `dirs` for a common per-user path and `tempfile` for same-directory atomic replacement, with standard-library file locks to coordinate writers. Keep the lock file stable across replacement and read settings without implicitly creating defaults. See [shared configuration](shared-configuration.md) for the contract and remaining migration work.
+
 ## Update Triggers
 
 - Desktop prototype/framework selection and native platform results.

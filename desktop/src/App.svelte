@@ -96,6 +96,7 @@
   </header>
 
   <main bind:this={content}>
+    {#if view.settingsNotice}<div class="feedback error" role="alert">{view.settingsNotice}</div>{/if}
     {#if page === "panel"}
       <div class="status-line"><span class:connected={view.connected} class="status-dot"></span>{busy ? "Working…" : view.connected ? "Server reachable" : configured ? "Not connected" : "Setup needed"}<span class="mode">Shared clipboard</span></div>
       {#if !configured}
@@ -127,7 +128,7 @@
       </div>
       <p class="quiet-note">Sharing and copying happen only when you ask.</p>
     {:else}
-      <div class="settings-title"><h2>Settings</h2><span>Applies for this session</span></div>
+      <div class="settings-title"><h2>Settings</h2><span>{view.settingsSaved ? "Saved on this computer" : "Apply to save"}</span></div>
       <nav aria-label="Settings sections">
         {#each [["connection", "Connection"], ["shortcuts", "Shortcuts"], ["behavior", "Behavior"]] as [id, label]}
           <button class:active={section === id} aria-current={section === id ? "page" : undefined} onclick={() => selectSection(id)}>{label}</button>
@@ -143,7 +144,7 @@
           {#if dirty}<p class="field-help">Apply your changes before testing the connection.</p>{/if}
         {:else if section === "shortcuts"}
           <p class="section-intro">One shortcut opens the clipboard panel. You can also use the tray menu or launch the app.</p>
-          <label class="toggle"><input type="checkbox" bind:checked={draft.shortcutEnabled} disabled={!view.shortcutAvailable || busy} />Enable Open panel shortcut</label>
+          <label class="toggle"><input type="checkbox" bind:checked={draft.shortcutEnabled} disabled={busy} />Enable Open panel shortcut</label>
           <label for="shortcut">Open panel</label>
           <button id="shortcut" type="button" class:recording class="shortcut-recorder" disabled={!draft.shortcutEnabled || busy} onclick={() => recording = !recording}>{recording ? "Press a shortcut · Esc to cancel" : displayShortcut(draft.openShortcut)}</button>
           <p class="field-help">{recording ? "Use Ctrl/Cmd or Alt with a key." : view.shortcutStatus}</p>
@@ -156,12 +157,12 @@
           <div class="capability"><strong>Tray menu</strong><span>{view.trayStatus}</span></div>
           <p class="field-help">Start at login and updates will be added after the desktop foundation is verified.</p>
         {/if}
-        <div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !dirty || busy || recording}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { draft = { ...view.settings }; recording = false; }}>Discard changes</button></div>
+        <div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !view.settingsWritable || !dirty || busy || recording}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { draft = { ...view.settings }; recording = false; }}>Discard changes</button></div>
       </form>
     {/if}
 
     {#if message}<div class:error class="feedback" role={error ? "alert" : "status"}>{message}</div>{/if}
   </main>
 
-  <footer><span>{view.settings.shortcutEnabled ? displayShortcut(view.settings.openShortcut) : "Open from the launcher or tray"}</span><span>Prototype</span><button class="quit-button" disabled={!ready || busy} onclick={() => command("quit_app").catch((cause) => inform(String(cause), true))}>Quit</button></footer>
+  <footer><span>{view.activeShortcut ? displayShortcut(view.activeShortcut) : "Open from the launcher or tray"}</span><span>Prototype</span><button class="quit-button" disabled={!ready || busy} onclick={() => command("quit_app").catch((cause) => inform(String(cause), true))}>Quit</button></footer>
 </div>

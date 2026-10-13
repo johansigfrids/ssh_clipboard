@@ -4,7 +4,7 @@
 
 Turn the October 2026 redesign into a staged implementation that preserves the core idea: explicitly share clipboard contents between machines through SSH. Address forgotten shortcuts, file-based settings, and cumbersome updates as product problems rather than isolated fixes.
 
-**Status: implementation started, 2026-10-13.** Phase 1 has an isolated desktop prototype; its native platform gate remains open. Phases 2-8 remain planned. [ARCHITECTURE.md](../ARCHITECTURE.md) separates the current implementation from the target system.
+**Status: implementation started, 2026-10-13.** Phase 1 Windows smoke checks pass; its broader native platform gate remains open. Phase 2 has started with the shared configuration store and persistent desktop settings. Phases 3-8 remain planned. [ARCHITECTURE.md](../ARCHITECTURE.md) separates the current implementation from the target system.
 
 ## Key Files
 
@@ -56,6 +56,8 @@ On Linux, probe tray, X11 shortcut, and GlobalShortcuts portal capabilities inde
 **Exit checks:** forget every keybind and still open/share/copy through visible controls; paste text and images into another native application after the panel is dismissed; shortcut conflicts and portal denial leave the app usable. Record native results separately from simulated clipboard tests.
 
 ## Phase 2: Extract Shared Services and Configuration
+
+**First slice implemented:** a shared versioned configuration store and persistent desktop connection/panel preferences, with coordinated saves, stale-edit rejection, and corrupt-file preservation. See [shared configuration](shared-configuration.md). This bounded slice starts provisionally while other platforms' Phase 1 checks remain open; it does not finalize the framework choice. Legacy backup/migration, CLI parity/overrides, live reload, additional profile/settings fields, and server dependency isolation remain pending.
 
 Extract focused Rust services for configuration, profiles, clipboard adapters, item models, transport, and transfer actions. Make desktop and CLI use them while retaining the current protocol initially. Move GUI and OS clipboard dependencies out of the server dependency graph; keep only image-codec functionality needed for safe server-side validation.
 

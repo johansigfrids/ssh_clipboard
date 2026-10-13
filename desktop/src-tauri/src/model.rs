@@ -55,20 +55,43 @@ impl Default for SessionSettings {
 }
 
 impl SessionSettings {
-    pub fn validate(&self) -> Result<(), String> {
-        let target = self.target.trim();
-        if target.starts_with('-') || target.chars().any(|c| c.is_whitespace() || c.is_control()) {
-            return Err(
-                "The SSH target must be one alias or user@host, without options or spaces.".into(),
-            );
-        }
-        if self.port == Some(0) {
-            return Err("SSH port must be between 1 and 65535.".into());
-        }
-        if self.identity_file.chars().any(char::is_control) {
-            return Err("The identity file path contains a control character.".into());
-        }
+    pub fn from_configuration(
+        config: &ssh_clipboard::configuration::Configuration,
+    ) -> Result<Self, String> {
+        let profile = config.selected_profile().map_err(|e| e.to_string())?;
+        Ok(Self {
+            target: profile.target.clone(),
+            port: profile.port,
+            identity_file: profile.identity_file.clone(),
+            open_shortcut: config.preferences.open_shortcut.clone(),
+            shortcut_enabled: config.preferences.shortcut_enabled,
+            show_preview: config.preferences.show_preview,
+            close_after_copy: config.preferences.close_after_copy,
+        })
+    }
+
+    pub fn update_configuration(
+        &self,
+        config: &mut ssh_clipboard::configuration::Configuration,
+    ) -> Result<(), String> {
+        self.validate()?;
+        let profile = config.selected_profile_mut().map_err(|e| e.to_string())?;
+        profile.target = self.target.clone();
+        profile.port = self.port;
+        profile.identity_file = self.identity_file.clone();
+        config.preferences.open_shortcut = self.open_shortcut.clone();
+        config.preferences.shortcut_enabled = self.shortcut_enabled;
+        config.preferences.show_preview = self.show_preview;
+        config.preferences.close_after_copy = self.close_after_copy;
         Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        ssh_clipboard::configuration::validate_connection(
+            self.target.trim(),
+            self.port,
+            &self.identity_file,
+        )
     }
 
     pub fn validate_connection(&self) -> Result<(), String> {
@@ -195,6 +218,34 @@ fn truncate(text: &str, limit: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn settings_round_trip_preserves_profile_identity_and_other_profiles() {
+        let mut config = ssh_clipboard::configuration::Configuration::default();
+        let mut other = config.profiles[0].clone();
+        other.id = "other".into();
+        other.name = "Other".into();
+        other.target = "another-hub".into();
+        config.profiles.push(other.clone());
+        let settings = SessionSettings {
+            target: "selected-hub".into(),
+            identity_file: "path with spaces/key".into(),
+            port: Some(2222),
+            show_preview: false,
+            close_after_copy: true,
+            ..Default::default()
+        };
+        settings.update_configuration(&mut config).unwrap();
+        let restored = SessionSettings::from_configuration(&config).unwrap();
+        assert_eq!(restored.target, settings.target);
+        assert_eq!(restored.port, Some(2222));
+        assert_eq!(restored.identity_file, settings.identity_file);
+        assert!(!restored.show_preview);
+        assert!(restored.close_after_copy);
+        assert_eq!(config.profiles[0].id, "default");
+        assert_eq!(config.default_profile, "default");
+        assert_eq!(config.profiles[1], other);
+    }
 
     #[test]
     fn share_budget_includes_metadata_at_the_actual_wire_boundary() {

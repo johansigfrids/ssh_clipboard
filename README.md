@@ -9,7 +9,7 @@ The Linux server keeps the latest clipboard value **in memory only** (no on-disk
 
 ## Desktop rework prototype
 
-The rework branch includes an experimental quick panel in `desktop/`: explicit share/copy, content previews, a panel shortcut, tray access, and settings that apply for the current session. It uses the existing Linux server and leaves the installed agent/configuration alone.
+The rework branch includes an experimental quick panel in `desktop/`: explicit share/copy, content previews, a panel shortcut, tray access, and settings saved on this computer. It uses the existing Linux server and leaves the installed agent/configuration alone.
 
 From `desktop/`, with Node.js 24, Rust, and [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/):
 
@@ -22,7 +22,7 @@ Enter your SSH alias or `user@host` in Settings, apply it, test the connection, 
 
 The prototype retains the legacy 10 MiB transfer limit, including request metadata. Images use lossless PNG compression with a separate 64 MiB pixel limit. Size errors explain what exceeded the limit; rejected shares keep the previous item. Larger configurable transfer limits are part of the coordinated client/server rework.
 
-This is a source-build prototype with session-only settings. History, configuration migration, autostart, installers, and signed updates are still planned. See the [prototype guide and validation status](docs/desktop-prototype.md) and [implementation plan](docs/implementation-plan.md).
+This is a source-build prototype with persistent settings stored separately from the old agent. History, CLI configuration parity/migration, autostart, installers, and signed updates are still planned. See the [prototype guide and validation status](docs/desktop-prototype.md), [configuration recovery](docs/shared-configuration.md), and [implementation plan](docs/implementation-plan.md).
 
 ## Quick Start (recommended)
 

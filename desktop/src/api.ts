@@ -27,6 +27,10 @@ export interface PanelView {
   trayStatus: string;
   shortcutAvailable: boolean;
   platform: string;
+  settingsSaved: boolean;
+  settingsWritable: boolean;
+  settingsNotice: string | null;
+  activeShortcut: string | null;
 }
 
 export const initialView: PanelView = {
@@ -38,6 +42,10 @@ export const initialView: PanelView = {
   trayStatus: "Waiting for the desktop app",
   shortcutAvailable: true,
   platform: "unknown",
+  settingsSaved: false,
+  settingsWritable: true,
+  settingsNotice: null,
+  activeShortcut: null,
 };
 
 export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {

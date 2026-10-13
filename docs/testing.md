@@ -7,6 +7,7 @@ Describe how to run tests locally and what kinds of tests exist in this repo.
 - `src/framing.rs` (framing unit tests + proptest)
 - `src/protocol.rs` (protocol round-trip tests)
 - `src/client_actions.rs` (clipboard contract tests)
+- `src/configuration.rs` (temporary-directory save, conflict, corruption, and recovery probes)
 - `src/daemon.rs` (Linux-only daemon tests)
 - `Cargo.toml` (dev-dependencies for tests)
 - [Desktop prototype guide](desktop-prototype.md) (separate frontend/backend checks and native acceptance gate)
@@ -59,6 +60,7 @@ sudo apt-get install -y \
 - **Client actions**: behavior parity tests using mock clipboard.
 - **Image handling**: PNG encode/decode and size guard tests.
 - **Daemon (Linux-only)**: socket path permissions, request validation, read timeouts.
+- **Configuration**: restoration, stale writers, competing locks, abandoned preparations, corrupt/future/oversized documents, profile selection, and failed replacement. These use temporary directories and never edit the user's settings.
 
 ## Notes
 - Some tests are Linux-only (`#[cfg(test)]` in `src/daemon.rs`).

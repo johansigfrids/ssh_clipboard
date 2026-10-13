@@ -13,12 +13,14 @@ beforeEach(() => {
   state = structuredClone(initialView);
   state.platform = "windows";
   state.shortcutStatus = "Registered";
+  state.activeShortcut = state.settings.openShortcut;
   bridge.native = true;
   bridge.invoke.mockReset();
   bridge.listen.mockReset().mockResolvedValue(() => {});
   bridge.invoke.mockImplementation(async (name: string, args?: { settings: PanelView["settings"] }) => {
     if (name === "apply_settings") {
       state.settings = args!.settings;
+      state.settingsSaved = true;
       state.item = null;
       state.clipboardChecked = false;
       state.connected = false;
@@ -29,6 +31,45 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("corrupt settings show a recovery message and prevent overwriting the file", async () => {
+    state.settingsWritable = false;
+    state.settingsNotice = "Settings are invalid. Preserve the file and repair it before saving.";
+    render(App);
+    await screen.findByRole("alert");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "hub" } });
+    expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(true);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+  });
+
+  it("startup restores saved settings without connecting or reading the clipboard", async () => {
+    state.settings.target = "saved-hub";
+    state.settings.showPreview = false;
+    state.settingsSaved = true;
+    render(App);
+    await screen.findByText("saved-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("saved-hub");
+    expect(screen.getByText("Saved on this computer")).toBeTruthy();
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+  });
+
+  it("a failed save keeps the draft available without claiming it was applied", async () => {
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => name === "apply_settings" ? Promise.reject("Settings changed in another process. Quit and reopen before editing again.") : normal(name, args));
+    render(App);
+    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledOnce());
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "new-hub" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByRole("alert");
+    expect(screen.queryByText("Settings applied.")).toBeNull();
+    expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("new-hub");
+    expect(state.settings.target).toBe("");
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("");
+  });
+
   it("opening the panel reads state without reading, sharing, or replacing the clipboard", async () => {
     render(App);
     await waitFor(() => expect(bridge.invoke).toHaveBeenCalledWith("get_panel", undefined));

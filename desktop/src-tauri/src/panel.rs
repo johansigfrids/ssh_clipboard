@@ -2,6 +2,7 @@ use crate::clipboard::ClipboardWorker;
 use crate::model::{ItemPreview, SessionSettings, is_wayland, validate_transfer_size};
 use serde::Serialize;
 use ssh_clipboard::client::transport::{make_request, send_request};
+use ssh_clipboard::configuration::{ConfigStore, Configuration};
 use ssh_clipboard::protocol::{ClipboardValue, ErrorCode, RequestKind, ResponseKind};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
@@ -15,11 +16,14 @@ struct Session {
     shortcut_status: String,
     tray_status: String,
     connected: bool,
+    saved_config: Option<Configuration>,
+    settings_notice: Option<String>,
 }
 
 struct Desktop {
     session: Mutex<Session>,
     clipboard: ClipboardWorker,
+    config_store: Option<ConfigStore>,
 }
 
 #[derive(Serialize)]
@@ -33,6 +37,10 @@ struct PanelView {
     shortcut_available: bool,
     connected: bool,
     platform: &'static str,
+    settings_saved: bool,
+    settings_writable: bool,
+    settings_notice: Option<String>,
+    active_shortcut: Option<String>,
 }
 
 impl Session {
@@ -50,6 +58,10 @@ impl Session {
             shortcut_available: !is_wayland(),
             connected: self.connected,
             platform: std::env::consts::OS,
+            settings_saved: self.saved_config.is_some(),
+            settings_writable: self.settings_notice.is_none(),
+            settings_notice: self.settings_notice.clone(),
+            active_shortcut: self.shortcut_active.clone(),
         })
     }
 }
@@ -65,7 +77,8 @@ fn configure_shortcut(
     next: &SessionSettings,
 ) -> Result<String, String> {
     if next.shortcut_enabled && is_wayland() {
-        return Err("Global shortcuts are not available in this Wayland prototype. Use the launcher or tray menu.".into());
+        // Preserve the saved preference across platforms, while allowing other settings to be edited.
+        return Ok("Wayland: use the launcher or tray menu. Portal support is pending.".into());
     }
     let requested = next.shortcut_enabled.then_some(next.open_shortcut.clone());
     if requested == session.shortcut_active {
@@ -117,7 +130,31 @@ async fn apply_settings(
         .session
         .try_lock()
         .map_err(|_| "Wait for the current operation to finish.".to_string())?;
+    if let Some(notice) = &session.settings_notice {
+        return Err(notice.clone());
+    }
+    let store = state
+        .config_store
+        .as_ref()
+        .ok_or("The settings location is unavailable.")?;
+    let mut next_config = session.saved_config.clone().unwrap_or_default();
+    settings.update_configuration(&mut next_config)?;
+    // Validate/check for a stale writer and flush the temporary file before changing OS state.
+    let pending = store
+        .prepare(session.saved_config.as_ref(), next_config)
+        .map_err(|e| e.to_string())?;
+    let previous_settings = session.settings.clone();
     let status = configure_shortcut(&app, &mut session, &settings)?;
+    let saved = match pending.commit() {
+        Ok(saved) => saved,
+        Err(error) => {
+            session.shortcut_status = match configure_shortcut(&app, &mut session, &previous_settings) {
+                Ok(status) => status,
+                Err(_) => "Could not restore the previous shortcut. Quit and reopen to restore saved settings.".into(),
+            };
+            return Err(error.to_string());
+        }
+    };
     let connection_changed = settings.target != session.settings.target
         || settings.port != session.settings.port
         || settings.identity_file != session.settings.identity_file;
@@ -127,6 +164,7 @@ async fn apply_settings(
         session.connected = false;
     }
     session.settings = settings;
+    session.saved_config = Some(saved);
     session.shortcut_status = status;
     session.view()
 }
@@ -326,7 +364,18 @@ pub fn run() {
     }
     let app = builder
         .setup(|app| {
-            let settings = SessionSettings::default();
+            let (config_store, loaded, settings_notice) = match ConfigStore::user() {
+                Ok(store) => match store.load() {
+                    Ok(config) => (Some(store), config, None),
+                    Err(error) => {
+                        let notice = format!("{error} Settings were left untouched at {}. Repair or move the file, then quit and reopen.", store.path().display());
+                        (Some(store), None, Some(notice))
+                    }
+                },
+                Err(error) => (None, None, Some(error.to_string())),
+            };
+            let settings = loaded.as_ref().map(SessionSettings::from_configuration)
+                .transpose().map_err(std::io::Error::other)?.unwrap_or_default();
             let mut session = Session {
                 settings: settings.clone(),
                 item: None,
@@ -335,6 +384,8 @@ pub fn run() {
                 shortcut_status: "Disabled".into(),
                 tray_status: "Available".into(),
                 connected: false,
+                saved_config: loaded,
+                settings_notice,
             };
             session.shortcut_status = if is_wayland() {
                 "Wayland: use the launcher or tray menu. Portal support is pending.".into()
@@ -345,6 +396,7 @@ pub fn run() {
             app.manage(Desktop {
                 session: Mutex::new(session),
                 clipboard: ClipboardWorker::start()?,
+                config_store,
             });
             if install_tray(app.handle()).is_err() {
                 app.state::<Desktop>().session.blocking_lock().tray_status =

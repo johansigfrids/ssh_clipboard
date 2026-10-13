@@ -1,172 +1,178 @@
-# SSH Clipboard — Architecture
+# SSH Clipboard Architecture
 
 ## Purpose
-Describe the architecture for `ssh_clipboard`: a cross-platform Rust tool to copy clipboard contents between:
-- Windows client ↔ Linux server
-- macOS client ↔ Linux server
-- Linux client ↔ Linux server
 
-All data transfer occurs over SSH. The Linux server does not persist clipboard contents to disk; it only keeps the latest value in memory while the server daemon is running.
+Describe the current implementation and the target architecture agreed during the October 2026 redesign discussion. SSH remains the transport and account boundary. The target is a small desktop clipboard utility with a discoverable quick panel, usable settings, and signed updates.
 
-## Goals
-- Reliable push/pull of clipboard contents between a client machine and a server machine.
-- Transport security via SSH (reuse existing SSH keys/agent/config).
-- Server-side clipboard state held in memory only (no on-disk persistence).
-- Simple operational model: a small daemon on the Linux server, and a client app on Windows/macOS/Linux.
-- User-friendly defaults: the agent is enabled by default for client builds.
+**Status: planned, not implemented.** The source still implements the current system below. [The implementation plan](docs/implementation-plan.md) defines the delivery sequence and acceptance checks. Existing feature documents describe shipped behavior until their corresponding phase lands.
 
-## Non-goals (initially)
-- Multi-user sharing or access control beyond SSH user isolation.
-- Sync/streaming clipboard updates automatically (initially event-driven: push/pull).
-- Rich clipboard semantics beyond the current minimal set (e.g., HTML/RTF, multiple simultaneous formats).
+## Key Files
 
-## High-Level Design
-The system uses a **Linux daemon** that holds clipboard state in memory, plus a **remote proxy mode** that is invoked over SSH to talk to the daemon.
+- `src/client/`, `src/client_actions.rs`: clipboard adapters and SSH transfers.
+- `src/agent/`, `src/bin/ssh_clipboard_agent.rs`: current desktop agent.
+- `src/protocol.rs`, `src/framing.rs`: current version 2 wire protocol.
+- `src/daemon.rs`, `src/proxy.rs`: Linux server and SSH bridge.
+- `src/cli/`: commands, diagnostics, configuration, and installation.
+- `.github/workflows/ci.yml`, `.github/workflows/release.yml`: checks and packaging.
+- [Implementation plan](docs/implementation-plan.md): proposed work and delivery gates.
 
-This yields a clean separation:
-- **SSH is the only network exposure** (no public TCP listener needed).
-- The daemon is reachable only from the same Linux host (via a local UNIX socket with strict permissions).
+## Current System
 
-### Components
-1. **Server daemon (Linux)**
-   - Long-lived process that stores the most recent clipboard payload in memory.
-   - Listens on a local UNIX domain socket.
-2. **Server proxy (Linux, runs per SSH session)**
-   - A small mode of the same binary (or a separate binary) executed via `ssh user@host ...`.
-   - Bridges stdin/stdout (SSH channel) to the daemon UNIX socket.
-3. **Client app (Windows / macOS / Linux)**
-   - Reads local clipboard, sends it to server (push).
-   - Receives clipboard from server, writes it to local clipboard (pull).
-   - Uses the platform `ssh` binary and communicates via stdin/stdout frames.
-   - Supports both CLI-triggered push/pull and a background agent (tray + global hotkeys).
-   - Agent notifications are platform-specific (Windows toast, macOS `osascript`, Linux DBus).
-   - The agent runs as a separate `ssh_clipboard_agent` binary to avoid console windows on Windows/macOS.
+The Rust CLI and tray agent launch the system OpenSSH client for each operation. SSH runs `ssh_clipboard proxy` on Linux; the proxy forwards one request and response through a per-user UNIX socket to the daemon, then exits.
 
-## Data Flow
+The daemon holds one `Option<ClipboardValue>` in memory. A successful `Set` replaces it; `Get` retrieves it; `PeekMeta` returns metadata. Each value contains one content type, bytes, and a client-supplied timestamp. UTF-8 text and PNG images are supported today. There is no shared history, expiry, subscription, or disk persistence.
 
-### Push (client → server)
-1. Client reads local clipboard into `(content_type, bytes)`.
-2. Client spawns `ssh` and runs the remote proxy mode, e.g.:
-   - `ssh user@server ssh_clipboard proxy`
-3. Client sends a framed `Set` request over the SSH session’s stdin.
-4. Remote proxy forwards the request to the daemon over the UNIX socket.
-5. Daemon stores payload in memory, returns `Ok`.
-6. Proxy forwards response back to client over stdout; client reports success.
+Frames contain `SCB1`, version `2`, a little-endian length, and a `wincode` payload. Requests and responses carry request IDs. The default size limit is 10 MiB; current frame and decoded-image limits do not have identical semantics. The exact existing contract is in [protocol.md](docs/protocol.md), with compatibility fixtures in `src/protocol.rs`.
 
-### Pull (server → client)
-1. Client spawns `ssh user@server ssh_clipboard proxy`.
-2. Client sends a framed `Get` request.
-3. Proxy asks daemon for current payload.
-4. Daemon returns payload (or `Empty`).
-5. Proxy forwards response to client; client writes payload to local clipboard.
+The daemon uses an owner-only socket directory (`0700`), socket (`0600`), and peer UID checks. Its preferred path is `$XDG_RUNTIME_DIR/ssh_clipboard/daemon.sock`, falling back to `$TMPDIR/ssh_clipboard-$UID/daemon.sock` or `/tmp/ssh_clipboard-$UID/daemon.sock`.
 
-## Local IPC on the Server
+The agent provides tray actions, separate push/pull hotkeys, notifications, and start-at-login. Settings are file/CLI based and loaded at startup. Ordinary CLI transfers do not inherit the agent configuration. Release archives have SHA256 checksums but no built-in signed updater.
 
-### UNIX socket location
-Prefer `$XDG_RUNTIME_DIR` for a per-user runtime socket (in-memory tmpfs on most distros):
-- `$XDG_RUNTIME_DIR/ssh_clipboard/daemon.sock`
+## Target Product Contract
 
-Fallback if `XDG_RUNTIME_DIR` is unavailable:
-- `$TMPDIR/ssh_clipboard-$UID/daemon.sock` or `/tmp/ssh_clipboard-$UID/daemon.sock`
+- A compact **quick panel** is the primary interface. The tray/menu and normal application launcher open it; one configurable shortcut opens it too.
+- The panel shows the latest shared item, a small recent list, source device, receipt time, connection state, and clear **Share current clipboard** / **Copy to this computer** actions.
+- Sharing and copying are explicit by default. Opening the panel does not upload the local clipboard or replace it with remote content.
+- Settings have Connection, Shortcuts, Behavior, and Updates pages, with validated changes applied without restarting.
+- SSH aliases, keys, agent, host verification, and configuration continue to work through system OpenSSH.
+- Free cryptographic update signing is required. Paid OS publisher certificates/notarization are a separate distribution decision.
 
-### Permissions
-- Create the directory with `0700` and the socket with `0600` (owner-only).
-- Daemon runs as the target user (systemd user service recommended).
+Continuous synchronization, full local clipboard history, accounts/cloud relays, arbitrary file transfer, and a full mesh of peers are outside the initial rework. Rich clipboard formats can be added after text and images are reliable.
 
-## On-the-Wire Protocol (Client ↔ Proxy ↔ Daemon)
+## Component Boundaries
 
-### Design requirements
-- Binary-safe (clipboard may include arbitrary bytes).
-- Framed (so multiple messages can reuse the same stream in the future).
-- Versioned (to allow evolution).
+```mermaid
+flowchart LR
+    Panel[Desktop quick panel and settings] --> Core[Shared Rust client core]
+    CLI[Headless CLI] --> Core
+    Core <--> Clipboard[Native clipboard owner]
+    Core <--> SSH[System OpenSSH process]
+    SSH <-->|encrypted stdio| Proxy[Linux session proxy]
+    Proxy <-->|owner-only UNIX socket| Daemon[Per-user shelf daemon]
+    Daemon --> Shelf[Bounded in-memory shelf]
+    DesktopUpdate[Desktop updater] --> SignedRelease[Signed release artifacts]
+    ServerUpdate[Server maintenance command] --> SignedRelease
+```
 
-### Proposed framing
-- `MAGIC` (e.g., 4 bytes) + `VERSION` (u16) for handshake/validation.
-- One-shot frame per SSH session:
-  - `len: u32` (little endian)
-  - `payload: [u8; len]`
-- `payload` is a serialized request/response (e.g., `serde` + `bincode` or `postcard`).
+### Shared Rust Client Core
 
-### Resync for noisy shells
-Clients may encounter extra bytes before `MAGIC` (e.g., MOTD banners). The framing reader can resync by scanning for `MAGIC` and discarding garbage bytes (enabled by default; strict mode is available).
+Own typed configuration, profile selection, item models, connection state, transport, transfer orchestration, and diagnostics. Desktop and CLI use the same services and configuration schema. Keep OS clipboard work behind an adapter so the headless server has no GUI or clipboard dependencies.
 
-Current implementation details are documented in `docs/protocol.md` (including protocol version and request IDs).
+The desktop owns the long-lived clipboard adapter/event loop. On platforms where clipboard contents require a live owner, successful copy means another application can still paste after the panel closes. CLI clipboard writes need a deliberate ownership strategy; stdout/file exports remain usable without a desktop session.
 
-### Message types (logical)
-Logical operations:
-- `Set` (store a clipboard value: text or PNG)
-- `Get` (retrieve the current clipboard value)
-- `PeekMeta` (retrieve metadata without the full payload)
+### Desktop Shell
 
-Responses:
-- `Ok`
-- `Value`
-- `Meta`
-- `Empty`
-- `Error`
+Tauri 2 with Svelte/TypeScript is the preferred candidate, subject to a native prototype gate. The Rust backend owns SSH, clipboard, filesystem, configuration, and update operations. The frontend receives typed state and invokes narrowly scoped commands; it does not receive general shell execution privileges. Render clipboard content as inert text/images, never executable HTML.
 
-### Size limits
-To avoid memory and denial-of-service issues:
-- Impose a configurable maximum payload size (default 10 MiB).
-- Reject larger payloads with a clear error.
+Use one app instance, a tray/menu, a compact panel, a settings window, and an ordinary launcher entry. Shortcut registration failure must leave these entry points working. Linux integrations are capability-driven: X11 support and the GlobalShortcuts portal where available, with a visible launcher/menu fallback on unsupported desktops. A portal denial or missing tray is a supported state.
 
-## Clipboard Semantics
+### Linux Proxy and Daemon
 
-### Content types (initial)
-Start with a minimal, robust set:
-- `text/plain; charset=utf-8`
-- `image/png` (PNG bytes; Phase 3+)
+Retain a per-user daemon and local UNIX socket with restrictive permissions and UID verification. The proxy bridges bounded protocol messages across stdio; it must keep diagnostics on stderr. Desktop sessions support multiple requests and change notifications. CLI sessions may remain short-lived.
 
-### Later extensions
-- macOS: NSPasteboard multiple representations
-- Windows: CF_UNICODETEXT plus additional formats
-- Images (PNG), HTML, RTF
+Protect daemon startup with exclusive ownership and stale-socket detection. Starting a second daemon must fail clearly instead of unlinking an active daemon's socket. Configuration and installation data may persist; clipboard items do not persist by default.
 
-The protocol should treat clipboard as opaque bytes with a `content_type` plus optional metadata.
+## Shared Item Model and Shelf
 
-## SSH Integration
+A proposed `SharedItem` contains:
 
-### Why spawn `ssh` instead of embedding an SSH library (initially)
-Using the platform SSH client (OpenSSH) provides:
-- Existing key management (agent, keychain, Windows OpenSSH)
-- User config support (`~/.ssh/config`, known_hosts)
-- Fewer cross-platform crypto/ssh edge cases
+| Field | Responsibility |
+| --- | --- |
+| Item ID | Stable server-assigned identity, independent of list position. |
+| Origin | Client device ID and user-editable display name; descriptive, not a separate authentication identity. |
+| Receipt/expiry | Server receipt time and expiry time; server ordering does not trust device clocks. |
+| Sequence/epoch | Ordering and restart detection for snapshots and notifications. |
+| Representations | MIME type, encoded size, and bytes per representation; initial support is text and PNG. |
+| Display label | Short deterministic content preview, with an optional explicit user label later. |
 
-The Rust client will spawn `ssh` and communicate over stdin/stdout with the remote proxy mode.
+Representations allow future text/HTML/RTF alternatives without conflating them with separately copied items. Support for multiple native formats is enabled only when the relevant adapter and protocol capability are verified.
 
-### Hardening options (optional)
-On the server, restrict what a key can do by pinning a forced command in `authorized_keys`:
-- `command="ssh_clipboard proxy",no-port-forwarding,no-agent-forwarding,no-X11-forwarding ...`
+The shelf contains only items explicitly shared with it. Proposed initial retention is 20 items, one hour, and a 64 MiB aggregate encoded-payload budget; these are provisional values to validate in implementation. Expire items and evict the oldest first under count/byte pressure. Deletion and clearing are explicit actions. Restart clears the shelf and changes its epoch.
 
-### Daemon access hardening
-The daemon verifies peer credentials on the UNIX socket and rejects connections from other users.
+Per-item encoded limits, decoded image limits, metadata limits, and aggregate/per-connection memory budgets are separate. Account for temporary decode buffers, snapshots, and queued messages; limiting stored payload bytes alone does not bound process memory. Oversized uploads are rejected before committing an item.
 
-## Proposed Rust Project Layout
-This repo currently uses `src/main.rs` + `src/lib.rs` modules. The agent feature is enabled by default for client builds, but can be disabled for server-only builds.
+Labels are generated locally from content: first non-empty text line, URL host/path, command/code preview, or image dimensions. They do not imply knowledge of the source document's title. No AI service, page-title fetch, or OCR is required. Truncate display labels without altering the copied bytes. Device names are configured locally.
 
-- `src/lib.rs`
-  - `protocol` / `framing` (message types + framing)
-  - `daemon` / `proxy` (Linux server side)
-  - `client` (SSH + clipboard adapters)
-  - `agent` (tray + hotkeys; feature-gated but default-on for clients)
+## Transfer and Connection Behavior
 
-Conditional compilation:
-- `#[cfg(target_os = "linux")]` for daemon unix-socket server
-- `#[cfg(target_os = "windows")]` / `#[cfg(target_os = "macos")]` / `#[cfg(target_os = "linux")]` for clipboard/hotkey specifics
+### Share
 
-## Operational Model
+1. A user action captures the local clipboard once into supported representations.
+2. The core validates content and sizes and assigns an upload operation ID.
+3. The server validates and atomically commits the item, recording its receipt time and sequence.
+4. The reply returns its stable ID; metadata notifications refresh other connected panels.
 
-### Linux server
-- Run daemon via `systemd --user` (recommended) or as a simple background process.
-- Daemon holds the clipboard value in memory until it exits/restarts.
-- Proxy can optionally autostart the daemon (useful for casual usage; systemd is preferred for production).
+Retries reuse the operation ID for that captured payload. The server keeps a bounded, expiring deduplication record. After restart or expiry of that record, the client must show an uncertain outcome rather than claiming exactly-once delivery. Reconnection never samples and uploads the current clipboard automatically.
 
-### Windows/macOS/Linux client
-- MVP: CLI push/pull commands.
-- Background agent (default) registers hotkeys and invokes push/pull.
+### Copy
+
+1. The user selects an item and invokes Copy to this computer.
+2. The core fetches that item by ID, validates it, and writes supported representations to the native clipboard.
+3. The desktop retains clipboard ownership as needed. A fetched-but-not-copied item never produces a success message.
+
+If the item has expired, report that and refresh the list. List notifications carry metadata; previews/payloads are fetched on demand and cached within explicit bounds. Closing the panel or switching profiles cancels obsolete fetches and removes previews from the previous profile.
+
+### Connection State
+
+Model disconnected, connecting, ready, reconnecting, and needs-action states separately from transfer state. Distinguish missing SSH, authentication/agent problems, host verification, missing proxy, unavailable daemon, incompatible protocol, and payload errors. Connection diagnostics must also work with a proxy-only forced-command key.
+
+Drain SSH stderr concurrently with bounded capture, correlate response IDs, impose operation deadlines, support cancellation, and reap child processes. Use bounded queues; slow subscribers must reconnect and resnapshot rather than accumulating unbounded notifications. Use backoff for reconnects and refresh metadata after a new session.
+
+## Protocol Evolution and Compatibility
+
+Version 2 remains the legacy one-shot contract. Do not change its serialized fixture bytes silently. Introduce a separately selectable session entry point and bootstrap handshake for the new contract; exact command names and encoding are settled in the protocol phase.
+
+The handshake negotiates supported protocol ranges, capabilities, limits, server epoch, and shelf policy. The new contract covers share, list, fetch-by-ID, delete, clear, subscribe, and health. Define request/reply correlation, event sequence ordering, bounded framing, cancellation, and snapshot recovery before enabling persistent sessions.
+
+New servers initially support the legacy endpoint alongside the session endpoint. A legacy `Get`/`PeekMeta` maps to the latest item; legacy `Set` produces a single-representation shelf item with unknown/legacy origin. New clients can explicitly use legacy mode with reduced capabilities. Do not silently fall back after authentication or host verification failure.
+
+Negotiate capabilities rather than requiring identical application versions. Maintain a published supported-version window, and test desktop-first and server-first upgrades. Restricted keys may need a reviewed forced-command migration to expose the session endpoint; they never gain maintenance privileges as part of compatibility fallback.
+
+## Configuration and Privacy
+
+Use a versioned schema shared by desktop and CLI. Connection profiles select a server/account and optional logical shelf; each profile isolates connection state, metadata, previews, and pending operations. Named shelves, if implemented, remain within one SSH account's permissions and are not an access-control feature.
+
+Apply flow: edit a draft, validate, test where useful, persist atomically, then activate. Preserve invalid/corrupt legacy files and report recovery options. Coordinate CLI/desktop writers, reconcile external changes, and avoid leaving persisted and active settings in disagreement if applying an OS integration fails.
+
+Store SSH references, not passwords/private-key contents. Keep host verification enabled and route trust/authentication decisions through a deliberate SSH setup flow. Logs contain structured operation metadata and sanitized diagnostics, never clipboard contents. Previews remain local memory with bounded lifetime; disk history is opt-in future work.
+
+## Installation and Updates
+
+### Desktop
+
+Install at a stable platform-appropriate location, preserve configuration outside the application bundle, and register start-at-login against the stable installed entry point. Check the actual OS autostart state and surface registration failures.
+
+Quietly check for stable updates, show release notes and download status, and allow installation when transfers are idle. Verify artifacts against an embedded trusted public key before any replacement. The private signing key is held only in protected release credentials, with a secure backup; never in source, normal build artifacts, or PR jobs. The updater's signing key is independent of SSH keys.
+
+GitHub Releases is the initial distribution source. Windows/macOS use the desktop framework's supported updater packages; Linux AppImage can use its updater, while packaged installations defer to their package manager. Initial installation still needs a trusted source. HTTPS and checksums do not replace artifact signatures. Publisher signing/notarization is a separate decision and is not provided by updater signing.
+
+Document trusted key rotation before first release: old clients need a transition release trusted by their existing key. Key loss/compromise may require a trusted manual reinstall. Signature verification alone does not solve replay; define version/channel checks and the authenticity of release metadata. Protect security-relevant metadata with an authenticated manifest where the chosen updater does not cover it. Normal updates cannot silently downgrade; recovery is a deliberate verified action.
+
+### Server
+
+Use user-owned versioned release directories and a stable launcher/service path instead of symlinks into an extracted download or a shared global binary. A maintenance command stages and verifies a signed server package, switches the active executable, restarts the service, checks health, and rolls back the executable if health fails.
+
+Transfer-only keys remain transfer-only. Remote maintenance uses a separately authorized management connection, or the user runs the maintenance command on the server. Notify clients that restart clears the in-memory shelf; rollback restores the executable, not lost clipboard items. Client and server updates are independent within the supported compatibility window.
+
+## Validation Boundaries
+
+Protocol/configuration/shelf tests, real SSH integration, native desktop behavior, and packaged update tests provide different evidence. A green unit suite does not prove another application can paste on Wayland or that an installed application can update itself. Each platform release must record native clipboard, panel/focus, shortcut fallback, start-at-login, and signed upgrade results.
 
 ## Update Triggers
-- Changes to protocol framing or message types.
-- Changes in SSH invocation or required server setup.
-- Changes in clipboard format handling or hotkey behavior.
-- Changes in packaging, release, or default feature flags.
+
+- A planned component lands or its boundary changes.
+- Framework, clipboard adapter, Linux capability support, or packaging decisions change.
+- Retention defaults, protocol compatibility window, or trust policy are finalized.
+- Migration, rollback, or platform validation reveals a new constraint.
+
+## Related Docs
+
+- [Implementation plan](docs/implementation-plan.md)
+- [Protocol](docs/protocol.md)
+- [Dependency decisions](docs/dependency-decisions.md)
+- [Agent](docs/agent.md) and [Linux desktop](docs/linux-client.md)
+- [Security](docs/security.md)
+- [Server setup](docs/server-setup.md)
+- [Releasing](docs/releasing.md) and [CI](docs/ci.md)
+- [Testing](docs/testing.md)
+- [Docs index](docs/index.md)

@@ -14,7 +14,8 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 
 ## Docs Map
 - `docs/writing-docs.md`: How to write and maintain internal docs in this repo.
-- `ARCHITECTURE.md`: System architecture.
+- [ARCHITECTURE.md](../ARCHITECTURE.md): Current system and planned rework architecture.
+- [docs/implementation-plan.md](implementation-plan.md): Phased quick-panel, settings, shelf, transport, and signed-update rework, with migration and acceptance checks.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
 - `docs/dependency-decisions.md`: Rationale and guardrails for high-impact dependency choices.
 - `docs/server-setup.md`: Linux daemon setup and proxy usage.

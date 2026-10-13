@@ -38,12 +38,34 @@ Capture high-impact dependency choices, their rationale, and guardrails for futu
   - bump protocol version if needed,
   - update `docs/protocol.md` and release notes.
 
+## Desktop Foundation Candidate (2026-10)
+
+### Provisional Decision
+
+Evaluate Tauri 2 with Svelte/TypeScript in an isolated `desktop/` project before replacing the old agent. This provides a real settings/panel surface with the existing Rust transfer code, while keeping the framework choice reversible. The new project has separate lockfiles and a distinct application identifier; installed agent configuration and startup registration are not migrated by the spike.
+
+### Guardrails
+
+- Native clipboard ownership, focus/tray/shortcut behavior, and platform packaging must pass the Phase 1 gate before accepting the framework for the shipping app.
+- Keep clipboard ownership on one worker thread for the process lifetime; initialize access only on an explicit transfer action. Validate native paste separately from adapter tests.
+- Select a TypeScript version supported by `svelte-check`; the latest TypeScript major was outside its peer range, so the prototype uses TypeScript 6. Commit the npm lockfile and use `npm ci` for reproducibility.
+- Keep the existing client's `time` version in the prototype lockfile while evaluating it, avoiding an unrelated CLI deprecation from a newer compatible release.
+- Check legacy codec fixtures with both dependency graphs; a separate Cargo lockfile can choose a newer compatible `wincode` version.
+- A host consuming the library on Windows opts into `external-resource-owner`. Tauri embeds the executable's resources; embedding them again in the library causes duplicate VERSION records at link time. Normal CLI builds keep their original resources.
+- Wayland currently uses visible alternate entry points, with portal support pending. Do not claim OS shortcut or tray capability from a browser screenshot or a successful compile.
+
+See [the prototype guide](desktop-prototype.md) for current evidence and open checks.
+
 ## Update Triggers
+
+- Desktop prototype/framework selection and native platform results.
 - Serialization dependency upgrades or replacements.
 - Protocol encoding/config changes.
 - New compatibility incidents discovered in CI or release testing.
 
 ## Related Docs
+
+- [Desktop prototype](desktop-prototype.md)
 - `docs/protocol.md`
 - `docs/testing.md`
 - `docs/releasing.md`

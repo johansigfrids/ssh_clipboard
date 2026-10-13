@@ -9,6 +9,7 @@ Describe how to run tests locally and what kinds of tests exist in this repo.
 - `src/client_actions.rs` (clipboard contract tests)
 - `src/daemon.rs` (Linux-only daemon tests)
 - `Cargo.toml` (dev-dependencies for tests)
+- [Desktop prototype guide](desktop-prototype.md) (separate frontend/backend checks and native acceptance gate)
 
 ## How to Run
 Basic unit tests (agent is enabled by default):
@@ -62,7 +63,7 @@ sudo apt-get install -y \
 ## Notes
 - Some tests are Linux-only (`#[cfg(test)]` in `src/daemon.rs`).
 - Property tests use `proptest`; keep bounds small to avoid long test runs.
-- CI runs four variants: Windows agent, macOS agent, Linux agent, and Linux server (`--no-default-features`).
+- The legacy CI job runs four variants: Windows agent, macOS agent, Linux agent, and Linux server (`--no-default-features`). Separate desktop prototype jobs check Windows/macOS/Linux without proving native paste or shortcut behavior.
 - CI installs Linux GUI deps so the agent feature can build.
 
 ## Platform `cfg` Hygiene

@@ -1,1 +1,6 @@
 /target
+/desktop/node_modules
+/desktop/dist
+/desktop/artifacts
+/desktop/src-tauri/target
+/desktop/src-tauri/gen

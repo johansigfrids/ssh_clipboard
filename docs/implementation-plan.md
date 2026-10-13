@@ -4,7 +4,7 @@
 
 Turn the October 2026 redesign into a staged implementation that preserves the core idea: explicitly share clipboard contents between machines through SSH. Address forgotten shortcuts, file-based settings, and cumbersome updates as product problems rather than isolated fixes.
 
-**Status: proposed implementation, 2026-10-13.** This document records the accepted direction; the rework is not implemented. [ARCHITECTURE.md](../ARCHITECTURE.md) separates the current implementation from the target system.
+**Status: implementation started, 2026-10-13.** Phase 1 has an isolated desktop prototype; its native platform gate remains open. Phases 2-8 remain planned. [ARCHITECTURE.md](../ARCHITECTURE.md) separates the current implementation from the target system.
 
 ## Key Files
 
@@ -33,8 +33,8 @@ The mockup is an interaction reference, not a literal platform specification. It
 | Choice | Working proposal | Decision evidence |
 | --- | --- | --- |
 | Desktop framework | Tauri 2 + Svelte/TypeScript, Rust backend | Native panel, clipboard ownership, tray, shortcuts, installer, and update prototype on supported platforms. |
-| Initial retention | 20 items, one hour, 64 MiB total encoded payload | Representative text/screenshots and bounded-memory tests; keep values configurable. |
-| Initial per-item limits | Start near existing 10 MiB encoded limit, with separate decoded-image budget | Typical screenshots, boundary tests, and actual transient memory use; document exact units. |
+| Initial retention | 20 items, one hour, 256 MiB total encoded payload | Representative text/screenshots and bounded-memory tests; keep values configurable and bound transient allocations separately. |
+| Initial per-item limits | Configurable 64 MiB encoded item and 256 MiB decoded pixels for the new client/server; retain explicit 10 MiB legacy compatibility | Native image testing exposed the old limit as too restrictive. Test screenshots/photos, boundary behavior, and actual transient memory use; negotiate server limits and account for metadata separately. |
 | New wire contract | Separate session endpoint, negotiated protocol/capabilities | Compatibility tests including forced-command keys; pin bootstrap framing and codec fixtures. |
 | Linux distribution | AppImage for built-in desktop updater; packages use package manager | Packaged smoke tests on selected X11/Wayland desktops. |
 | Release trust | Embedded public key; protected release-only private key | Tampering, wrong-key, replay/downgrade, and rotation rehearsal. |
@@ -42,6 +42,8 @@ The mockup is an interaction reference, not a literal platform specification. It
 Choose the desktop framework after the prototype gate. Do not rewrite the whole agent around unverified platform assumptions. Keep optional automation, disk history, full-mesh networking, HTML/RTF, OCR, AI naming, and file transfer outside the first release.
 
 ## Phase 1: Prove the Desktop Foundation
+
+**Windows smoke checks passed:** `desktop/` contains the Tauri/Svelte candidate with version 2 transfers, session settings, previews, a retained clipboard worker, tray/shortcut/single-instance integration, and automated tests. Windows compilation, browser UI checks, and an isolated real SSH round trip against Linux server 0.3.0 pass. The user confirmed native image paste, focus, scrolling, shortcut/tray reopening, and second-launch behavior. Broader fault/conflict checks and macOS/Linux results remain pending; see [validation status](desktop-prototype.md#validation-status). Do not treat this prototype as a completed framework decision or a replacement installer.
 
 Build a minimal desktop spike against existing text/PNG transfer services. It should open a compact panel, display a real item, share/copy, open settings, and retain native clipboard ownership. Add one panel shortcut and launcher/tray access. Record supported OS versions, architectures, and representative Linux desktops before choosing the framework.
 
@@ -95,6 +97,8 @@ Specify the new protocol before changing serialized enums. Reserve a separately 
 Add item IDs, origin metadata, server receipt time/expiry, ordered sequence numbers, and representation descriptors. Implement share, list, fetch-by-ID, delete, clear, and health. A legacy `Get`/`PeekMeta` sees the latest item; a legacy `Set` creates an item with one representation and unknown/legacy origin. Legacy clients still have no history controls.
 
 Enforce count/age/aggregate storage limits, metadata limits, frame limits before allocation, and decoded-image limits with checked arithmetic. Validate UTF-8 and PNG safely. Bound in-flight uploads, snapshot copies, deduplication records, connections, and queued messages as well as stored bytes. Use oldest-first eviction; reject an individually oversized item rather than disrupting existing items unnecessarily.
+
+Apply size policy consistently in the client, SSH proxy, and daemon. The current 10 MiB limit is a legacy default, not a requirement of SSH. New-session capability negotiation advertises effective item, frame, decoded-image, and aggregate limits. Reserve bounded frame space for metadata in addition to the encoded-item budget. Show measured sizes and a useful next action when rejected; do not silently resize images or lower fidelity. A client-only increase must not be presented as working against an unchanged legacy daemon.
 
 Make share commits atomic and deduplicate retries of an upload operation ID within a bounded window. Use server sequence numbers for ordering, expiry based on server-controlled time, and a new epoch after restart. Protect daemon/socket ownership so a second daemon cannot detach the first.
 

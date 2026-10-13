@@ -7,6 +7,23 @@
 
 The Linux server keeps the latest clipboard value **in memory only** (no on-disk persistence).
 
+## Desktop rework prototype
+
+The rework branch includes an experimental quick panel in `desktop/`: explicit share/copy, content previews, a panel shortcut, tray access, and settings that apply for the current session. It uses the existing Linux server and leaves the installed agent/configuration alone.
+
+From `desktop/`, with Node.js 24, Rust, and [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/):
+
+```powershell
+npm ci
+npm run tauri dev
+```
+
+Enter your SSH alias or `user@host` in Settings, apply it, test the connection, then refresh or share. Copy writes the displayed item to your local clipboard. Close hides the panel; Quit exits the app.
+
+The prototype retains the legacy 10 MiB transfer limit, including request metadata. Images use lossless PNG compression with a separate 64 MiB pixel limit. Size errors explain what exceeded the limit; rejected shares keep the previous item. Larger configurable transfer limits are part of the coordinated client/server rework.
+
+This is a source-build prototype with session-only settings. History, configuration migration, autostart, installers, and signed updates are still planned. See the [prototype guide and validation status](docs/desktop-prototype.md) and [implementation plan](docs/implementation-plan.md).
+
 ## Quick Start (recommended)
 
 Download the release artifact that matches your platform and CPU architecture.

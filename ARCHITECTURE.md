@@ -4,7 +4,7 @@
 
 Describe the current implementation and the target architecture agreed during the October 2026 redesign discussion. SSH remains the transport and account boundary. The target is a small desktop clipboard utility with a discoverable quick panel, usable settings, and signed updates.
 
-**Status: planned, not implemented.** The source still implements the current system below. [The implementation plan](docs/implementation-plan.md) defines the delivery sequence and acceptance checks. Existing feature documents describe shipped behavior until their corresponding phase lands.
+**Status: rework in progress.** The installed CLI/agent/server still implement the current system below. An isolated [Phase 1 desktop prototype](docs/desktop-prototype.md) now uses those transfer services; the target architecture is not yet implemented as a whole. [The implementation plan](docs/implementation-plan.md) defines the delivery sequence and acceptance checks. Existing feature documents describe shipped behavior until their corresponding phase lands.
 
 ## Key Files
 
@@ -15,6 +15,7 @@ Describe the current implementation and the target architecture agreed during th
 - `src/cli/`: commands, diagnostics, configuration, and installation.
 - `.github/workflows/ci.yml`, `.github/workflows/release.yml`: checks and packaging.
 - [Implementation plan](docs/implementation-plan.md): proposed work and delivery gates.
+- `desktop/`: isolated Tauri/Svelte prototype with its own package and Cargo lockfiles.
 
 ## Current System
 
@@ -27,6 +28,8 @@ Frames contain `SCB1`, version `2`, a little-endian length, and a `wincode` payl
 The daemon uses an owner-only socket directory (`0700`), socket (`0600`), and peer UID checks. Its preferred path is `$XDG_RUNTIME_DIR/ssh_clipboard/daemon.sock`, falling back to `$TMPDIR/ssh_clipboard-$UID/daemon.sock` or `/tmp/ssh_clipboard-$UID/daemon.sock`.
 
 The agent provides tray actions, separate push/pull hotkeys, notifications, and start-at-login. Settings are file/CLI based and loaded at startup. Ordinary CLI transfers do not inherit the agent configuration. Release archives have SHA256 checksums but no built-in signed updater.
+
+The new prototype has a compact panel, explicit share/refresh/copy, inert text/image previews, session settings, tray access, a single-instance launcher callback, and one configurable panel shortcut. A dedicated worker retains its clipboard adapter until Quit. It still uses version 2 one-shot transfers and the single server value. Its settings do not migrate or write the old agent configuration, and its separate application ID keeps it out of the installed agent's startup registration.
 
 ## Target Product Contract
 
@@ -87,9 +90,11 @@ A proposed `SharedItem` contains:
 
 Representations allow future text/HTML/RTF alternatives without conflating them with separately copied items. Support for multiple native formats is enabled only when the relevant adapter and protocol capability are verified.
 
-The shelf contains only items explicitly shared with it. Proposed initial retention is 20 items, one hour, and a 64 MiB aggregate encoded-payload budget; these are provisional values to validate in implementation. Expire items and evict the oldest first under count/byte pressure. Deletion and clearing are explicit actions. Restart clears the shelf and changes its epoch.
+The shelf contains only items explicitly shared with it. Proposed initial retention is 20 items, one hour, and a 256 MiB aggregate encoded-payload budget; these are provisional values to validate in implementation. Expire items and evict the oldest first under count/byte pressure. Deletion and clearing are explicit actions. Restart clears the shelf and changes its epoch.
 
 Per-item encoded limits, decoded image limits, metadata limits, and aggregate/per-connection memory budgets are separate. Account for temporary decode buffers, snapshots, and queued messages; limiting stored payload bytes alone does not bound process memory. Oversized uploads are rejected before committing an item.
+
+Native image testing exposed the legacy 10 MiB transfer default as restrictive. The new system proposes configurable 64 MiB encoded items and 256 MiB decoded pixels, subject to memory tests; frames also reserve bounded metadata space. Advertise effective server limits and apply them across client, proxy, and daemon. Legacy compatibility keeps its existing limits until deliberately configured together. Prefer lossless compression and actionable size reports; never silently reduce image dimensions or fidelity.
 
 Labels are generated locally from content: first non-empty text line, URL host/path, command/code preview, or image dimensions. They do not imply knowledge of the source document's title. No AI service, page-title fetch, or OCR is required. Truncate display labels without altering the copied bytes. Device names are configured locally.
 

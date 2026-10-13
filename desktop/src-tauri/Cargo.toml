@@ -1,0 +1,26 @@
+[package]
+name = "ssh_clipboard_desktop_prototype"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Keep the prototype dependency graph and lockfile separate until Phase 2.
+[workspace]
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+ssh_clipboard = { path = "../..", default-features = false, features = ["external-resource-owner"] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["sync", "time"] }
+arboard = { version = "3", features = ["wayland-data-control"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+base64 = "0.22"
+eyre = "0.6"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

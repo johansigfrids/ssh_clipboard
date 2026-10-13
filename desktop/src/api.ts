@@ -1,0 +1,55 @@
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+
+export interface Settings {
+  target: string;
+  port: number | null;
+  identityFile: string;
+  openShortcut: string;
+  shortcutEnabled: boolean;
+  showPreview: boolean;
+  closeAfterCopy: boolean;
+}
+
+export interface PanelView {
+  settings: Settings;
+  item: null | {
+    kind: "text" | "image";
+    label: string;
+    text: string | null;
+    imageUrl: string | null;
+    encodedBytes: number;
+    createdAt: number;
+  };
+  connected: boolean;
+  clipboardChecked: boolean;
+  shortcutStatus: string;
+  trayStatus: string;
+  shortcutAvailable: boolean;
+  platform: string;
+}
+
+export const initialView: PanelView = {
+  settings: { target: "", port: null, identityFile: "", openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, showPreview: true, closeAfterCopy: false },
+  item: null,
+  connected: false,
+  clipboardChecked: false,
+  shortcutStatus: "Waiting for the desktop app",
+  trayStatus: "Waiting for the desktop app",
+  shortcutAvailable: true,
+  platform: "unknown",
+};
+
+export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
+  if (!isTauri()) throw new Error("Open the desktop app to connect and transfer. This browser view has no clipboard or SSH access.");
+  return invoke<T>(name, args);
+}
+
+export async function subscribe(navigate: (page: string) => void, notice: (message: string) => void) {
+  if (!isTauri()) return () => {};
+  const stops = await Promise.all([
+    listen<string>("navigate", (event) => navigate(event.payload)),
+    listen<string>("operation-notice", (event) => notice(event.payload)),
+  ]);
+  return () => stops.forEach((stop) => stop());
+}

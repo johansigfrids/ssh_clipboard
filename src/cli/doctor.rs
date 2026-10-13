@@ -76,6 +76,7 @@ enum LinuxSession {
 }
 
 pub async fn run(args: DoctorArgs) -> Result<()> {
+    let explicit_destination = args.target.is_some() || args.host.is_some();
     let timeout_ms = args.timeout_ms.max(1);
     let mut ssh = SshConfig {
         target: args.target.unwrap_or_default(),
@@ -86,7 +87,19 @@ pub async fn run(args: DoctorArgs) -> Result<()> {
         ssh_options: args.ssh_option,
         ssh_bin: args.ssh_bin,
     };
-    let agent_info = maybe_apply_agent_config_defaults(&mut ssh);
+    let shared_defaults = crate::cli::settings::apply_connection_defaults(
+        &mut ssh,
+        args.settings_file.as_deref(),
+        args.profile.as_deref(),
+    )?;
+    let agent_info = if shared_defaults || explicit_destination || args.settings_file.is_some() {
+        AgentConfigInfo {
+            used_for_target: false,
+            load_error: None,
+        }
+    } else {
+        maybe_apply_agent_config_defaults(&mut ssh)
+    };
 
     let (target, port) = resolve_target_and_port(&ssh);
     let mut checks = Vec::new();

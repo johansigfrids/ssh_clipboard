@@ -7,6 +7,8 @@ use crate::protocol::RequestKind;
 pub async fn run(args: PeekArgs) -> Result<()> {
     let response = match send_request(
         &build_client_config(ClientConfigArgs {
+            profile: args.profile,
+            settings_file: args.settings_file,
             target: args.target,
             host: args.host,
             user: args.user,
@@ -18,7 +20,7 @@ pub async fn run(args: PeekArgs) -> Result<()> {
             timeout_ms: args.timeout_ms,
             strict_frames: args.strict_frames,
             resync_max_bytes: args.resync_max_bytes,
-        }),
+        })?,
         make_request(RequestKind::PeekMeta),
     )
     .await

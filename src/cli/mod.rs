@@ -22,6 +22,7 @@ mod install_daemon;
 mod peek;
 mod pull;
 mod push;
+mod settings;
 #[cfg(all(
     feature = "agent",
     any(target_os = "windows", target_os = "macos", target_os = "linux")
@@ -43,6 +44,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Inspect and edit the desktop/CLI shared settings.
+    Settings(settings::SettingsArgs),
     Push(PushArgs),
     Pull(PullArgs),
     Peek(PeekArgs),
@@ -90,6 +93,10 @@ enum Commands {
 #[derive(Args, Clone)]
 pub struct PushArgs {
     #[arg(long)]
+    pub profile: Option<String>,
+    #[arg(long)]
+    pub settings_file: Option<PathBuf>,
+    #[arg(long)]
     pub target: Option<String>,
     #[arg(long)]
     pub host: Option<String>,
@@ -117,6 +124,10 @@ pub struct PushArgs {
 
 #[derive(Args, Clone)]
 pub struct PullArgs {
+    #[arg(long)]
+    pub profile: Option<String>,
+    #[arg(long)]
+    pub settings_file: Option<PathBuf>,
     #[arg(long)]
     pub target: Option<String>,
     #[arg(long)]
@@ -154,6 +165,10 @@ pub struct PullArgs {
 #[derive(Args, Clone)]
 pub struct PeekArgs {
     #[arg(long)]
+    pub profile: Option<String>,
+    #[arg(long)]
+    pub settings_file: Option<PathBuf>,
+    #[arg(long)]
     pub target: Option<String>,
     #[arg(long)]
     pub host: Option<String>,
@@ -181,6 +196,10 @@ pub struct PeekArgs {
 
 #[derive(Args, Clone)]
 pub struct DoctorArgs {
+    #[arg(long)]
+    pub profile: Option<String>,
+    #[arg(long)]
+    pub settings_file: Option<PathBuf>,
     #[arg(long)]
     pub target: Option<String>,
     #[arg(long)]
@@ -433,6 +452,7 @@ pub async fn run() -> Result<()> {
     init_tracing(agent_mode)?;
 
     match cli.command {
+        Commands::Settings(args) => settings::run(args),
         Commands::Push(args) => push::run(args).await,
         Commands::Pull(args) => pull::run(args).await,
         Commands::Peek(args) => peek::run(args).await,
@@ -626,47 +646,9 @@ fn humanize_bytes(size: u64) -> String {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn humanize_bytes_formats_units() {
-        assert_eq!(humanize_bytes(0), "0 B");
-        assert_eq!(humanize_bytes(512), "512 B");
-        assert_eq!(humanize_bytes(1024), "1.0 KiB");
-        assert_eq!(humanize_bytes(1024 * 1024), "1.0 MiB");
-    }
-
-    #[test]
-    fn humanize_duration_formats_compact() {
-        assert_eq!(humanize_duration(Duration::seconds(0)), "just now");
-        assert_eq!(humanize_duration(Duration::seconds(61)), "1m 1s ago");
-        assert_eq!(humanize_duration(Duration::seconds(3600)), "1h ago");
-        assert_eq!(humanize_duration(Duration::seconds(90061)), "1d 1h ago");
-    }
-
-    #[test]
-    fn format_created_at_handles_invalid_and_future() {
-        assert_eq!(format_created_at(0), "unknown");
-        let future = OffsetDateTime::now_utc() + Duration::seconds(60);
-        let future_ms = future.unix_timestamp() * 1000;
-        let formatted = format_created_at(future_ms);
-        assert!(formatted.contains("in the future"));
-    }
-
-    #[cfg(all(
-        feature = "agent",
-        any(target_os = "windows", target_os = "macos", target_os = "linux")
-    ))]
-    #[test]
-    fn install_client_requires_target() {
-        let parsed = Cli::try_parse_from(["ssh_clipboard", "install-client"]);
-        assert!(parsed.is_err());
-    }
-}
-
 pub(crate) struct ClientConfigArgs {
+    pub profile: Option<String>,
+    pub settings_file: Option<PathBuf>,
     pub target: Option<String>,
     pub host: Option<String>,
     pub user: Option<String>,
@@ -680,22 +662,43 @@ pub(crate) struct ClientConfigArgs {
     pub resync_max_bytes: usize,
 }
 
-pub(crate) fn build_client_config(args: ClientConfigArgs) -> ClientConfig {
-    ClientConfig {
-        ssh: SshConfig {
-            target: args.target.unwrap_or_default(),
-            port: args.port,
-            user: args.user,
-            host: args.host,
-            identity_file: args.identity_file,
-            ssh_options: args.ssh_option,
-            ssh_bin: args.ssh_bin,
-        },
+pub(crate) fn build_client_config(args: ClientConfigArgs) -> Result<ClientConfig> {
+    if args
+        .target
+        .as_ref()
+        .is_some_and(|target| target.trim().is_empty())
+    {
+        return Err(eyre::eyre!("missing SSH target"));
+    }
+    let mut ssh = SshConfig {
+        target: args.target.unwrap_or_default(),
+        port: args.port,
+        user: args.user,
+        host: args.host,
+        identity_file: args.identity_file,
+        ssh_options: args.ssh_option,
+        ssh_bin: args.ssh_bin,
+    };
+    settings::apply_connection_defaults(
+        &mut ssh,
+        args.settings_file.as_deref(),
+        args.profile.as_deref(),
+    )?;
+    let target = ssh.resolve_target();
+    crate::configuration::validate_connection(target.trim(), ssh.port, "")
+        .map_err(|message| eyre::eyre!(message))?;
+    if target.trim().is_empty() {
+        return Err(eyre::eyre!(
+            "missing SSH target: apply desktop settings or use --target, --host, or --profile"
+        ));
+    }
+    Ok(ClientConfig {
+        ssh,
         max_size: args.max_size,
         timeout_ms: args.timeout_ms,
         resync_frames: !args.strict_frames,
         resync_max_bytes: args.resync_max_bytes,
-    }
+    })
 }
 
 fn init_tracing(agent_mode: bool) -> Result<()> {
@@ -735,4 +738,44 @@ fn init_tracing(agent_mode: bool) -> Result<()> {
 
 pub fn init_tracing_for_agent() -> Result<()> {
     init_tracing(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn humanize_bytes_formats_units() {
+        assert_eq!(humanize_bytes(0), "0 B");
+        assert_eq!(humanize_bytes(512), "512 B");
+        assert_eq!(humanize_bytes(1024), "1.0 KiB");
+        assert_eq!(humanize_bytes(1024 * 1024), "1.0 MiB");
+    }
+
+    #[test]
+    fn humanize_duration_formats_compact() {
+        assert_eq!(humanize_duration(Duration::seconds(0)), "just now");
+        assert_eq!(humanize_duration(Duration::seconds(61)), "1m 1s ago");
+        assert_eq!(humanize_duration(Duration::seconds(3600)), "1h ago");
+        assert_eq!(humanize_duration(Duration::seconds(90061)), "1d 1h ago");
+    }
+
+    #[test]
+    fn format_created_at_handles_invalid_and_future() {
+        assert_eq!(format_created_at(0), "unknown");
+        let future = OffsetDateTime::now_utc() + Duration::seconds(60);
+        let future_ms = future.unix_timestamp() * 1000;
+        let formatted = format_created_at(future_ms);
+        assert!(formatted.contains("in the future"));
+    }
+
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
+    #[test]
+    fn install_client_requires_target() {
+        let parsed = Cli::try_parse_from(["ssh_clipboard", "install-client"]);
+        assert!(parsed.is_err());
+    }
 }

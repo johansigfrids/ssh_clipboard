@@ -8,6 +8,7 @@ Describe how to run tests locally and what kinds of tests exist in this repo.
 - `src/protocol.rs` (protocol round-trip tests)
 - `src/client_actions.rs` (clipboard contract tests)
 - `src/configuration.rs` (temporary-directory save, conflict, corruption, and recovery probes)
+- `src/cli/settings.rs`, `tests/shared_settings_cli.rs` (profile resolution and executable-level shared settings checks)
 - `src/daemon.rs` (Linux-only daemon tests)
 - `Cargo.toml` (dev-dependencies for tests)
 - [Desktop prototype guide](desktop-prototype.md) (separate frontend/backend checks and native acceptance gate)
@@ -61,6 +62,7 @@ sudo apt-get install -y \
 - **Image handling**: PNG encode/decode and size guard tests.
 - **Daemon (Linux-only)**: socket path permissions, request validation, read timeouts.
 - **Configuration**: restoration, stale writers, competing locks, abandoned preparations, corrupt/future/oversized documents, profile selection, and failed replacement. These use temporary directories and never edit the user's settings.
+- **Shared CLI configuration**: JSON/store parity across executable launches, profile addition/selection, direct destination and override precedence, rejected/corrupt edits, relative paths, and missing-profile failure before SSH/clipboard access. Use `--settings-file` with a temporary path so probes never alter real settings.
 
 ## Notes
 - Some tests are Linux-only (`#[cfg(test)]` in `src/daemon.rs`).

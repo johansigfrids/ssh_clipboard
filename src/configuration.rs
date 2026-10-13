@@ -342,8 +342,10 @@ mod tests {
         let mut config = Configuration::default();
         config.profiles.push(config.profiles[0].clone());
         assert!(store.prepare(None, config).is_err());
-        let mut config = Configuration::default();
-        config.default_profile = "missing".into();
+        let config = Configuration {
+            default_profile: "missing".into(),
+            ..Default::default()
+        };
         assert!(store.prepare(None, config).is_err());
     }
 

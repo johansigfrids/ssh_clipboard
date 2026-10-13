@@ -13,29 +13,28 @@ pub async fn run(args: PushArgs) -> Result<()> {
         args.max_size
     };
 
+    // Resolve settings before reading stdin/the OS clipboard or starting SSH.
+    let config = build_client_config(ClientConfigArgs {
+        profile: args.profile,
+        settings_file: args.settings_file,
+        target: args.target,
+        host: args.host,
+        user: args.user,
+        port: args.port,
+        identity_file: args.identity_file,
+        ssh_option: args.ssh_option,
+        ssh_bin: args.ssh_bin,
+        max_size: effective_max_size,
+        timeout_ms: args.timeout_ms,
+        strict_frames: args.strict_frames,
+        resync_max_bytes: args.resync_max_bytes,
+    })?;
     let value = match build_clipboard_value(args.stdin, effective_max_size).await {
         Ok(value) => value,
         Err(err) => return crate::cli::exit::exit_with_code(err.code, &err.message),
     };
 
-    let response = match send_request(
-        &build_client_config(ClientConfigArgs {
-            target: args.target,
-            host: args.host,
-            user: args.user,
-            port: args.port,
-            identity_file: args.identity_file,
-            ssh_option: args.ssh_option,
-            ssh_bin: args.ssh_bin,
-            max_size: effective_max_size,
-            timeout_ms: args.timeout_ms,
-            strict_frames: args.strict_frames,
-            resync_max_bytes: args.resync_max_bytes,
-        }),
-        make_request(RequestKind::Set { value }),
-    )
-    .await
-    {
+    let response = match send_request(&config, make_request(RequestKind::Set { value })).await {
         Ok(response) => response,
         Err(err) => return crate::cli::exit::exit_with_code(5, &err.to_string()),
     };

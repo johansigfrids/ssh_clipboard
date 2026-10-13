@@ -22,7 +22,7 @@ Enter your SSH alias or `user@host` in Settings, apply it, test the connection, 
 
 The prototype retains the legacy 10 MiB transfer limit, including request metadata. Images use lossless PNG compression with a separate 64 MiB pixel limit. Size errors explain what exceeded the limit; rejected shares keep the previous item. Larger configurable transfer limits are part of the coordinated client/server rework.
 
-This is a source-build prototype with persistent settings stored separately from the old agent. History, CLI configuration parity/migration, autostart, installers, and signed updates are still planned. See the [prototype guide and validation status](docs/desktop-prototype.md), [configuration recovery](docs/shared-configuration.md), and [implementation plan](docs/implementation-plan.md).
+This is a source-build prototype with persistent settings stored separately from the old agent. The rework CLI can inspect/edit them through `ssh_clipboard settings`; transfers without an explicit destination use the selected profile. CLI edits currently require Quit/relaunch in the desktop. History, legacy configuration migration, autostart, installers, and signed updates are still planned. See the [prototype guide and validation status](docs/desktop-prototype.md), [shared settings and CLI precedence](docs/shared-configuration.md), and [implementation plan](docs/implementation-plan.md).
 
 ## Quick Start (recommended)
 

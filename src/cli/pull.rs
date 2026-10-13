@@ -22,25 +22,16 @@ pub async fn run(args: PullArgs) -> Result<()> {
         args.max_size
     };
 
+    let config = build_client_config(client_config_args(&args, effective_max_size))?;
     if args.peek {
-        let response = match send_request(
-            &build_client_config(client_config_args(&args, effective_max_size)),
-            make_request(RequestKind::PeekMeta),
-        )
-        .await
-        {
+        let response = match send_request(&config, make_request(RequestKind::PeekMeta)).await {
             Ok(response) => response,
             Err(err) => return crate::cli::exit::exit_with_code(5, &err.to_string()),
         };
         return handle_peek_response(response, args.json);
     }
 
-    let response = match send_request(
-        &build_client_config(client_config_args(&args, effective_max_size)),
-        make_request(RequestKind::Get),
-    )
-    .await
-    {
+    let response = match send_request(&config, make_request(RequestKind::Get)).await {
         Ok(response) => response,
         Err(err) => return crate::cli::exit::exit_with_code(5, &err.to_string()),
     };
@@ -138,6 +129,8 @@ fn handle_pull_to_clipboard(
 
 fn client_config_args(args: &PullArgs, max_size: usize) -> ClientConfigArgs {
     ClientConfigArgs {
+        profile: args.profile.clone(),
+        settings_file: args.settings_file.clone(),
         target: args.target.clone(),
         host: args.host.clone(),
         user: args.user.clone(),

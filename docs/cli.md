@@ -9,6 +9,22 @@ Concise command/flag reference for the `ssh_clipboard` CLI.
 
 ## Commands
 
+### `settings` (Rework Branch)
+
+Edit the versioned configuration shared with the desktop prototype. This command is available without the old agent feature; the existing `config` command still edits the legacy agent file.
+
+```powershell
+ssh_clipboard settings path
+ssh_clipboard settings show
+ssh_clipboard settings set --target clipboard-hub --show-preview false
+ssh_clipboard settings add-profile --id second --name "Second server" --target other-hub
+ssh_clipboard settings select-profile second
+```
+
+`settings set` changes supplied fields only: `--target`, `--name`, `--port`, `--identity-file`, `--clear-port`, `--clear-identity-file`, `--show-preview true|false`, `--close-after-copy true|false`. `--settings-file <path>` selects a separate file for these commands. Corrupt or concurrently modified settings are preserved and reported; Show never creates a default file.
+
+Rework push/pull/peek/doctor commands accept `--profile <id>` and `--settings-file <path>`. Without a destination, they use the selected saved profile. An explicit profile allows command-line target/host/port/key overrides. With an explicit destination and no profile flag, they use an independent connection and do not inherit another profile's port/key. Desktop changes made through CLI currently require Quit/relaunch; automatic reload is pending. See [shared configuration](shared-configuration.md) for the complete precedence and recovery rules.
+
 ### `push`
 Send local clipboard to server (text or PNG).
 
@@ -83,7 +99,7 @@ Flags:
 - `--timeout-ms <ms>` (default 7000)
 
 Notes:
-- If `--target`/`--host` is omitted, `doctor` will try the saved agent config target (when the agent feature is enabled).
+- On the rework branch, `doctor` uses shared settings first. When there is no shared file or explicit destination/profile/file, it retains the legacy agent fallback (when the agent feature is enabled). Explicit destinations no longer inherit agent port/key/options. Corrupt shared settings produce an error rather than silently selecting a different target.
 
 ### `agent` (Windows/macOS/Linux)
 Run the background agent (tray icon + hotkeys).

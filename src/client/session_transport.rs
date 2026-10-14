@@ -174,9 +174,9 @@ async fn run_child(
     }
 }
 
-struct Pipes {
-    input: ChildStdin,
-    output: ChildStdout,
+pub(super) struct Pipes {
+    pub(super) input: ChildStdin,
+    pub(super) output: ChildStdout,
 }
 impl AsyncRead for Pipes {
     fn poll_read(

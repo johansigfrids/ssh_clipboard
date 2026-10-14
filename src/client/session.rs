@@ -9,7 +9,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::timeout;
 use uuid::Uuid;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SessionPolicy {
     pub max_item_bytes: u32,
     pub max_decoded_bytes: u32,

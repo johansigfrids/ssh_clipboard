@@ -12,6 +12,17 @@ use tokio::net::UnixStream;
 use tokio::process::Command as AsyncCommand;
 use uuid::Uuid;
 
+// Even CLOEXEC descriptors exist between fork and exec. Another test's freshly
+// written shim can stay text-busy through that inherited writable descriptor.
+// Serialize disposable process probes, retaining concurrent clients within each.
+static PROCESS_PROBES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
+
+fn async_binary() -> AsyncCommand {
+    let mut command = AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"));
+    command.env("TOKIO_WORKER_THREADS", "2");
+    command
+}
+
 struct Daemon(Child);
 impl Daemon {
     fn stop(&mut self) {
@@ -35,6 +46,7 @@ async fn daemon_mode(path: &Path, mode: &str) -> Daemon {
 
 async fn daemon_with_legacy(path: &Path, mode: &str, legacy: Option<&Path>) -> Daemon {
     let mut command = Command::new(env!("CARGO_BIN_EXE_ssh_clipboard"));
+    command.env("TOKIO_WORKER_THREADS", "2");
     command.arg(mode);
     if let Some(legacy) = legacy {
         command.arg("--legacy-socket-path").arg(legacy);
@@ -72,7 +84,7 @@ async fn old_proxy(
     kind: ssh_clipboard::protocol::RequestKind,
 ) -> ssh_clipboard::protocol::Response {
     use ssh_clipboard::{framing as frame, protocol as v2};
-    let mut child = AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
+    let mut child = async_binary()
         .arg("proxy")
         .arg("--socket-path")
         .arg(path)
@@ -116,6 +128,7 @@ async fn old_proxy(
 
 #[tokio::test]
 async fn both_real_proxy_modes_share_the_same_shelf() {
+    let _serial = PROCESS_PROBES.acquire().await.unwrap();
     use ssh_clipboard::protocol::{self as v2, RequestKind as Old, ResponseKind as Reply};
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("runtime/shelf.sock");
@@ -241,11 +254,12 @@ async fn both_real_proxy_modes_share_the_same_shelf() {
 
 #[tokio::test]
 async fn occupied_legacy_endpoint_refuses_cutover_and_releases_the_new_socket() {
+    let _serial = PROCESS_PROBES.acquire().await.unwrap();
     let dir = tempfile::tempdir().unwrap();
     let legacy = dir.path().join("runtime/daemon.sock");
     let shelf = legacy.with_file_name("shelf.sock");
     let _old = daemon_mode(&legacy, "daemon").await;
-    let status = AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
+    let status = async_binary()
         .arg("shelf-daemon")
         .arg("--socket-path")
         .arg(&shelf)
@@ -268,6 +282,7 @@ async fn occupied_legacy_endpoint_refuses_cutover_and_releases_the_new_socket() 
 
 #[tokio::test]
 async fn item_aware_cli_lists_exports_and_guards_mutations_through_the_real_proxy() {
+    let _serial = PROCESS_PROBES.acquire().await.unwrap();
     use std::os::unix::fs::PermissionsExt;
     let dir = tempfile::tempdir().unwrap();
     let socket = dir.path().join("runtime/shelf.sock");
@@ -275,14 +290,14 @@ async fn item_aware_cli_lists_exports_and_guards_mutations_through_the_real_prox
     let shim = dir.path().join("synthetic-ssh");
     let quote = |text: &str| format!("'{}'", text.replace('\'', "'\\''"));
     let script = format!(
-        "#!/bin/sh\nexec {} session-proxy --socket-path {}\n",
+        "#!/bin/sh\nexport TOKIO_WORKER_THREADS=2\nexec {} session-proxy --socket-path {}\n",
         quote(env!("CARGO_BIN_EXE_ssh_clipboard")),
         quote(socket.to_str().unwrap())
     );
     std::fs::write(&shim, script).unwrap();
     std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o700)).unwrap();
     let invoke = |args: Vec<String>| {
-        let mut command = AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"));
+        let mut command = async_binary();
         command
             .args(["shelf", "--target", "synthetic-only", "--ssh-bin"])
             .arg(&shim)
@@ -399,8 +414,92 @@ async fn item_aware_cli_lists_exports_and_guards_mutations_through_the_real_prox
     assert!(cleared.status.success());
 }
 
+#[tokio::test]
+async fn reusable_connection_keeps_one_proxy_and_never_replays_into_a_restarted_shelf() {
+    let _serial = PROCESS_PROBES.acquire().await.unwrap();
+    let _ = tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_env_filter("ssh_clipboard::client::connection=debug")
+        .try_init();
+    use ssh_clipboard::client::connection::Connection;
+    use ssh_clipboard::client::session::{Action, SessionPolicy};
+    use ssh_clipboard::client::ssh::SshConfig;
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let socket = dir.path().join("runtime/shelf.sock");
+    let mut server = daemon(&socket).await;
+    let shim = dir.path().join("reusable-ssh");
+    let count = dir.path().join("launches");
+    let quote = |value: &str| format!("'{}'", value.replace('\'', "'\\''"));
+    let script = format!(
+        "#!/bin/sh\nexport TOKIO_WORKER_THREADS=2\nprintf x >> {}\nexec {} session-proxy --socket-path {}\n",
+        quote(count.to_str().unwrap()),
+        quote(env!("CARGO_BIN_EXE_ssh_clipboard")),
+        quote(socket.to_str().unwrap())
+    );
+    std::fs::write(&shim, script).unwrap();
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let config = SshConfig {
+        target: "synthetic-only".into(),
+        port: None,
+        user: None,
+        host: None,
+        identity_file: None,
+        ssh_options: vec![],
+        ssh_bin: Some(shim),
+    };
+    let policy = SessionPolicy {
+        max_item_bytes: 1024,
+        max_decoded_bytes: 1024,
+        operation_timeout: Duration::from_secs(2),
+    };
+    let mut connection = Connection::connect(config.clone(), policy).await.unwrap();
+    let epoch = connection.epoch().unwrap();
+    let data = "  reusable α\n ".as_bytes();
+    let share = Action::Share {
+        operation_id: Uuid::from_u128(900),
+        origin: Origin {
+            device_id: Uuid::from_u128(901),
+            name: "Synthetic".into(),
+        },
+        representation: Representation {
+            id: 0,
+            content_type: ContentType::Text,
+            encoded_bytes: data.len() as u32,
+            dimensions: None,
+            decoded_bytes: None,
+        },
+        created_at_ms: None,
+    };
+    connection.execute(share, data).await.unwrap();
+    let snapshot = connection.snapshot().await.unwrap();
+    assert_eq!(snapshot.items.len(), 1);
+    let item_id = snapshot.items[0].id;
+    assert_eq!(
+        connection
+            .execute(Action::Fetch { item_id }, &[])
+            .await
+            .unwrap()
+            .payload,
+        data
+    );
+    connection.execute(Action::Health, &[]).await.unwrap();
+    assert_eq!(std::fs::read(&count).unwrap(), b"x");
+    server.stop();
+    assert!(connection.execute(Action::Clear, &[]).await.is_err());
+    assert!(!connection.is_ready());
+    connection.close().await;
+    assert_eq!(std::fs::read(&count).unwrap(), b"x");
+    let _restarted = daemon(&socket).await;
+    let mut next = Connection::connect(config, policy).await.unwrap();
+    assert_ne!(next.epoch(), Some(epoch));
+    assert!(next.snapshot().await.unwrap().items.is_empty());
+    assert_eq!(std::fs::read(&count).unwrap(), b"xx");
+    next.close().await;
+}
+
 fn proxy(path: &Path) -> tokio::process::Child {
-    AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
+    async_binary()
         .arg("session-proxy")
         .arg("--socket-path")
         .arg(path)
@@ -446,6 +545,7 @@ async fn hello(
 
 #[tokio::test]
 async fn native_proxy_preserves_bytes_and_exits_on_daemon_eof_with_stdin_held_open() {
+    let _serial = PROCESS_PROBES.acquire().await.unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("runtime with spaces/shelf.sock");
     let mut server = daemon(&path).await;
@@ -481,7 +581,7 @@ async fn native_proxy_preserves_bytes_and_exits_on_daemon_eof_with_stdin_held_op
     let Response::Shared { item, .. } = receive(&mut output, limits).await.0 else {
         panic!("not shared")
     };
-    let duplicate = AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
+    let duplicate = async_binary()
         .arg("shelf-daemon")
         .arg("--socket-path")
         .arg(&path)
@@ -533,6 +633,7 @@ async fn native_proxy_preserves_bytes_and_exits_on_daemon_eof_with_stdin_held_op
 
 #[tokio::test]
 async fn missing_daemon_returns_a_correlated_frame_and_exits_without_stdin_eof() {
+    let _serial = PROCESS_PROBES.acquire().await.unwrap();
     let dir = tempfile::tempdir().unwrap();
     let mut child = proxy(&dir.path().join("missing.sock"));
     let mut input = child.stdin.take().unwrap();
@@ -553,9 +654,10 @@ async fn missing_daemon_returns_a_correlated_frame_and_exits_without_stdin_eof()
 
 #[tokio::test]
 async fn invalid_shelf_policy_fails_before_creating_the_socket_directory() {
+    let _serial = PROCESS_PROBES.acquire().await.unwrap();
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("not-created/shelf.sock");
-    let status = AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
+    let status = async_binary()
         .arg("shelf-daemon")
         .arg("--socket-path")
         .arg(&path)
@@ -572,6 +674,7 @@ async fn invalid_shelf_policy_fails_before_creating_the_socket_directory() {
 
 #[tokio::test]
 async fn legacy_daemon_duplicate_startup_preserves_its_existing_clipboard() {
+    let _serial = PROCESS_PROBES.acquire().await.unwrap();
     use ssh_clipboard::{framing as legacy_frame, protocol as legacy};
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("runtime/daemon.sock");
@@ -601,7 +704,7 @@ async fn legacy_daemon_duplicate_startup_preserves_its_existing_clipboard() {
     .unwrap();
     assert!(matches!(reply.kind, legacy::ResponseKind::Ok));
     drop(stream);
-    let duplicate = AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
+    let duplicate = async_binary()
         .arg("daemon")
         .arg("--socket-path")
         .arg(&path)

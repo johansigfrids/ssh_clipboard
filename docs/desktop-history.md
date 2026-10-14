@@ -30,7 +30,7 @@ Panel Copy fetches the selected ID again, guarded by the loaded epoch, validates
 
 Delete selected item and Clear history use an inline confirmation, not an immediate destructive click. The confirmation captures its epoch/item ID; any settings/history reload cancels it. Backend commands also check the settings revision and loaded epoch before sending a guarded mutation. Confirmed mutations update the local view without turning a later refresh failure into an apparent mutation failure. Server deletion cannot revoke copies already held elsewhere.
 
-Transfers retain the existing immediate operation lock, so profile changes/direct actions cannot queue a different capture behind a transfer. The initial integration uses bounded SSH invocations for actions and a shared session for each paged list. Persistent sessions, subscriptions, reconnect/reconciliation, and Cancel remain the next transport slice. History expiry appears on explicit refresh/action; this slice does not claim live subscriptions.
+Transfers retain the existing immediate operation lock, so profile changes/direct actions cannot queue a different capture behind a transfer. Shelf actions now reuse an [owned persistent connection](persistent-sessions.md), with epoch checks and profile invalidation. The CLI retains bounded one-invocation sessions. Subscriptions, automatic reconnect/reconciliation, and Cancel remain subsequent work. History expiry appears on explicit refresh/action; this slice does not claim live subscriptions.
 
 ## Labels, Privacy, and Image Budgets
 

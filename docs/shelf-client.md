@@ -36,6 +36,8 @@ Delete/Clear require the epoch returned by List. A changed epoch is rejected aft
 
 ## Session and Process Contracts
 
+Desktop shelf actions now use the separately owned [persistent connection](persistent-sessions.md). The CLI adapter below retains its one-invocation boundary. Both use this same stream driver and reply validation; neither automatically repeats a mutation.
+
 `Session<T>` owns any asynchronous duplex stream and handles repeated sequential operations. Hello is bounded; the server cannot increase local item/decode limits. Validate request ID, response kind, epoch, monotonic sequence, list offset/anchor/count, selected item/representation, and returned share metadata before allocating a response body. Fetch enforces actual UTF-8/PNG bytes and PNG dimensions/native decode size, rather than trusting the descriptor. PNG validation uses the same limits-before-decoder helper as the shelf.
 
 A complete snapshot pages under one overall deadline and rejects changing totals, duplicate IDs, or broken ordering across pages. ResyncRequired remains an explicit refresh result; no hidden retry loop combines generations. Unsupported capabilities/local invalid requests leave a healthy session usable. Partial framing, invalid replies/content, timeout, cancellation, or a server epoch change close it logically. A caller must close/drop the poisoned stream before reconnecting; it cannot reuse unread bytes. Mutation uncertainty is retained when a Share/Delete/Clear lacks a validated acknowledgment.

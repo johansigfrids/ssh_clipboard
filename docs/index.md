@@ -28,6 +28,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/shelf-server.md](shelf-server.md): Experimental Linux endpoint commands, safe socket ownership, bounded stdio bridge, and native process evidence.
 - [docs/shelf-client.md](shelf-client.md): Item-aware session validation, explicit CLI inputs/exports, epoch guards, and bounded SSH lifecycle.
 - [docs/desktop-history.md](desktop-history.md): Explicit endpoint profiles, history selection/mutations, safe copy, private labels, and layout evidence.
+- [docs/persistent-sessions.md](persistent-sessions.md): Reused SSH ownership, bounded diagnostics/cleanup, capture timing, and no-replay guards.
 - [docs/connection-diagnostics.md](connection-diagnostics.md): Desktop/CLI metadata health, safe per-step failures, one-shot SSH deadlines/drainage, and fault evidence.
 - `docs/dependency-decisions.md`: Rationale and guardrails for high-impact dependency choices.
 - [docs/build-variants.md](build-variants.md): Headless, clipboard-only, agent, and desktop dependency boundaries and validation evidence.

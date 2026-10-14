@@ -41,15 +41,19 @@ Input EOF half-closes the daemon write side and allows a bounded final response.
 
 These bounds cover application buffers/tasks, not all sshd/account/kernel overhead across arbitrary SSH processes. Legacy `proxy` still has its old one-shot buffering model during migration.
 
+## Executable Fixture Guardrail
+
+Native process probes serialize test cases while preserving concurrent clients inside each case. A parallel fork can retain another test's freshly written executable descriptor until exec, causing Linux ETXTBSY after the writing parent closes it. A disposable fork/write/exec probe confirmed this. Fixture children cap Tokio workers at two. See [persistent-session evidence](persistent-sessions.md#evidence-and-fixture-guardrails); do not add upload retries to hide a fixture race.
+
 ## File Lock Release Guardrail
 
 Linux parallel process tests exposed intermittent Busy results after completed/abandoned settings saves. A duplicated/inherited descriptor can retain an open-file-description lock after the original handle closes. `ExclusiveLock` now explicitly unlocks before closing, and settings/socket ownership use it on success and error paths. A deterministic retained-descriptor test verifies immediate release and that later closure of the old descriptor cannot release the next writer's lock. Separate persistent lock inodes, coordinated writes, and conflict detection remain required.
 
 ## Evidence and Remaining Work
 
-The existing Ubuntu WSL environment already had Rust 1.97.1 and a C compiler; no toolchain/system packages were installed. Native Linux headless tests now run locally in `target/linux-wsl`, separate from Windows output. Unit probes cover ownership, stale recovery, files/symlinks, parent permission preservation, native listener negotiation, and the shared codec/service. Seven real-process probes cover exact text bytes through daemon/proxy, duplicate startup, fresh restart epochs, held-open-stdin cleanup, missing daemon, invalid policy before filesystem mutation, and preservation of a legacy daemon's value. Mixed-proxy probes additionally verify legacy text into the new shelf, exact PNG return through the old proxy, clear visibility, and refusal of an occupied compatibility socket.
+The existing Ubuntu WSL environment already had Rust 1.97.1 and a C compiler; no toolchain/system packages were installed. Native Linux headless tests now run locally in `target/linux-wsl`, separate from Windows output. Unit probes cover ownership, stale recovery, files/symlinks, parent permission preservation, native listener negotiation, and the shared codec/service. Eight real-process probes cover exact text bytes through daemon/proxy, duplicate startup, fresh restart epochs, held-open-stdin cleanup, missing daemon, invalid policy before filesystem mutation, and preservation of a legacy daemon's value. Mixed-proxy probes additionally verify legacy text into the new shelf, exact PNG return through the old proxy, clear visibility, and refusal of an occupied compatibility socket.
 
-This is native Linux process/socket evidence in WSL, not a new remote SSH endpoint test, GUI desktop acceptance, installation, systemd migration, or live rollout. No existing Ubuntu service/clipboard was replaced/restarted. The [shared client/CLI](shelf-client.md) now has stream/process evidence. The [desktop history UI](desktop-history.md) now has automated/browser evidence. Still required: native shelf/SSH acceptance, persistent client recovery/subscriptions, signed installation/update, and supported-platform acceptance.
+This is native Linux process/socket evidence in WSL, not a new remote SSH endpoint test, GUI desktop acceptance, installation, systemd migration, or live rollout. No existing Ubuntu service/clipboard was replaced/restarted. The [shared client/CLI](shelf-client.md) now has stream/process evidence. The [desktop history UI](desktop-history.md) now has automated/browser evidence. Still required: native shelf/SSH acceptance, automatic client recovery/subscriptions, signed installation/update, and supported-platform acceptance.
 
 ## Update Triggers
 

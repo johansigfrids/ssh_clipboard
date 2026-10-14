@@ -215,6 +215,9 @@ pub struct ItemPreview {
     pub image_url: Option<String>,
     pub encoded_bytes: usize,
     pub created_at: i64,
+    /// Local preparation metadata, never part of preview IPC (including hidden previews).
+    #[serde(skip)]
+    pub dimensions: Option<ssh_clipboard::session_protocol::Dimensions>,
 }
 
 impl ItemPreview {
@@ -234,6 +237,7 @@ impl ItemPreview {
             image_url: None,
             encoded_bytes: value.data.len(),
             created_at: value.created_at,
+            dimensions: None,
         };
         match value.content_type.as_str() {
             CONTENT_TYPE_TEXT => {
@@ -261,6 +265,10 @@ impl ItemPreview {
                         )
                     })?;
                 preview.kind = "image";
+                preview.dimensions = Some(ssh_clipboard::session_protocol::Dimensions {
+                    width: decoded.width as u32,
+                    height: decoded.height as u32,
+                });
                 preview.label = format!("Image ({} x {})", decoded.width, decoded.height);
                 if show_preview {
                     let rgba = image::RgbaImage::from_raw(

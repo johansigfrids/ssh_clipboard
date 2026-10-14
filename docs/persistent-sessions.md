@@ -1,0 +1,52 @@
+# Owned Persistent SSH Sessions
+
+## Purpose
+
+Document the first Phase 5 slice: an owned SSH child reused by desktop shelf actions. Cancellation UI, automatic recovery/backoff, pending-upload reconciliation, and subscriptions remain subsequent work.
+
+## Key Files
+
+- `src/client/connection.rs`, `src/client/connection/tests.rs`: child/session ownership and lifecycle probes.
+- `src/client/session.rs`: negotiated sequential framing and reply validation.
+- `src/client/session_transport.rs`: one-invocation CLI adapter and shared safe errors.
+- `desktop/src-tauri/src/panel.rs`, `desktop/src-tauri/src/history.rs`: active-profile cache and operations.
+- `tests/native_shelf_server.rs`: real disposable process/socket evidence.
+
+## Ownership and Reuse
+
+`Connection::connect` owns the child and pipes and negotiates before use. A lifetime reader drains stderr in fixed 4 KiB chunks into bounded 8 KiB head/tail capture. Public errors contain classifications, not private remote text. Launch diagnostics record only error kind and numeric OS code, without paths, targets, or payloads.
+
+The desktop caches one connection for the active shelf profile. List/pages, preview selection, copy checks, share, delete, and clear reuse it. Saved-connection diagnostics remain a separate explicit check. Profile/endpoint/transport changes discard the cache and history; preference-only changes can retain them. Full SSH configuration and session policy must match before reuse. A child known to have exited is closed before an explicitly requested action opens another session.
+
+Operations take the connection out of the cache before awaiting and return it only while usable. Dropping that owned operation scope drops its child/reader instead of caching partial framing. The stream driver also poisons itself before an exchange. The initial UI still waits for bounded deadlines; Cancel is not exposed yet.
+
+Share freezes exactly one capture before waiting for SSH. A later clipboard change must not replace it after a slow connection. Local policy bounds capture; negotiated limits then check the frozen bytes and native RGBA8 PNG descriptor before upload. A narrower limit/failure never triggers another sample, resizing, or replay. Preparation dimensions stay out of preview IPC.
+
+## Failure and Cleanup
+
+Typed rejections can retain a healthy stream. Partial/malformed replies, timeout, process loss, or epoch change invalidate it. Failed connections close pipes, kill/reap the direct child under a separate two-second bound, and finish/abort diagnostics. Explicit Close allows bounded shutdown/normal exit and kills a stuck child. Synchronous invalidation/drop kills and aborts immediately, with Tokio's best-effort drop reaping.
+
+The diagnostic reader has its own abort-on-drop owner. Cancellation while cleanup temporarily holds its handle must still abort it: dropping a raw JoinHandle would detach the task. An unacknowledged mutation retains its original epoch and operation UUID where applicable in a typed uncertainty result after session cleanup. Validated acknowledgments remain authoritative. No action is automatically repeated or sent into a replacement epoch. Selected fetch/mutation checks compare loaded and negotiated epochs before sending anything.
+
+Pending payload retention/reconciliation, background state/backoff, subscriptions, and Cancel remain open; this is not complete Phase 5 recovery.
+
+## Evidence and Fixture Guardrails
+
+Portable subprocess probes cover several requests on one child, flooded-but-bounded stderr, uncertainty/epoch retention and reaping after a lost acknowledgment, and cancellation of a reader taken for cleanup. A desktop fake-clipboard probe checks one capture precedes SSH failure and no clipboard write occurs.
+
+A native WSL probe shares/lists/fetches/checks health through one real proxy launch, kills/restarts the disposable daemon, verifies no hidden replacement/replay, then explicitly opens a new empty epoch. This is local process/socket evidence, not remote SSH/native paste acceptance.
+
+Parallel native tests exposed Linux ETXTBSY on a freshly written shim: a fork can retain its writable descriptor before CLOEXEC cleanup even after the writing parent closes it. A disposable fork/write/exec probe reproduced errno 26 while the child retained the writer and successful exec after it exited. Native process cases now run serially; concurrent clients within each case remain concurrent. Fixture Tokio runtimes use two workers rather than multiplying the host's 32 workers per subprocess. Do not add upload retries to hide a fixture race.
+
+## Update Triggers
+
+- Cancellation, background health/backoff, pending uploads, subscriptions, or reconnect behavior changes.
+- Ownership/cache/uncertainty semantics or native/SSH acceptance evidence changes.
+
+## Related Docs
+
+- [Desktop history](desktop-history.md)
+- [Shelf client](shelf-client.md)
+- [Session protocol](session-protocol.md)
+- [Native endpoint](shelf-server.md)
+- [Implementation plan](implementation-plan.md)

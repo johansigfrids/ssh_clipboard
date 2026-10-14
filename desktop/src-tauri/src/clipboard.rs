@@ -156,7 +156,7 @@ impl ClipboardWorker {
         Self::start_with(|| Ok(NativeClipboard(Clipboard::new()?)))
     }
 
-    fn start_with<C: ClipboardAccess + 'static>(
+    pub(crate) fn start_with<C: ClipboardAccess + 'static>(
         mut create: impl FnMut() -> Result<C> + Send + 'static,
     ) -> Result<Self> {
         let (sender, receiver) = mpsc::sync_channel(1);

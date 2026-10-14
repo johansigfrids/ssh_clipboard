@@ -118,6 +118,8 @@ Make share commits atomic and deduplicate retries of an upload operation ID with
 
 ## Phase 5: Add Persistent Sessions and Reconnection
 
+**First slice implemented:** the shared owner and desktop now reuse one negotiated SSH session for shelf actions, with bounded lifetime stderr, profile/configuration invalidation, failure reaping, and no automatic mutation replay. A capture-timing probe ensures Share freezes one snapshot before waiting for SSH. Portable and native process probes cover reuse, uncertainty, restarts, and reader cancellation; see [owned sessions](persistent-sessions.md). Background state/backoff, subscriptions, cancellation UI, and pending-upload reconciliation remain open.
+
 The legacy one-shot transport already has bounded concurrent stderr drainage, a single operation deadline, reply ID/kind validation, direct-child cleanup, typed failures, and conservative uncertain-share messages. These guardrails were pulled forward to support Phase 3 diagnostics. They do not implement persistent sessions, subscriptions, reconnection, deduplicated retries, or a Cancel control. See [transport evidence](connection-diagnostics.md).
 
 Extend the new endpoint to handle multiple requests and metadata subscriptions. Keep one active desktop session per selected profile; fetch preview/payload bytes only when needed. Retain one-shot CLI use and explicit legacy mode.

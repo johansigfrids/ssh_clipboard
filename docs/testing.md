@@ -96,7 +96,10 @@ The [new session client](shelf-client.md#evidence-and-gaps) adds hostile reply, 
 
 Desktop [history evidence](desktop-history.md#evidence-and-remaining-acceptance) covers strict endpoint loading, private label projection, epoch/selection state, endpoint isolation, explicit preview commands, and confirmed removal. A synthetic browser layout check at the actual default/minimum window sizes proves bounded document width, inner scrolling, fixed footer, reachable shelf settings, and visible selection feedback. It does not prove native SSH/paste or live subscriptions. These checks join the combined daily-use native milestone rather than creating a manual gate per commit.
 
+[Persistent connection probes](persistent-sessions.md#evidence-and-fixture-guardrails) verify repeated requests on one child, lifetime diagnostic bounds, uncertainty/reaping after missing acknowledgment, reader cancellation, and no replay after daemon restart. Native process cases run serially to avoid fork-inherited executable writers; each case still exercises concurrent clients. Disposable runtimes cap worker threads. The clipboard capture-order probe uses a fake owner, not the user's clipboard.
+
 ## Platform `cfg` Hygiene
+
 
 - Keep function/item `#[cfg(...)]` aligned with where it is used.
 - If a helper is only called from Windows-gated code, gate the helper too (for example `#[cfg(target_os = "windows")]`).

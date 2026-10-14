@@ -2,7 +2,7 @@ use eyre::{Result, WrapErr, eyre};
 use std::path::PathBuf;
 use tokio::process::{Child, Command};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SshConfig {
     pub target: String,
     pub port: Option<u16>,

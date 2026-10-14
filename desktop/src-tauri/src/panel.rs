@@ -6,13 +6,11 @@ use crate::model::{
 use crate::notifications;
 use crate::shortcuts::{Action, Bindings, Registry};
 use serde::Serialize;
+use ssh_clipboard::client::connection::Connection;
 use ssh_clipboard::client::diagnostics::{
     ConnectionReport, diagnose, diagnose_shelf, server_problem,
 };
 use ssh_clipboard::client::session::{Action as ShelfAction, SessionPolicy};
-use ssh_clipboard::client::session_transport::{
-    self as shelf_transport, Operation as ShelfOperation, Outcome as ShelfOutcome,
-};
 use ssh_clipboard::client::transport::{make_request, send_request};
 use ssh_clipboard::configuration::{ConfigStore, Configuration};
 use ssh_clipboard::protocol::{ClipboardValue, ErrorCode, RequestKind, ResponseKind};
@@ -32,6 +30,7 @@ struct Session {
     settings: SessionSettings,
     item: Option<ClipboardValue>,
     history: History,
+    connection: Option<Connection>,
     clipboard_checked: bool,
     shortcuts: Bindings,
     shortcut_status: String,
@@ -86,6 +85,35 @@ struct PanelView {
 }
 
 impl Session {
+    async fn take_connection(&mut self) -> Result<Connection, String> {
+        let policy = self
+            .shelf_policy()?
+            .ok_or("This connection has no history controls.")?;
+        let config = self.client_config()?.ssh;
+        if let Some(mut connection) = self.connection.take() {
+            if connection.matches(&config, policy) && connection.is_ready() {
+                return Ok(connection);
+            }
+            connection.close().await;
+        }
+        Connection::connect(config, policy)
+            .await
+            .map_err(|error| error.to_string())
+    }
+    fn keep_connection(&mut self, mut connection: Connection) {
+        if connection.is_ready() {
+            self.connection = Some(connection);
+        }
+    }
+    async fn load_selected(&mut self, id: Uuid) -> Result<ClipboardValue, String> {
+        let mut connection = self.take_connection().await?;
+        let result = self
+            .history
+            .fetch(&mut connection, id, self.settings.show_preview)
+            .await;
+        self.keep_connection(connection);
+        result
+    }
     fn shelf_policy(&self) -> Result<Option<SessionPolicy>, String> {
         self.settings
             .endpoint
@@ -196,6 +224,7 @@ impl Session {
         {
             self.item = None;
             self.history = History::default();
+            self.connection = None;
             self.clipboard_checked = false;
             self.connected = false;
             self.connection_report = None;
@@ -516,16 +545,8 @@ async fn select_item(
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
     session.history.guard(epoch)?;
-    let policy = session
-        .shelf_policy()?
-        .ok_or("This connection has no history controls.")?;
-    let config = session.client_config()?;
-    let show_preview = session.settings.show_preview;
     session.item = None;
-    let value = session
-        .history
-        .fetch(&config.ssh, policy, item_id, show_preview)
-        .await?;
+    let value = session.load_selected(item_id).await?;
     session.item = Some(value);
     session.connected = true;
     session.view()
@@ -571,29 +592,25 @@ async fn mutate_history(
     action: ShelfAction,
 ) -> Result<(), String> {
     session.history.guard(epoch)?;
-    let policy = session
-        .shelf_policy()?
-        .ok_or("This connection has no history controls.")?;
-    let config = session.client_config()?;
     let deleted = match &action {
         ShelfAction::Delete { item_id } => Some(*item_id),
         ShelfAction::Clear => None,
         _ => return Err("Unsupported history action.".into()),
     };
-    let outcome = shelf_transport::run(
-        &config.ssh,
-        policy,
-        ShelfOperation::AtEpoch { epoch, action },
-        &[],
-    )
-    .await
-    .map_err(|error| error.to_string())?;
+    let mut connection = session.take_connection().await?;
+    if connection.epoch() != Some(epoch) {
+        session.keep_connection(connection);
+        return Err("The server restarted. Refresh history before continuing.".into());
+    }
+    let result = connection
+        .execute(action, &[])
+        .await
+        .map_err(|error| error.to_string());
+    session.keep_connection(connection);
+    let reply = result?;
     if !matches!(
-        outcome,
-        ShelfOutcome::Reply(ssh_clipboard::client::session::Reply {
-            response: ShelfResponse::Deleted { .. } | ShelfResponse::Cleared { .. },
-            ..
-        })
+        reply.response,
+        ShelfResponse::Deleted { .. } | ShelfResponse::Cleared { .. }
     ) {
         return Err("Unexpected history mutation reply.".into());
     }
@@ -617,24 +634,29 @@ async fn mutate_history(
 }
 
 async fn fetch_item(session: &mut Session) -> Result<(), String> {
-    if let Some(policy) = session.shelf_policy()? {
+    if session.shelf_policy()?.is_some() {
         session.item = None;
         session.history.preview = None;
-        let config = session.client_config()?;
         session.connected = false;
-        session.history.refresh(&config.ssh, policy).await?;
-        session.connected = true;
-        session.connection_report = None;
-        session.clipboard_checked = true;
-        if let Some(id) = session.history.selected {
-            session.item = Some(
-                session
-                    .history
-                    .fetch(&config.ssh, policy, id, session.settings.show_preview)
-                    .await?,
-            );
+        let mut connection = session.take_connection().await?;
+        let result = async {
+            session.history.refresh(&mut connection).await?;
+            session.connected = true;
+            session.connection_report = None;
+            session.clipboard_checked = true;
+            if let Some(id) = session.history.selected {
+                session.item = Some(
+                    session
+                        .history
+                        .fetch(&mut connection, id, session.settings.show_preview)
+                        .await?,
+                );
+            }
+            Ok(())
         }
-        return Ok(());
+        .await;
+        session.keep_connection(connection);
+        return result;
     }
     match request(session, RequestKind::Get).await? {
         ResponseKind::Value { value } => {
@@ -688,6 +710,7 @@ async fn share_current(session: &mut Session, clipboard: &ClipboardWorker) -> Re
         };
         // Reject invalid saved identity metadata before sampling the native clipboard.
         ssh_clipboard::session_protocol::Request::Share {request_id:1.into(), epoch:Uuid::from_u128(1), operation_id:Uuid::from_u128(1), origin:origin.clone(), representation:ShelfRepresentation {id:0,content_type:ShelfContent::Text,encoded_bytes:0,dimensions:None,decoded_bytes:None},created_at_ms:None}.validate(0).map_err(|_|"This computer's device identity or name is invalid. Repair shared settings before sharing.".to_string())?;
+        // Freeze exactly one local capture before waiting for a connection.
         let value = clipboard
             .read_with_limit(
                 policy.max_item_bytes as usize,
@@ -707,50 +730,54 @@ async fn share_current(session: &mut Session, clipboard: &ClipboardWorker) -> Re
                 ShelfContent::Text
             },
             encoded_bytes: value.data.len() as u32,
-            dimensions: None,
-            decoded_bytes: None,
+            dimensions: preview.dimensions,
+            // Native capture encodes RGBA8, so its PNG native buffer equals RGBA size.
+            decoded_bytes: preview
+                .dimensions
+                .and_then(|size| size.width.checked_mul(size.height)?.checked_mul(4)),
         };
-        let config = session.client_config()?;
-        session.connected = false;
-        let outcome = shelf_transport::run(
-            &config.ssh,
-            policy,
-            ShelfOperation::Action(ShelfAction::Share {
-                operation_id: Uuid::new_v4(),
-                origin,
-                representation,
-                created_at_ms: Some(value.created_at.into()),
-            }),
-            &value.data,
-        )
-        .await
-        .map_err(|error| error.to_string())?;
-        let ShelfOutcome::Reply(reply) = outcome else {
-            return Err("Unexpected share reply.".into());
-        };
-        let ShelfResponse::Shared { epoch, item, .. } = reply.response else {
-            return Err("Unexpected share reply.".into());
-        };
-        let id = item.id;
-        session
-            .history
-            .accept_snapshot(ssh_clipboard::client::session::Snapshot {
-                epoch,
-                sequence: item.sequence,
-                items: vec![item],
-            });
-        // The share is confirmed. A later metadata refresh failure cannot report it as failed.
-        let _ = session.history.refresh(&config.ssh, policy).await;
-        if session.history.selected == Some(id) {
-            session.item = Some(value);
-            session.history.preview = Some(preview);
-        } else {
-            session.item = None;
+        let mut connection = session.take_connection().await?;
+        let result = async {
+            session.connected = false;
+            let reply = connection
+                .execute(
+                    ShelfAction::Share {
+                        operation_id: Uuid::new_v4(),
+                        origin,
+                        representation,
+                        created_at_ms: Some(value.created_at.into()),
+                    },
+                    &value.data,
+                )
+                .await
+                .map_err(|error| error.to_string())?;
+            let ShelfResponse::Shared { epoch, item, .. } = reply.response else {
+                return Err("Unexpected share reply.".into());
+            };
+            let id = item.id;
+            session
+                .history
+                .accept_snapshot(ssh_clipboard::client::session::Snapshot {
+                    epoch,
+                    sequence: item.sequence,
+                    items: vec![item],
+                });
+            // The share is confirmed. A later metadata refresh failure cannot report it as failed.
+            let _ = session.history.refresh(&mut connection).await;
+            if session.history.selected == Some(id) {
+                session.item = Some(value);
+                session.history.preview = Some(preview);
+            } else {
+                session.item = None;
+            }
+            session.connected = true;
+            session.clipboard_checked = true;
+            session.connection_report = None;
+            Ok(())
         }
-        session.connected = true;
-        session.clipboard_checked = true;
-        session.connection_report = None;
-        return Ok(());
+        .await;
+        session.keep_connection(connection);
+        return result;
     }
     let value = clipboard.read(session.client_config()?.max_size).await?;
     ItemPreview::from_value(&value, session.settings.show_preview)?;
@@ -886,12 +913,7 @@ async fn copy_item(
             .selected
             .ok_or("Select an item in history first.")?;
         session.item = None;
-        let config = session.client_config()?;
-        let show_preview = session.settings.show_preview;
-        let value = session
-            .history
-            .fetch(&config.ssh, policy, id, show_preview)
-            .await?;
+        let value = session.load_selected(id).await?;
         state
             .clipboard
             .write_with_limit(value.clone(), policy.max_decoded_bytes as usize)
@@ -1025,6 +1047,7 @@ pub fn run() {
                 settings: settings.clone(),
                 item: None,
                 history: History::default(),
+                connection: None,
                 clipboard_checked: false,
                 shortcuts: Bindings::default(),
                 shortcut_status: "Disabled".into(),
@@ -1448,6 +1471,65 @@ mod tests {
         assert!(!session.connected);
     }
 
+    #[tokio::test]
+    async fn share_freezes_one_capture_before_an_ssh_failure_and_never_writes_the_clipboard() {
+        use std::sync::atomic::AtomicUsize;
+        struct Captured {
+            reads: Arc<AtomicUsize>,
+            writes: Arc<AtomicUsize>,
+        }
+        impl ssh_clipboard::client_actions::ClipboardAccess for Captured {
+            fn read_text(&mut self) -> eyre::Result<String> {
+                self.reads.fetch_add(1, Ordering::SeqCst);
+                Ok("frozen synthetic text".into())
+            }
+            fn read_image(
+                &mut self,
+            ) -> eyre::Result<ssh_clipboard::client::image::ImageData<'static>> {
+                Err(eyre::eyre!("unused"))
+            }
+            fn write_text(&mut self, _: &str) -> eyre::Result<()> {
+                self.writes.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }
+            fn write_image(
+                &mut self,
+                _: ssh_clipboard::client::image::ImageData<'static>,
+            ) -> eyre::Result<()> {
+                self.writes.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }
+        }
+        let reads = Arc::new(AtomicUsize::new(0));
+        let writes = Arc::new(AtomicUsize::new(0));
+        let captured_reads = reads.clone();
+        let captured_writes = writes.clone();
+        let clipboard = ClipboardWorker::start_with(move || {
+            Ok(Captured {
+                reads: captured_reads.clone(),
+                writes: captured_writes.clone(),
+            })
+        })
+        .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let mut session = session();
+        let config = session.saved_config.as_mut().unwrap();
+        config.device.id = Some(Uuid::from_u128(10).to_string());
+        config.profiles[0].endpoint = ssh_clipboard::configuration::Endpoint::Shelf {
+            max_item_bytes: 1024,
+            max_decoded_bytes: 1024,
+        };
+        config.profiles[0].transport.ssh_bin = Some(dir.path().join("missing-ssh"));
+        session.settings = SessionSettings::from_configuration(config).unwrap();
+        session.item = None;
+        assert!(share_current(&mut session, &clipboard).await.is_err());
+        assert_eq!(reads.load(Ordering::SeqCst), 1);
+        assert_eq!(writes.load(Ordering::SeqCst), 0);
+        assert!(session.connection.is_none());
+        assert!(session.item.is_none());
+        clipboard.stop();
+    }
+
     fn session() -> Session {
         let mut config = Configuration {
             revision: 1,
@@ -1456,6 +1538,7 @@ mod tests {
         config.profiles[0].target = "first-hub".into();
         Session {
             history: History::default(),
+            connection: None,
             settings: SessionSettings::from_configuration(&config).unwrap(),
             saved_config: Some(config),
             settings_notice: None,

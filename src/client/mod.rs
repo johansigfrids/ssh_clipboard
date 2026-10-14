@@ -1,5 +1,6 @@
 #[cfg(feature = "system-clipboard")]
 pub mod clipboard;
+pub mod connection;
 pub mod diagnostics;
 pub mod failure;
 pub mod image;

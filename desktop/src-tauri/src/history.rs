@@ -1,9 +1,8 @@
 //! Metadata history and selected preview. Clipboard writes remain in panel orchestration.
 use crate::model::ItemPreview;
 use serde::Serialize;
-use ssh_clipboard::client::session::{Action, SessionPolicy, Snapshot};
-use ssh_clipboard::client::session_transport::{self as transport, Operation, Outcome};
-use ssh_clipboard::client::ssh::SshConfig;
+use ssh_clipboard::client::connection::Connection;
+use ssh_clipboard::client::session::{Action, Snapshot};
 use ssh_clipboard::protocol::{CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardValue};
 use ssh_clipboard::session_protocol::{ContentType, Item, Response};
 use uuid::Uuid;
@@ -94,48 +93,37 @@ impl History {
         }
         Ok(())
     }
-    pub async fn refresh(
-        &mut self,
-        config: &SshConfig,
-        policy: SessionPolicy,
-    ) -> Result<(), String> {
-        let Outcome::Snapshot(snapshot) = transport::run(config, policy, Operation::Snapshot, &[])
+    pub async fn refresh(&mut self, connection: &mut Connection) -> Result<(), String> {
+        let snapshot = connection
+            .snapshot()
             .await
-            .map_err(|error| error.to_string())?
-        else {
-            return Err("Unexpected history reply.".into());
-        };
+            .map_err(|error| error.to_string())?;
         self.accept_snapshot(snapshot);
         Ok(())
     }
     pub async fn fetch(
         &mut self,
-        config: &SshConfig,
-        policy: SessionPolicy,
+        connection: &mut Connection,
         id: Uuid,
         show_preview: bool,
     ) -> Result<ClipboardValue, String> {
         let epoch = self.epoch.ok_or("Refresh history first.")?;
+        if connection.epoch() != Some(epoch) {
+            return Err("The server restarted. Refresh history before continuing. Your clipboard was left unchanged.".into());
+        }
+        let max_decoded = connection
+            .limits()
+            .ok_or("Reconnect before fetching an item.")?
+            .max_decoded_bytes as usize;
         if !self.items.iter().any(|item| item.id == id) {
             return Err("This item is no longer in the loaded history. Refresh first.".into());
         }
         self.preview = None;
         self.selected = Some(id);
-        let result = transport::run(
-            config,
-            policy,
-            Operation::AtEpoch {
-                epoch,
-                action: Action::Fetch { item_id: id },
-            },
-            &[],
-        )
-        .await;
-        let Outcome::Reply(reply) =
-            result.map_err(|error| format!("{error} Your clipboard was left unchanged."))?
-        else {
-            return Err("Unexpected item reply.".into());
-        };
+        let reply = connection
+            .execute(Action::Fetch { item_id: id }, &[])
+            .await
+            .map_err(|error| format!("{error} Your clipboard was left unchanged."))?;
         let Response::Value { item, .. } = reply.response else {
             return Err("Unexpected item reply.".into());
         };
@@ -151,7 +139,7 @@ impl History {
         self.preview = Some(ItemPreview::from_value_with_limit(
             &value,
             show_preview,
-            policy.max_decoded_bytes as usize,
+            max_decoded,
         )?);
         Ok(value)
     }

@@ -96,7 +96,7 @@ Labels use local deterministic previews: first non-empty line (approximately 60 
 
 ## Phase 4: Implement the Shelf and New Protocol
 
-**Core foundation implemented:** `src/shelf.rs` now provides stable item/epoch IDs, server ordering, monotonic expiry, count/byte eviction, immutable fetched leases, reserved upload memory, bounded PNG validation, and retry deduplication with fail-closed window saturation. Fourteen platform-independent behavioral/resource probes pass. See [core contracts and remaining work](shelf-core.md). It is not wired into the daemon, CLI, or desktop yet; the installed server and version 2 wire contract remain unchanged.
+**Core foundation implemented:** `src/shelf.rs` now provides stable item/epoch IDs, server ordering, monotonic expiry, count/byte eviction, immutable fetched leases, reserved upload memory, bounded PNG validation, and retry deduplication with fail-closed window saturation. Fifteen platform-independent behavioral/resource probes pass. A separate SCBS bootstrap, JSON/raw-payload codec, decimal-string integers, negotiated limits, and initial paged message model now have fixtures and malformed-input tests; see [session contract](session-protocol.md). See [core contracts and remaining work](shelf-core.md). It is not wired into the daemon, CLI, or desktop yet; the installed server and version 2 wire contract remain unchanged.
 
 Specify the new protocol before changing serialized enums. Reserve a separately selectable session endpoint and freeze its bootstrap handshake: supported versions, capabilities, sizes, server epoch, and retention policy. Keep the existing version 2 endpoint and fixtures intact during migration. Update `docs/protocol.md` with exact bytes, failure codes, and compatibility behavior.
 

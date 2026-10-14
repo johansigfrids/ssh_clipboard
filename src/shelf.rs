@@ -167,6 +167,24 @@ pub struct IncomingUpload {
 }
 
 impl UploadBudget {
+    /// Peer negotiation can narrow item/decode limits, never increase global resources.
+    pub fn restricted(
+        &self,
+        max_item_bytes: usize,
+        max_decoded_bytes: usize,
+    ) -> Result<Self, ShelfError> {
+        if max_item_bytes == 0 || max_decoded_bytes == 0 {
+            return Err(ShelfError::InvalidLimits);
+        }
+        let mut limits = self.limits.clone();
+        limits.max_item_bytes = limits.max_item_bytes.min(max_item_bytes);
+        limits.max_decoded_bytes = limits.max_decoded_bytes.min(max_decoded_bytes);
+        Ok(Self {
+            limits,
+            state: self.state.clone(),
+        })
+    }
+
     pub fn allocate(&self, bytes: usize) -> Result<IncomingUpload, ShelfError> {
         if bytes > self.limits.max_item_bytes {
             return Err(ShelfError::ItemTooLarge);

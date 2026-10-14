@@ -547,3 +547,24 @@ fn an_empty_text_is_an_item_and_an_empty_shelf_is_distinct() {
     assert!(!shelf.delete(Uuid::nil(), base).unwrap());
     assert_eq!(shelf.snapshot(base).unwrap().sequence, 1);
 }
+
+#[test]
+fn peer_budgets_only_narrow_limits_and_share_global_accounting() {
+    let base = now();
+    let mut shelf = Shelf::new(limits(), base).unwrap();
+    let budget = shelf.upload_budget();
+    let peer = budget.restricted(2, 8).unwrap();
+    assert!(matches!(peer.allocate(3), Err(ShelfError::ItemTooLarge)));
+    let mut input = peer.allocate(2).unwrap();
+    input.bytes_mut().copy_from_slice(b"ok");
+    assert_eq!(budget.resident_bytes(), 2);
+    let prepared = input.validate(ContentType::Text, None, None, None).unwrap();
+    shelf.commit(shelf.epoch(), prepared, base).unwrap();
+    assert_eq!(shelf.latest(base).unwrap().unwrap().bytes(), b"ok");
+    let enlarged = peer.restricted(usize::MAX, usize::MAX).unwrap();
+    assert!(matches!(
+        enlarged.allocate(3),
+        Err(ShelfError::ItemTooLarge)
+    ));
+    assert!(budget.restricted(0, 1).is_err());
+}

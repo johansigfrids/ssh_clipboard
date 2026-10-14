@@ -13,7 +13,7 @@ Document the protocol framing and message types used between:
 
 ## Framing
 
-This page describes the current version 2 endpoint. The new [shelf core](shelf-core.md) is implemented separately and has not changed these serialized enums or endpoint bytes. A separate negotiated session/bootstrap contract and fixtures must land before exposing its item-aware operations.
+This page describes the current version 2 endpoint. The new [shelf core](shelf-core.md) is implemented separately and has not changed these serialized enums or endpoint bytes. Its separate [session/bootstrap contract and codec fixtures](session-protocol.md) now exist; daemon/proxy/client integration remains pending.
 Each request/response is **one-shot** per connection/session.
 
 Wire format:

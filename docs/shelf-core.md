@@ -31,7 +31,7 @@ All budgets/counts must be positive. Stored capacity must hold an individual ite
 
 Obtain an `UploadBudget` handle and call `allocate(length)` **before** reading an announced payload. Length and global resident capacity are checked before allocation. The private buffer exposes only its fixed mutable slice, so input cannot grow it beyond the reservation. Abandoned/rejected uploads release the charge. Do not first allocate a frame-sized `Vec` elsewhere and copy it into this API.
 
-Validate outside the shelf lock. UTF-8 is checked without changing bytes. PNG limits are set on `ImageReader` before constructing the decoder, checked native/RGBA sizes precede output allocation, and pixel decoding must succeed. Keep the original encoded bytes; decoding is validation, not a replacement image. Only one PNG validation can hold its decode permit at a time. Checked arithmetic, allocation errors, invalid content, and busy budgets produce typed errors without evicting stored content.
+Validate outside the shelf lock. UTF-8 is checked without changing bytes. PNG limits are set on `ImageReader` before constructing the decoder, checked native/RGBA sizes precede output allocation, and pixel decoding must succeed. Keep the original encoded bytes; decoding is validation, not a replacement image. Only one PNG validation can hold its decode permit at a time. Negotiation can narrow item/decode limits through a restricted budget handle sharing the global counter; it cannot enlarge them. Checked arithmetic, allocation errors, invalid content, and busy budgets produce typed errors without evicting stored content.
 
 Stored and fetched items share one immutable, reference-counted buffer. Its charge stays alive until the last lease drops, including after expiry/deletion/eviction. Fetching does not copy a large payload. Uploads can be refused while slow readers pin removed items; removing them from the list does not make their resident bytes disappear.
 
@@ -55,9 +55,9 @@ Retry records have separate fixed count and monotonic retention limits. When the
 
 ## Evidence and Integration Work
 
-Fourteen tests cover exact Unicode/whitespace bytes, server ordering despite clock skew, count/byte eviction and exact limits, expiry boundaries, deduplication/conflicts/window saturation, deletion/clear without retry resurrection, epochs/foreign reservations, pinned leases, concurrent atomic admission, PNG validation/limits, malformed content, origins, overflow, and empty versus unset. They use synthetic content and no SSH, OS clipboard, or server process.
+Fifteen tests cover exact Unicode/whitespace bytes, server ordering despite clock skew, count/byte eviction and exact limits, expiry boundaries, deduplication/conflicts/window saturation, deletion/clear without retry resurrection, epochs/foreign reservations, pinned leases, concurrent atomic admission, PNG validation/limits, malformed content, origins, overflow, and empty versus unset. They use synthetic content and no SSH, OS clipboard, or server process.
 
-Still required: freeze the separate bootstrap/wire contract and fixtures; new proxy/daemon endpoint; bounded connections/timer/serialization; duplicate-daemon ownership; version 2 compatibility adapter; item-aware CLI and desktop shelf controls; process/native Linux evidence. The installed 10 MiB legacy policy has not changed.
+The separate [bootstrap/wire contract and codec fixtures](session-protocol.md) now exist. Still required: new proxy/daemon endpoint; bounded connections/timer/serialization; duplicate-daemon ownership; version 2 compatibility adapter; item-aware CLI and desktop shelf controls; process/native Linux evidence. The installed 10 MiB legacy policy has not changed.
 
 ## Update Triggers
 

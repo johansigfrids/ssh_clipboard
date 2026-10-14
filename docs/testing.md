@@ -118,6 +118,8 @@ The Linux server release-store tests use disposable directories and fake admissi
 
 `npm run test:server-package` from `desktop` separately invokes the real headless staging helper with synthetic trust, verifies the canonical signed Linux x64 package and rejects mismatched public trust before successful candidate/build evidence. It retains public verification/evidence files. The debug artifact is test-only; private synthetic keys are deleted. The protected server draft workflow parses locally but has not been executed on GitHub. See [server release setup](releasing.md#signed-server-drafts) and the [cutover gates](compatibility-and-cutover.md).
 
+Add `--ssh-target <authorized-host>` to `node desktop/scripts/smoke-server-maintenance.mjs` for real user-systemd acceptance. This passed on 2026-10-14 with a runtime-only unit, temporary HOME/launcher/private socket, signed debug versions and a deliberately crashing last candidate. A 60-second start-limit fault proved and fixed failed-state reset before rollback; enable/start, upgrade, retained bytes/options, version-bound proxy health and journal recovery pass. Cleanup removes its unit/drop-in/data and compares the installed legacy service identity and SSH route to the baseline. It uses no production signing inputs and changes no installed service. Persistent login/boot and exact production-package migration remain unverified; see [real service boundaries](server-maintenance.md#real-user-systemd-acceptance).
+
 ## Platform `cfg` Hygiene
 
 

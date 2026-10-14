@@ -347,6 +347,12 @@ impl Service for Driver<'_> {
         if self.1 {
             self.0.systemctl(&["enable", UNIT])?;
         }
+        // A crashing candidate can exhaust systemd's start limit. Restoring the
+        // executable alone then cannot start its predecessor (or recover later).
+        // Query first: reset-failed rejects an inactive unit that was unloaded.
+        if self.0.systemctl(&["--quiet", "is-failed", UNIT]).is_ok() {
+            self.0.systemctl(&["reset-failed", UNIT])?;
+        }
         self.0.systemctl(&["restart", UNIT])
     }
     fn health(&mut self) -> Result<()> {

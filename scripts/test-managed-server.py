@@ -23,7 +23,7 @@ def execute(argv, *, env=None, success=True, timeout=60):
     return result
 
 
-def prepare(output):
+def prepare(output, crashing_release=False):
     with tempfile.TemporaryDirectory(prefix="ssh-clipboard-build-") as temporary:
         source = Path(temporary)
         shutil.copytree(REPO / "src", source / "src")
@@ -31,7 +31,18 @@ def prepare(output):
         manifest = (REPO / "Cargo.toml").read_text()
         lock = (REPO / "Cargo.lock").read_text()
         current = manifest.split('version = "', 1)[1].split('"', 1)[0]
+        daemon_source = source / "src/shelf_daemon.rs"
+        original_daemon = daemon_source.read_text()
         for version in VERSIONS:
+            # Deliberately bad signed test release: --version works, daemon exits.
+            # Only the disposable source snapshot is changed, never repository source.
+            if crashing_release and version == VERSIONS[-1]:
+                needle = "    let service = Arc::new(ShelfService::new(limits, policy)?);"
+                assert original_daemon.count(needle) == 1
+                daemon_source.write_text(original_daemon.replace(needle,
+                    '    if std::hint::black_box(true) { return Err(eyre::eyre!("synthetic test daemon crash")); }\n' + needle))
+            else:
+                daemon_source.write_text(original_daemon)
             (source / "Cargo.toml").write_text(manifest.replace(f'version = "{current}"', f'version = "{version}"', 1))
             (source / "Cargo.lock").write_text(lock.replace(f'name = "ssh_clipboard"\nversion = "{current}"', f'name = "ssh_clipboard"\nversion = "{version}"', 1))
             execute([Path.home() / ".cargo/bin/cargo", "build", "--locked", "--no-default-features",
@@ -54,8 +65,10 @@ if action=='enable': (home/'enabled').touch()
 if action=='enable' and (home/'fail-enable').exists():
     (home/'fail-enable').unlink();sys.exit(1)
 if action=='disable': (home/'enabled').unlink(missing_ok=True)
+if action=='is-failed': sys.exit(0 if (home/'failed').exists() else 1)
+if action=='reset-failed': (home/'failed').unlink(missing_ok=True)
 if action=='restart' and (home/'fail-restart').exists():
-    (home/'fail-restart').unlink();sys.exit(1)
+    (home/'fail-restart').unlink();(home/'failed').touch();sys.exit(1)
 if action in ('restart','stop'):
     if pidfile.exists():
         pid=int(pidfile.read_text())
@@ -75,7 +88,7 @@ if action=='restart':
     with (home/'daemon.log').open('ab') as log:
         child=subprocess.Popen(argv,stdin=subprocess.DEVNULL,stdout=log,stderr=log,close_fds=True,start_new_session=True)
     pidfile.write_text(str(child.pid))
-if action not in ('enable','disable','restart','stop','daemon-reload'): sys.exit(2)
+if action not in ('enable','disable','restart','stop','daemon-reload','reset-failed'): sys.exit(2)
 '''
 
 
@@ -166,5 +179,8 @@ def test(packages):
 
 
 if __name__ == "__main__":
-    mode, destination = sys.argv[1:]
-    {"prepare": prepare, "test": test}[mode](Path(destination).resolve())
+    mode, destination, *options = sys.argv[1:]
+    if mode == "prepare":
+        prepare(Path(destination).resolve(), crashing_release="--crashing-release" in options)
+    else:
+        {"test": test}[mode](Path(destination).resolve())

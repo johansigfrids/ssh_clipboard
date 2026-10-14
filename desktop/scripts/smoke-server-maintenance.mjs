@@ -1,8 +1,12 @@
-// Windows + existing Ubuntu WSL toolchains only. Never installs a real systemd service.
+// Windows + existing Ubuntu WSL toolchains. Real-service mode requires an explicit SSH target.
 import {spawnSync} from "node:child_process";
 import {mkdtempSync,mkdirSync,readFileSync,writeFileSync,rmSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
+import {runRemoteFixture} from "./run-remote-service-fixture.mjs";
+const arguments_=process.argv.slice(2);
+if(arguments_.length&&!(arguments_.length===2&&arguments_[0]==="--ssh-target"))throw new Error("Only --ssh-target <alias-or-user@host> is supported.");
+const sshTarget=arguments_[1];
 const root=fileURLToPath(new URL("../../",import.meta.url));
 const artifacts=path.join(root,"desktop/artifacts");mkdirSync(artifacts,{recursive:true});
 const temp=mkdtempSync(path.join(artifacts,"TEST-only-server-maintenance-"));
@@ -15,7 +19,7 @@ function run(command,args,options={}) {
 }
 function wsl(mode) {
   const script=path.join(root,"scripts/test-managed-server.py").replaceAll("\\","/").replace(/^([A-Za-z]):/,(_,drive)=>`/mnt/${drive.toLowerCase()}`);
-  return run("wsl.exe",["-d","Ubuntu","--exec","python3",script,mode,linux]);
+  return run("wsl.exe",["-d","Ubuntu","--exec","python3",script,mode,linux,...(mode==="prepare"&&sshTarget?["--crashing-release"]:[])]);
 }
 function signer(args) {
   // signer generation can print a private key: never relay its output.
@@ -33,7 +37,8 @@ try {
       path.join(temp,`SSHClipboardServer-stable-linux-x86_64-${version}`)]);
   }
   rmSync(key); // Tests need only public trust/signatures.
-  process.stdout.write(wsl("test"));
+  if(sshTarget)await runRemoteFixture(temp,sshTarget);
+  else process.stdout.write(wsl("test"));
 } finally {
   const resolved=path.resolve(temp);
   if(path.dirname(resolved)!==path.resolve(artifacts)||!path.basename(resolved).startsWith("TEST-only-server-maintenance-"))throw new Error("Refusing unexpected cleanup path.");

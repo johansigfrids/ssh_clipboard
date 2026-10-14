@@ -525,7 +525,10 @@ async fn install_update(
             installed.map_err(|_| "Update installation did not finish. Check the installed app and version before retrying.".to_string())?;
             #[cfg(not(target_os = "windows"))]
             {
-                cleanup_desktop(&app);
+                // Cleanup joins async owners through block_on; run it outside the
+                // async command to avoid nesting a Tokio runtime during restart.
+                let cleanup_app = app.clone();
+                crate::updates::cleanup_before_restart(move || cleanup_desktop(&cleanup_app)).await?;
                 app.restart();
             }
             Ok::<_, String>(())

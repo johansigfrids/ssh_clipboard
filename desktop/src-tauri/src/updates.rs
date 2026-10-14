@@ -252,6 +252,31 @@ pub struct Progress {
     app: AppHandle,
     finished: bool,
 }
+
+#[cfg(all(feature = "installed-desktop", any(not(target_os = "windows"), test)))]
+pub async fn cleanup_before_restart(cleanup: impl FnOnce() + Send + 'static) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(cleanup)
+        .await
+        .map_err(|_| "The update finished, but shutdown failed. Quit and reopen the app.".into())
+}
+
+#[cfg(all(test, feature = "installed-desktop"))]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn post_install_cleanup_can_join_async_owners_without_nesting_the_command_runtime() {
+        let (finished, completion) = tokio::sync::oneshot::channel();
+        cleanup_before_restart(move || {
+            // This is the same sync-to-async boundary used by cleanup_transport.
+            tauri::async_runtime::block_on(async {
+                let _ = finished.send(());
+            });
+        })
+        .await
+        .unwrap();
+        completion.await.unwrap();
+    }
+}
 impl Progress {
     pub fn finish(&mut self) {
         self.finished = true;

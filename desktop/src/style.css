@@ -88,6 +88,9 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; f
 .operation-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 0; }
 .operation-progress > span { flex: 1 1 140px; min-width: 0; }
 .operation-progress > button { width: auto; padding: 8px 12px; font-size: 12px; }
+.history-connection { color: var(--muted); font-size: 12px; line-height: 1.5; margin: -8px 0 16px; overflow-wrap: anywhere; }
+.history-connection p { margin: 0; }
+.history-connection .text-button { padding: 6px 0; font-size: 12px; }
 footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 20px; font-size: 10px; color: var(--muted); border-top: 1px solid var(--border); }
 footer > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .quit-button { flex-shrink: 0; }

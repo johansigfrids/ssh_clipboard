@@ -83,6 +83,7 @@ export interface PanelView {
   connectionReport: ConnectionReport | null;
   operationNotice: { id: string; message: string; failed: boolean } | null;
   notificationStatus: { available: boolean; detail: string };
+  historyStatus: null | { phase: "connecting" | "live" | "reconnecting" | "needs_action"; detail: string; retryInMs: number | null };
 }
 
 export interface OperationView {
@@ -117,6 +118,7 @@ export const initialView: PanelView = {
   connectionReport: null,
   operationNotice: null,
   notificationStatus: { available: false, detail: "Waiting for the desktop app" },
+  historyStatus: null,
 };
 
 export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {

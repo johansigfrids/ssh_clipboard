@@ -143,7 +143,7 @@ The 2026-10-13 run passed against the existing Linux 0.3.0 binary. The temporary
 
 ## Shelf Integration
 
-The rework panel now also supports an explicit new-server endpoint with [temporary history](desktop-history.md): profile-isolated rows, private labels/source/expiry, preview selection, selected-ID copy validation, and confirmed delete/clear. Existing profiles stay on the legacy server. The new integration has automated/browser evidence; its new-server SSH/native paste acceptance remains open. Shelf actions now reuse [owned SSH sessions](persistent-sessions.md); automatic live refresh/recovery and signed packaging are later slices.
+The rework panel now also supports an explicit new-server endpoint with [temporary history](desktop-history.md): profile-isolated rows, private labels/source/expiry, preview selection, selected-ID copy validation, and confirmed delete/clear. Existing profiles stay on the legacy server. The new integration has automated/browser evidence; its new-server SSH/native paste acceptance remains open. Shelf actions now reuse [owned SSH sessions](persistent-sessions.md); bounded metadata Watch/recovery and explicit Cancel are now implemented with automated evidence; native recovery acceptance and signed packaging remain open.
 
 ## Windows Resource Guardrail
 

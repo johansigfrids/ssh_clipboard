@@ -100,6 +100,8 @@ Desktop [history evidence](desktop-history.md#evidence-and-remaining-acceptance)
 
 Desktop cancellation checks add a gated native-owner admission probe, controller wake/drop and stale-ID tests, acknowledgment/write finishing races, and rendered Cancel controls that remain available while the transfer or initial panel snapshot is pending. Stale operation events above JavaScript's safe integer range must not resurrect a completed action. Native Cancel and Open-panel-during-transfer checks belong to the next combined acceptance pass; the user-confirmed Windows direct Share result is recorded in the shortcut evidence, separately from these automated checks.
 
+Metadata monitor probes add transient reconnect and authentication-pause checks, blocked old-profile cancellation, bounded backoff, and current-generation delivery. Service/client/native proxy tests cover Watch mutation gaps, bounded unchanged heartbeats, future anchors, and expiry. Desktop metadata updates must preserve a surviving selected preview, reject old sequences and snapshots started before a completed user action, and issue no Fetch/Share/Copy command from background UI reload. Network/SSH/native evidence remain distinct.
+
 ## Platform `cfg` Hygiene
 
 

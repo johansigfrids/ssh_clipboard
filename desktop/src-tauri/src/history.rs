@@ -10,6 +10,7 @@ use uuid::Uuid;
 #[derive(Default)]
 pub struct History {
     pub epoch: Option<Uuid>,
+    pub sequence: Option<ssh_clipboard::session_protocol::Number>,
     pub items: Vec<Item>,
     pub selected: Option<Uuid>,
     pub preview: Option<ItemPreview>,
@@ -84,8 +85,32 @@ impl History {
             .filter(|id| snapshot.items.iter().any(|item| item.id == *id))
             .or_else(|| snapshot.items.first().map(|item| item.id));
         self.epoch = Some(snapshot.epoch);
+        self.sequence = Some(snapshot.sequence);
         self.items = snapshot.items;
         self.preview = None;
+    }
+    /// Metadata refresh preserves an explicitly loaded immutable preview, but must
+    /// never regress a sequence or attach that preview to another epoch/selection.
+    pub fn accept_background(&mut self, snapshot: Snapshot) -> bool {
+        if self.epoch == Some(snapshot.epoch)
+            && self
+                .sequence
+                .is_some_and(|sequence| sequence.get() > snapshot.sequence.get())
+        {
+            return false;
+        }
+        let same_selection = self.epoch == Some(snapshot.epoch)
+            && self
+                .selected
+                .is_some_and(|id| snapshot.items.iter().any(|item| item.id == id));
+        let preview = if same_selection {
+            self.preview.take()
+        } else {
+            None
+        };
+        self.accept_snapshot(snapshot);
+        self.preview = preview;
+        true
     }
     pub fn guard(&self, epoch: Uuid) -> Result<(), String> {
         if self.epoch != Some(epoch) {
@@ -170,6 +195,7 @@ mod tests {
     fn private_labels_never_cross_the_frontend_boundary_when_previews_are_hidden() {
         let history = History {
             epoch: Some(Uuid::from_u128(1)),
+            sequence: Some(2.into()),
             selected: Some(Uuid::from_u128(2)),
             items: vec![item(2, "PRIVATE-SENTINEL")],
             preview: None,
@@ -183,6 +209,68 @@ mod tests {
                 .contains("PRIVATE-SENTINEL")
         );
     }
+    #[test]
+    fn background_metadata_preserves_the_selected_preview_and_rejects_older_sequences() {
+        let epoch = Uuid::from_u128(1);
+        let mut history = History::default();
+        history.accept_snapshot(Snapshot {
+            epoch,
+            sequence: 2.into(),
+            items: vec![item(2, "Selected")],
+        });
+        history.preview = Some(
+            ItemPreview::from_value(
+                &ClipboardValue {
+                    content_type: CONTENT_TYPE_TEXT.into(),
+                    data: b"Loaded explicitly".to_vec(),
+                    created_at: 100,
+                },
+                true,
+            )
+            .unwrap(),
+        );
+        assert!(!history.accept_background(Snapshot {
+            epoch,
+            sequence: 1.into(),
+            items: vec![]
+        }));
+        assert!(history.preview.is_some());
+        assert!(history.accept_background(Snapshot {
+            epoch,
+            sequence: 3.into(),
+            items: vec![item(3, "New"), item(2, "Selected")]
+        }));
+        assert_eq!(history.selected, Some(Uuid::from_u128(2)));
+        assert_eq!(
+            history.preview.as_ref().unwrap().text.as_deref(),
+            Some("Loaded explicitly")
+        );
+        assert!(history.accept_background(Snapshot {
+            epoch,
+            sequence: 4.into(),
+            items: vec![item(3, "New")]
+        }));
+        assert_eq!(history.selected, Some(Uuid::from_u128(3)));
+        assert!(history.preview.is_none());
+        history.preview = Some(
+            ItemPreview::from_value(
+                &ClipboardValue {
+                    content_type: CONTENT_TYPE_TEXT.into(),
+                    data: b"Old epoch".to_vec(),
+                    created_at: 100,
+                },
+                true,
+            )
+            .unwrap(),
+        );
+        history.accept_background(Snapshot {
+            epoch: Uuid::from_u128(2),
+            sequence: 3.into(),
+            items: vec![item(3, "Other server")],
+        });
+        assert!(history.preview.is_none());
+    }
+
     #[test]
     fn selection_is_retained_by_id_only_within_the_same_epoch_and_live_snapshot() {
         let epoch = Uuid::from_u128(1);

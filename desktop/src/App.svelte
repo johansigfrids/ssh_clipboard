@@ -147,7 +147,7 @@
     operationEpoch++;
     inform("");
     try {
-      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
+      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
       confirmingHistory = null;
       view = await command<PanelView>(name, guardedArgs);
       if (name === "apply_settings" || name === "remove_profile") discardDraft();
@@ -258,6 +258,12 @@
     {#if view.settingsNotice}<div class="feedback error" role="alert">{view.settingsNotice}</div>{/if}
     {#if page === "panel"}
       <div class="status-line"><span class:connected={view.connected} class="status-dot"></span>{busy ? "Working…" : view.connected ? "Server reachable" : configured ? "Not connected" : "Setup needed"}<span class="mode">{view.settings.profileName}</span></div>
+      {#if view.historyStatus}
+        <div class="history-connection" aria-label="History connection">
+          <p>{view.historyStatus.detail}{view.historyStatus.retryInMs !== null ? ` Retrying in ${Math.ceil(view.historyStatus.retryInMs / 1000)} seconds.` : ""}</p>
+          {#if view.historyStatus.phase === "needs_action" || view.historyStatus.phase === "reconnecting"}<button type="button" class="text-button" disabled={!ready || busy} onclick={() => perform("reconnect_history", "Reconnecting history…")}>Reconnect history</button>{/if}
+        </div>
+      {/if}
       {#if !configured}
         <section class="empty-state">
           <div class="empty-icon" aria-hidden="true">↔</div>
@@ -309,7 +315,7 @@
           {/if}
         </section>
       {:else if configured}<p class="field-help">This connection uses the legacy server's single shared item.</p>{/if}
-      <p class="quiet-note">Sharing and copying happen only when you ask.</p>
+      <p class="quiet-note">{view.history ? "History updates automatically. Sharing and copying happen only when you ask." : "Sharing and copying happen only when you ask."}</p>
     {:else}
       <div class="settings-title"><h2>Settings</h2><span>{view.settingsSaved ? "Saved on this computer" : "Apply to save"}</span></div>
       {#if view.migrationSummary}<p class="field-help">{view.migrationSummary}</p>{/if}

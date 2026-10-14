@@ -4,6 +4,7 @@ pub mod connection;
 pub mod diagnostics;
 pub mod failure;
 pub mod image;
+pub mod monitor;
 pub mod session;
 pub mod session_transport;
 pub mod ssh;

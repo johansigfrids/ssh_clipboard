@@ -473,6 +473,34 @@ async fn reusable_connection_keeps_one_proxy_and_never_replays_into_a_restarted_
     };
     connection.execute(share, data).await.unwrap();
     let snapshot = connection.snapshot().await.unwrap();
+    assert!(connection.supports("watch"));
+    let changed = connection
+        .execute(
+            Action::Watch {
+                after_sequence: 0.into(),
+                wait_ms: 1000,
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(changed.payload.is_empty());
+    assert!(
+        matches!(changed.response,Response::Changed {sequence,..} if sequence==snapshot.sequence)
+    );
+    let heartbeat = connection
+        .execute(
+            Action::Watch {
+                after_sequence: snapshot.sequence,
+                wait_ms: 5,
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(
+        matches!(heartbeat.response,Response::Changed {sequence,..} if sequence==snapshot.sequence)
+    );
     assert_eq!(snapshot.items.len(), 1);
     let item_id = snapshot.items[0].id;
     assert_eq!(

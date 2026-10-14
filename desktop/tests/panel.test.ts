@@ -47,6 +47,30 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("background history changes update metadata without fetching, sharing, or copying", async () => {
+    state.settings.target="hub";
+    state.settings.endpoint={protocol:"shelf",max_item_bytes:1024,max_decoded_bytes:1024};
+    state.history={epoch:"one",selectedId:null,items:[]};
+    state.historyStatus={phase:"live",detail:"History is up to date.",retryInMs:null};
+    render(App);
+    await screen.findByText("History is up to date.");
+    state.history={epoch:"one",selectedId:"new",items:[{id:"new",label:"Other computer's text",kind:"text",encodedBytes:12,source:"Laptop",receivedAt:"100",expiresAt:"200"}]};
+    bridge.listen.mock.calls.find(([name])=>name==="settings-changed")![1]();
+    await screen.findByRole("button",{name:/Other computer's text.*Laptop/});
+    expect(screen.getByRole("button",{name:"Copy to this computer"}).hasAttribute("disabled")).toBe(false);
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel","get_panel"]);
+  });
+
+  it("history authentication errors offer an explicit reconnect guarded by saved revision", async () => {
+    state.settings.target="hub";
+    state.settingsRevision="7";
+    state.historyStatus={phase:"needs_action",detail:"Unlock your SSH key, then reconnect history.",retryInMs:null};
+    render(App);
+    await fireEvent.click(await screen.findByRole("button",{name:"Reconnect history"}));
+    expect(bridge.invoke.mock.calls.find(([name])=>name==="reconnect_history")![1]).toEqual({expectedRevision:"7"});
+    expect(bridge.invoke.mock.calls.some(([name])=>["share_clipboard","copy_item","select_item"].includes(name))).toBe(false);
+  });
+
   it("Cancel remains available during a pending transfer and targets its operation ID", async () => {
     state.settings.target = "hub";
     const normal = bridge.invoke.getMockImplementation()!;

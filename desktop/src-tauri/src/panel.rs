@@ -11,6 +11,7 @@ use ssh_clipboard::client::connection::Connection;
 use ssh_clipboard::client::diagnostics::{
     ConnectionReport, diagnose, diagnose_shelf, server_problem,
 };
+use ssh_clipboard::client::monitor::{self, Target as MonitorTarget};
 use ssh_clipboard::client::session::{Action as ShelfAction, SessionPolicy};
 use ssh_clipboard::client::transport::{make_request, send_request};
 use ssh_clipboard::configuration::{ConfigStore, Configuration};
@@ -24,7 +25,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, watch};
 use uuid::Uuid;
 
 struct Session {
@@ -43,6 +44,8 @@ struct Session {
     operation_notice: Option<OperationNotice>,
     operation_counter: u64,
     notification_status: notifications::Status,
+    history_status: Option<monitor::Status>,
+    metadata_barrier: tokio::time::Instant,
 }
 
 #[derive(Clone, Serialize)]
@@ -61,6 +64,8 @@ struct Desktop {
     recording_shortcut: AtomicBool,
     clipboard: ClipboardWorker,
     config_store: Option<ConfigStore>,
+    monitor_request: watch::Sender<monitor::Request>,
+    monitor_tasks: StdMutex<Vec<tauri::async_runtime::JoinHandle<()>>>,
 }
 
 #[derive(Serialize)]
@@ -85,10 +90,12 @@ struct PanelView {
     connection_report: Option<ConnectionReport>,
     operation_notice: Option<OperationNotice>,
     notification_status: notifications::Status,
+    history_status: Option<monitor::Status>,
 }
 
 impl Session {
     fn after_operation(&mut self, operation: &Operation) {
+        self.metadata_barrier = tokio::time::Instant::now();
         if operation.was_cancelled() {
             self.connection = None;
             self.connected = false;
@@ -96,6 +103,43 @@ impl Session {
             self.history = History::default();
             self.connection_report = None;
         }
+    }
+    fn monitor_target(&self) -> Option<MonitorTarget> {
+        if self.settings_notice.is_some() || self.settings.validate_connection().is_err() {
+            return None;
+        }
+        let policy = self.shelf_policy().ok()??;
+        let saved = self.saved_config.as_ref()?;
+        Some(MonitorTarget {
+            profile_id: saved.default_profile.clone(),
+            revision: saved.revision.to_string(),
+            ssh: self.client_config().ok()?.ssh,
+            policy,
+        })
+    }
+    fn apply_metadata(&mut self, update: &monitor::Update) -> bool {
+        if self.monitor_target().as_ref() != Some(&update.target) {
+            return false;
+        }
+        self.history_status = Some(update.status.clone());
+        self.connected = update.status.phase == monitor::Phase::Live;
+        if let Some(snapshot) = &update.snapshot
+            && update
+                .snapshot_started_at
+                .is_some_and(|started| started >= self.metadata_barrier)
+        {
+            let previous = (self.history.epoch, self.history.selected);
+            if self.history.accept_background((**snapshot).clone()) {
+                if previous != (self.history.epoch, self.history.selected) {
+                    self.item = None;
+                }
+                if previous.0 != self.history.epoch {
+                    self.connection = None;
+                }
+                self.clipboard_checked = true;
+            }
+        }
+        true
     }
     async fn take_connection(&mut self) -> Result<Connection, String> {
         let policy = self
@@ -185,6 +229,7 @@ impl Session {
             connection_report: self.connection_report.clone(),
             operation_notice: self.operation_notice.clone(),
             notification_status: self.notification_status.clone(),
+            history_status: self.history_status.clone(),
             profiles: self.saved_config.as_ref().map_or_else(
                 || Configuration::default().profiles.iter().map(ConnectionProfile::from).collect(),
                 |c| c.profiles.iter().map(ConnectionProfile::from).collect(),
@@ -246,6 +291,8 @@ impl Session {
         self.saved_config = loaded;
         self.settings_notice = None;
         self.shortcut_status = shortcut_status;
+        self.history_status = None;
+        self.metadata_barrier = tokio::time::Instant::now();
     }
 }
 
@@ -314,10 +361,42 @@ fn watch_settings(app: AppHandle) {
             if synchronize_settings(&mut session, loaded, |session, settings| {
                 configure_shortcut(&app, session, settings)
             }) {
+                sync_monitor(&state, &mut session);
                 let _ = app.emit("settings-changed", ());
             }
         }
     });
+}
+
+fn sync_monitor(state: &Desktop, session: &mut Session) {
+    if session.monitor_target().is_none() {
+        session.history_status = None;
+    }
+    if let Err(error) = monitor::configure(&state.monitor_request, session.monitor_target(), false)
+    {
+        session.history_status = Some(monitor::Status {
+            phase: monitor::Phase::NeedsAction,
+            detail: error.into(),
+            retry_in_ms: None,
+        });
+    }
+}
+
+#[tauri::command]
+async fn reconnect_history(
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+) -> Result<PanelView, String> {
+    let session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Wait for the current operation to finish.")?;
+    session.check_revision(expected_revision.as_deref())?;
+    let target = session
+        .monitor_target()
+        .ok_or("Save a shelf connection before connecting history.")?;
+    monitor::configure(&state.monitor_request, Some(target), true)?;
+    session.view()
 }
 
 #[tauri::command]
@@ -421,6 +500,7 @@ async fn apply_settings(
     save_configuration(&mut session, store, next_config, |session, settings| {
         configure_shortcut(&app, session, settings)
     })?;
+    sync_monitor(&state, &mut session);
     session.view()
 }
 
@@ -483,6 +563,7 @@ async fn remove_profile(
     save_configuration(&mut session, store, next, |session, settings| {
         configure_shortcut(&app, session, settings)
     })?;
+    sync_monitor(&state, &mut session);
     session.view()
 }
 
@@ -685,6 +766,12 @@ async fn mutate_history(
         return Err("Unexpected history mutation reply.".into());
     }
     operation.confirmed()?;
+    session.history.sequence = match &reply.response {
+        ShelfResponse::Deleted { sequence, .. } | ShelfResponse::Cleared { sequence, .. } => {
+            Some(*sequence)
+        }
+        _ => None,
+    };
     // A confirmed mutation is final; a subsequent refresh cannot turn it into failure.
     session
         .history
@@ -832,7 +919,13 @@ async fn share_current(
                 )
                 .await
                 .map_err(|error| error.to_string())?;
-            let ShelfResponse::Shared { epoch, item, .. } = reply.response else {
+            let ShelfResponse::Shared {
+                epoch,
+                sequence,
+                item,
+                ..
+            } = reply.response
+            else {
                 return Err("Unexpected share reply.".into());
             };
             operation.confirmed()?;
@@ -841,7 +934,7 @@ async fn share_current(
                 .history
                 .accept_snapshot(ssh_clipboard::client::session::Snapshot {
                     epoch,
-                    sequence: item.sequence,
+                    sequence,
                     items: vec![item],
                 });
             // The share is confirmed. A later metadata refresh failure cannot report it as failed.
@@ -1178,6 +1271,8 @@ pub fn run() {
                 operation_notice: None,
                 operation_counter: 0,
                 notification_status: notifications::status(app.handle()),
+                history_status: None,
+                metadata_barrier: tokio::time::Instant::now(),
             };
             session.shortcut_status = if is_wayland() {
                 "Wayland: use the launcher or tray menu. Portal support is pending.".into()
@@ -1194,12 +1289,33 @@ pub fn run() {
                 recording_shortcut: AtomicBool::new(false),
                 clipboard: ClipboardWorker::start()?,
                 config_store,
+                monitor_request: watch::channel(monitor::Request::default()).0,
+                monitor_tasks: StdMutex::new(Vec::new()),
             });
             if install_tray(app.handle()).is_err() {
                 app.state::<Desktop>().session.blocking_lock().tray_status =
                     "Unavailable: reopen through the app launcher.".into();
             }
             watch_settings(app.handle().clone());
+            let monitor_state = app.state::<Desktop>();
+            sync_monitor(&monitor_state,&mut monitor_state.session.blocking_lock());
+            let monitor_input = monitor_state.monitor_request.subscribe();
+            let monitor_generation = monitor_state.monitor_request.clone();
+            let (monitor_output,mut monitor_updates) = watch::channel(None::<Arc<monitor::Update>>);
+            let monitor_task = tauri::async_runtime::spawn(monitor::run(monitor_input,monitor_output));
+            let monitor_app = app.handle().clone();
+            let apply_task = tauri::async_runtime::spawn(async move {
+                while monitor_updates.changed().await.is_ok() {
+                    let update = monitor_updates.borrow_and_update().clone();
+                    let Some(update) = update else {continue;};
+                    let state = monitor_app.state::<Desktop>();
+                    let mut session = state.session.lock().await;
+                    if monitor_generation.borrow().generation == update.generation && session.apply_metadata(&update) {
+                        let _ = monitor_app.emit("settings-changed",());
+                    }
+                }
+            });
+            monitor_state.monitor_tasks.lock().unwrap().extend([monitor_task,apply_task]);
             let operations = app.state::<Desktop>().operations.clone();
             let mut changed = operations.subscribe();
             let operation_app = app.handle().clone();
@@ -1221,6 +1337,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_panel,
+            reconnect_history,
             get_operation,
             cancel_operation,
             set_shortcut_recording,
@@ -1241,7 +1358,33 @@ pub fn run() {
         .expect("could not start desktop prototype");
     app.run(|app, event| {
         if matches!(event, tauri::RunEvent::Exit) {
-            app.state::<Desktop>().clipboard.stop();
+            let state = app.state::<Desktop>();
+            let tasks = state
+                .monitor_tasks
+                .lock()
+                .map(|mut tasks| std::mem::take(&mut *tasks))
+                .unwrap_or_default();
+            for task in &tasks {
+                task.abort();
+            }
+            let connection = state
+                .session
+                .try_lock()
+                .ok()
+                .and_then(|mut session| session.connection.take());
+            // Join the aborted owner so its SSH child/reader are dropped before process exit.
+            tauri::async_runtime::block_on(async {
+                let _ = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                    for task in tasks {
+                        let _ = task.await;
+                    }
+                    if let Some(connection) = connection {
+                        connection.close().await;
+                    }
+                })
+                .await;
+            });
+            state.clipboard.stop();
         }
     });
 }
@@ -1249,6 +1392,44 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn metadata_from_before_a_user_action_or_another_profile_cannot_replace_its_result() {
+        let mut session = session();
+        session.saved_config.as_mut().unwrap().profiles[0].endpoint =
+            ssh_clipboard::configuration::Endpoint::Shelf {
+                max_item_bytes: 1024,
+                max_decoded_bytes: 1024,
+            };
+        session.settings =
+            SessionSettings::from_configuration(session.saved_config.as_ref().unwrap()).unwrap();
+        let started = tokio::time::Instant::now();
+        let update = monitor::Update {
+            generation: 1,
+            target: session.monitor_target().unwrap(),
+            status: monitor::Status {
+                phase: monitor::Phase::Live,
+                detail: "History is up to date.".into(),
+                retry_in_ms: None,
+            },
+            snapshot: Some(Arc::new(ssh_clipboard::client::session::Snapshot {
+                epoch: Uuid::from_u128(2),
+                sequence: 0.into(),
+                items: vec![],
+            })),
+            snapshot_started_at: Some(started),
+        };
+        session.metadata_barrier = started + std::time::Duration::from_secs(1);
+        assert!(session.apply_metadata(&update));
+        assert_eq!(session.item.as_ref().unwrap().data, b"retained snapshot");
+        assert!(session.history.epoch.is_none());
+        session.metadata_barrier = started;
+        assert!(session.apply_metadata(&update));
+        assert!(session.item.is_none());
+        assert_eq!(session.history.epoch, Some(Uuid::from_u128(2)));
+        session.saved_config.as_mut().unwrap().revision += 1;
+        assert!(!session.apply_metadata(&update));
+    }
 
     fn persisted_session() -> (tempfile::TempDir, ConfigStore, Session) {
         let directory = tempfile::tempdir().unwrap();
@@ -1688,6 +1869,8 @@ mod tests {
                 available: false,
                 detail: "Test fixture",
             },
+            history_status: None,
+            metadata_barrier: tokio::time::Instant::now(),
             item: Some(ClipboardValue {
                 content_type: ssh_clipboard::protocol::CONTENT_TYPE_TEXT.into(),
                 data: b"retained snapshot".to_vec(),

@@ -1,5 +1,7 @@
 use crate::clipboard::ClipboardWorker;
-use crate::model::{ItemPreview, SessionSettings, is_wayland, validate_transfer_size};
+use crate::model::{
+    ConnectionProfile, ItemPreview, SessionSettings, is_wayland, validate_transfer_size,
+};
 use serde::Serialize;
 use ssh_clipboard::client::transport::{make_request, send_request};
 use ssh_clipboard::configuration::{ConfigStore, Configuration};
@@ -30,6 +32,7 @@ struct Desktop {
 #[serde(rename_all = "camelCase")]
 struct PanelView {
     settings: SessionSettings,
+    profiles: Vec<ConnectionProfile>,
     item: Option<ItemPreview>,
     clipboard_checked: bool,
     shortcut_status: String,
@@ -73,6 +76,10 @@ impl Session {
     fn view(&self) -> Result<PanelView, String> {
         Ok(PanelView {
             settings: self.settings.clone(),
+            profiles: self.saved_config.as_ref().map_or_else(
+                || Configuration::default().profiles.iter().map(ConnectionProfile::from).collect(),
+                |c| c.profiles.iter().map(ConnectionProfile::from).collect(),
+            ),
             clipboard_checked: self.clipboard_checked,
             item: self
                 .item
@@ -92,6 +99,39 @@ impl Session {
             migration_summary: self.saved_config.as_ref().and_then(|c| c.legacy_import.as_ref())
                 .map(|_| "Imported your existing connection and preferences and saved a backup. Start-at-login and direct-shortcut choices are retained for the later desktop setup."),
         })
+    }
+
+    fn activate_configuration(
+        &mut self,
+        loaded: Option<Configuration>,
+        next: SessionSettings,
+        shortcut_status: String,
+    ) {
+        let profile_changed = loaded.as_ref().map(|c| &c.default_profile)
+            != self.saved_config.as_ref().map(|c| &c.default_profile);
+        let transport_changed = loaded
+            .as_ref()
+            .and_then(|c| c.selected_profile().ok())
+            .map(|p| &p.transport)
+            != self
+                .saved_config
+                .as_ref()
+                .and_then(|c| c.selected_profile().ok())
+                .map(|p| &p.transport);
+        if profile_changed
+            || transport_changed
+            || next.target != self.settings.target
+            || next.port != self.settings.port
+            || next.identity_file != self.settings.identity_file
+        {
+            self.item = None;
+            self.clipboard_checked = false;
+            self.connected = false;
+        }
+        self.settings = next;
+        self.saved_config = loaded;
+        self.settings_notice = None;
+        self.shortcut_status = shortcut_status;
     }
 }
 
@@ -138,31 +178,7 @@ fn synchronize_settings(
             return true;
         }
     };
-    let profile_changed = loaded.as_ref().map(|c| &c.default_profile)
-        != session.saved_config.as_ref().map(|c| &c.default_profile);
-    let transport_changed = loaded
-        .as_ref()
-        .and_then(|c| c.selected_profile().ok())
-        .map(|p| &p.transport)
-        != session
-            .saved_config
-            .as_ref()
-            .and_then(|c| c.selected_profile().ok())
-            .map(|p| &p.transport);
-    if profile_changed
-        || transport_changed
-        || next.target != session.settings.target
-        || next.port != session.settings.port
-        || next.identity_file != session.settings.identity_file
-    {
-        session.item = None;
-        session.clipboard_checked = false;
-        session.connected = false;
-    }
-    session.settings = next;
-    session.saved_config = loaded;
-    session.settings_notice = None;
-    session.shortcut_status = status;
+    session.activate_configuration(loaded, next, status);
     true
 }
 
@@ -265,33 +281,68 @@ async fn apply_settings(
         .ok_or("The settings location is unavailable.")?;
     let mut next_config = session.saved_config.clone().unwrap_or_default();
     settings.update_configuration(&mut next_config)?;
+    save_configuration(&mut session, store, next_config, |session, settings| {
+        configure_shortcut(&app, session, settings)
+    })?;
+    session.view()
+}
+
+/// Both GUI writes and watcher reloads use the same profile-isolation boundary.
+fn save_configuration(
+    session: &mut Session,
+    store: &ConfigStore,
+    next_config: Configuration,
+    mut configure: impl FnMut(&mut Session, &SessionSettings) -> Result<String, String>,
+) -> Result<(), String> {
+    let settings = SessionSettings::from_configuration(&next_config)?;
+    settings.validate()?;
     // Validate/check for a stale writer and flush the temporary file before changing OS state.
     let pending = store
         .prepare(session.saved_config.as_ref(), next_config)
         .map_err(|e| e.to_string())?;
     let previous_settings = session.settings.clone();
-    let status = configure_shortcut(&app, &mut session, &settings)?;
+    let status = configure(session, &settings)?;
     let saved = match pending.commit() {
         Ok(saved) => saved,
         Err(error) => {
-            session.shortcut_status = match configure_shortcut(&app, &mut session, &previous_settings) {
+            session.shortcut_status = match configure(session, &previous_settings) {
                 Ok(status) => status,
                 Err(_) => "Could not restore the previous shortcut. Quit and reopen to restore saved settings.".into(),
             };
             return Err(error.to_string());
         }
     };
-    let connection_changed = settings.target != session.settings.target
-        || settings.port != session.settings.port
-        || settings.identity_file != session.settings.identity_file;
-    if connection_changed {
-        session.item = None;
-        session.clipboard_checked = false;
-        session.connected = false;
+    session.activate_configuration(Some(saved), settings, status);
+    Ok(())
+}
+
+#[tauri::command]
+async fn remove_profile(
+    app: AppHandle,
+    state: State<'_, Desktop>,
+    profile_id: String,
+    expected_revision: Option<String>,
+) -> Result<PanelView, String> {
+    let mut session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Wait for the current operation to finish.".to_string())?;
+    session.check_revision(expected_revision.as_deref())?;
+    if let Some(notice) = &session.settings_notice {
+        return Err(notice.clone());
     }
-    session.settings = settings;
-    session.saved_config = Some(saved);
-    session.shortcut_status = status;
+    let store = state
+        .config_store
+        .as_ref()
+        .ok_or("The settings location is unavailable.")?;
+    let mut next = session
+        .saved_config
+        .clone()
+        .ok_or("Save a connection before removing it.")?;
+    next.remove_profile(&profile_id)?;
+    save_configuration(&mut session, store, next, |session, settings| {
+        configure_shortcut(&app, session, settings)
+    })?;
     session.view()
 }
 
@@ -562,6 +613,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_panel,
             apply_settings,
+            remove_profile,
             test_connection,
             refresh_item,
             share_clipboard,
@@ -581,6 +633,176 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn persisted_session() -> (tempfile::TempDir, ConfigStore, Session) {
+        let directory = tempfile::tempdir().unwrap();
+        let store = ConfigStore::new(directory.path().join("settings.json"));
+        let mut session = session();
+        session.saved_config.as_mut().unwrap().profiles[0]
+            .transport
+            .timeout_ms = 9000;
+        session
+            .saved_config
+            .as_mut()
+            .unwrap()
+            .preferences
+            .start_at_login = true;
+        let saved = store
+            .prepare(None, session.saved_config.clone().unwrap())
+            .unwrap()
+            .commit()
+            .unwrap();
+        session.settings = SessionSettings::from_configuration(&saved).unwrap();
+        session.saved_config = Some(saved);
+        (directory, store, session)
+    }
+
+    #[test]
+    fn desktop_profile_lifecycle_preserves_identity_policy_and_global_preferences() {
+        let (_directory, store, mut session) = persisted_session();
+        let original = session.saved_config.clone().unwrap();
+        let draft = SessionSettings {
+            profile_id: None,
+            profile_name: " Second server ".into(),
+            target: "second-hub".into(),
+            port: Some(2222),
+            identity_file: "path with spaces/key".into(),
+            ..session.settings.clone()
+        };
+        let mut next = original.clone();
+        draft.update_configuration(&mut next).unwrap();
+        save_configuration(&mut session, &store, next, |_, _| Ok("Registered".into())).unwrap();
+        let saved = store.load().unwrap().unwrap();
+        let id = saved.default_profile.clone();
+        assert_ne!(id, "default");
+        assert_eq!(saved.profiles[0], original.profiles[0]);
+        assert_eq!(saved.preferences, original.preferences);
+        assert_eq!(saved.device, original.device);
+        assert_eq!(saved.selected_profile().unwrap().name, "Second server");
+        assert_eq!(saved.selected_profile().unwrap().transport.timeout_ms, 7000);
+        assert_eq!(session.settings.profile_id.as_deref(), Some(id.as_str()));
+        assert_eq!(session.client_config().unwrap().ssh.port, Some(2222));
+        assert!(session.item.is_none());
+
+        // A display-only rename keeps the connection and its current snapshot.
+        session.item = Some(ClipboardValue {
+            content_type: ssh_clipboard::protocol::CONTENT_TYPE_TEXT.into(),
+            data: b"second snapshot".to_vec(),
+            created_at: 2,
+        });
+        session.connected = true;
+        let mut renamed = session.settings.clone();
+        renamed.profile_name = "Renamed server".into();
+        let mut next = saved.clone();
+        renamed.update_configuration(&mut next).unwrap();
+        save_configuration(&mut session, &store, next, |_, _| Ok("Registered".into())).unwrap();
+        assert!(session.item.is_some());
+        assert!(session.connected);
+        assert_eq!(session.saved_config.as_ref().unwrap().default_profile, id);
+
+        let mut next = session.saved_config.clone().unwrap();
+        next.remove_profile(&id).unwrap();
+        save_configuration(&mut session, &store, next, |_, _| Ok("Registered".into())).unwrap();
+        let remaining = store.load().unwrap().unwrap();
+        assert_eq!(remaining.default_profile, "default");
+        assert_eq!(remaining.profiles, [original.profiles[0].clone()]);
+        assert_eq!(remaining.preferences, original.preferences);
+        assert_eq!(remaining.device, original.device);
+        assert!(session.item.is_none());
+        assert!(!session.connected);
+        assert_eq!(session.client_config().unwrap().timeout_ms, 9000);
+    }
+
+    #[test]
+    fn applying_another_profile_at_the_same_target_clears_the_previous_snapshot() {
+        let (_directory, store, mut session) = persisted_session();
+        let mut next = session.saved_config.clone().unwrap();
+        let mut other = next.profiles[0].clone();
+        other.id = "second".into();
+        next.profiles.push(other);
+        next.default_profile = "second".into();
+        save_configuration(&mut session, &store, next, |_, _| Ok("Registered".into())).unwrap();
+        assert_eq!(session.settings.target, "first-hub");
+        assert_eq!(session.view().unwrap().profiles.len(), 2);
+        assert!(session.item.is_none());
+        assert!(!session.clipboard_checked);
+        assert!(!session.connected);
+        assert!(session.check_revision(Some("1")).is_err());
+    }
+
+    #[test]
+    fn a_stale_profile_save_does_not_activate_or_overwrite_an_external_edit() {
+        let (_directory, store, mut session) = persisted_session();
+        let original = session.saved_config.clone().unwrap();
+        let mut external = original.clone();
+        external.device.name = "Changed through CLI".into();
+        let external = store
+            .prepare(Some(&original), external)
+            .unwrap()
+            .commit()
+            .unwrap();
+        let mut next = original.clone();
+        next.profiles[0].name = "Stale rename".into();
+        assert!(
+            save_configuration(&mut session, &store, next, |_, _| {
+                panic!("a stale save must fail before OS activation")
+            })
+            .is_err()
+        );
+        assert_eq!(store.load().unwrap(), Some(external));
+        assert_eq!(session.saved_config, Some(original));
+        assert!(session.item.is_some());
+    }
+
+    #[test]
+    fn rejected_activation_abandons_the_profile_save_and_keeps_the_snapshot() {
+        let (_directory, store, mut session) = persisted_session();
+        let original = session.saved_config.clone().unwrap();
+        let mut next = original.clone();
+        next.profiles[0].target = "second-hub".into();
+        assert_eq!(
+            save_configuration(&mut session, &store, next, |_, _| Err(
+                "Shortcut conflict".into()
+            ))
+            .unwrap_err(),
+            "Shortcut conflict"
+        );
+        assert_eq!(store.load().unwrap(), Some(original.clone()));
+        assert_eq!(session.saved_config, Some(original));
+        assert!(session.item.is_some());
+        assert!(session.connected);
+    }
+
+    #[test]
+    fn failed_replacement_restores_os_settings_and_keeps_the_previous_profile_active() {
+        let (directory, store, mut session) = persisted_session();
+        let path = directory.path().join("settings.json");
+        let original_bytes = std::fs::read(&path).unwrap();
+        let original = session.saved_config.clone().unwrap();
+        let mut next = original.clone();
+        next.preferences.open_shortcut = "CommandOrControl+Shift+K".into();
+        let mut activations = Vec::new();
+        let result = save_configuration(&mut session, &store, next, |_, settings| {
+            activations.push(settings.open_shortcut.clone());
+            if activations.len() == 1 {
+                // Inject replacement failure after preparation/activation, within a temp directory.
+                std::fs::remove_file(&path).unwrap();
+                std::fs::create_dir(&path).unwrap();
+            } else {
+                std::fs::remove_dir(&path).unwrap();
+                std::fs::write(&path, &original_bytes).unwrap();
+            }
+            Ok("Registered".into())
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            activations,
+            ["CommandOrControl+Shift+K", "CommandOrControl+Shift+V"]
+        );
+        assert_eq!(store.load().unwrap(), Some(original.clone()));
+        assert_eq!(session.saved_config, Some(original));
+        assert!(session.item.is_some());
+    }
 
     #[test]
     fn desktop_lockfile_imports_the_same_legacy_fixture_as_the_cli() {

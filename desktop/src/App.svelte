@@ -11,6 +11,7 @@
   let message = $state("");
   let error = $state(false);
   let recording = $state(false);
+  let removingProfile = $state(false);
   let ready = $state(false);
   let content = $state<HTMLElement>();
   let draftRevision = $state<string | null>(null);
@@ -25,7 +26,23 @@
 
   function inform(text: string, failed = false) { message = text; error = failed; }
 
-  function discardDraft() { draft = { ...view.settings }; draftRevision = view.settingsRevision; recording = false; }
+  function discardDraft() { draft = { ...view.settings }; draftRevision = view.settingsRevision; recording = false; removingProfile = false; }
+
+  function chooseProfile(id: string) {
+    if (dirty || busy || !ready) return;
+    const profile = view.profiles.find((profile) => profile.id === id);
+    if (!profile) return;
+    draft = { ...draft, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile };
+    removingProfile = false;
+    inform("");
+  }
+
+  function addProfile() {
+    if (dirty || busy || !ready) return;
+    draft = { ...draft, profileId: null, profileName: "New connection", target: "", port: null, identityFile: "" };
+    removingProfile = false;
+    inform("");
+  }
 
   async function reloadSavedSettings() {
     if (disposed) return;
@@ -38,6 +55,7 @@
       if (disposed || epoch !== operationEpoch) return;
       const retainDraft = dirty && JSON.stringify(draft) !== JSON.stringify(next.settings);
       view = next;
+      removingProfile = false;
       if (retainDraft && draftRevision !== next.settingsRevision) inform("Saved settings changed. Discard your draft to load them before editing again.", true);
       else if (!retainDraft) discardDraft();
     } catch (cause) { if (!disposed) inform(String(cause), true); }
@@ -54,9 +72,9 @@
     operationEpoch++;
     inform("");
     try {
-      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
+      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
       view = await command<PanelView>(name, guardedArgs);
-      if (name === "apply_settings") discardDraft();
+      if (name === "apply_settings" || name === "remove_profile") discardDraft();
       inform(name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success);
     } catch (cause) {
       inform(cause instanceof Error ? cause.message : String(cause), true);
@@ -68,6 +86,7 @@
   function navigate(next: string) {
     if (busy) return;
     recording = false;
+    removingProfile = false;
     page = next;
     if (content) content.scrollTop = 0;
   }
@@ -75,6 +94,7 @@
   function selectSection(next: string) {
     section = next;
     recording = false;
+    removingProfile = false;
     if (content) content.scrollTop = 0;
   }
 
@@ -136,7 +156,7 @@
   <main bind:this={content}>
     {#if view.settingsNotice}<div class="feedback error" role="alert">{view.settingsNotice}</div>{/if}
     {#if page === "panel"}
-      <div class="status-line"><span class:connected={view.connected} class="status-dot"></span>{busy ? "Working…" : view.connected ? "Server reachable" : configured ? "Not connected" : "Setup needed"}<span class="mode">Shared clipboard</span></div>
+      <div class="status-line"><span class:connected={view.connected} class="status-dot"></span>{busy ? "Working…" : view.connected ? "Server reachable" : configured ? "Not connected" : "Setup needed"}<span class="mode">{view.settings.profileName}</span></div>
       {#if !configured}
         <section class="empty-state">
           <div class="empty-icon" aria-hidden="true">↔</div>
@@ -175,6 +195,24 @@
       </nav>
       <form onsubmit={(event) => { event.preventDefault(); void perform("apply_settings", "Settings applied.", { settings: { ...draft }, expectedRevision: draftRevision }); }}>
         {#if section === "connection"}
+          <label for="profile">Connection</label>
+          <select id="profile" value={draft.profileId ?? ""} onchange={(event) => chooseProfile(event.currentTarget.value)} disabled={!ready || !view.settingsWritable || dirty || busy}>
+            {#each view.profiles as profile (profile.id)}<option value={profile.id}>{profile.name} — {profile.target || "Setup needed"}</option>{/each}
+            {#if draft.profileId === null}<option value="">New connection</option>{/if}
+            {#if draft.profileId !== null && !view.profiles.some((profile) => profile.id === draft.profileId)}<option value={draft.profileId}>{draft.profileName} (removed)</option>{/if}
+          </select>
+          <p class="field-help">Choose a connection, then Apply to use it. Apply or discard your draft before choosing another.</p>
+          <div class="profile-actions">
+            <button type="button" disabled={!ready || !view.settingsWritable || !view.settingsSaved || dirty || busy} onclick={addProfile}>Add connection</button>
+            <button type="button" disabled={!ready || !view.settingsWritable || !view.settingsSaved || view.profiles.length < 2 || dirty || busy} onclick={() => removingProfile = !removingProfile}>Remove…</button>
+          </div>
+          {#if removingProfile}
+            <div class="remove-confirmation" role="group" aria-label="Remove connection confirmation">
+              <p>Remove “{view.settings.profileName}” from this computer? Another saved connection will become active. The server and its clipboard are kept.</p>
+              <div class="profile-actions"><button type="button" disabled={!view.settingsWritable || dirty || busy} onclick={() => perform("remove_profile", "Connection removed. Another saved connection is now active.", { profileId: view.settings.profileId })}>Remove connection</button><button type="button" disabled={busy} onclick={() => removingProfile = false}>Cancel</button></div>
+            </div>
+          {/if}
+          <label for="profile-name">Connection name</label><input id="profile-name" bind:value={draft.profileName} autocomplete="off" disabled={!ready || busy} />
           <label for="target">SSH alias or user@host</label><input id="target" bind:value={draft.target} placeholder="clipboard-hub" autocomplete="off" disabled={!ready || busy} />
           <p class="field-help">Uses your existing SSH configuration and unlocked key. The server must already be installed.</p>
           <label for="port">Port <span>(optional)</span></label><input id="port" type="number" min="1" max="65535" value={draft.port ?? ""} oninput={(event) => draft.port = event.currentTarget.value === "" ? null : Number(event.currentTarget.value)} placeholder="From SSH config" disabled={!ready || busy} />

@@ -82,6 +82,55 @@ fn cli_settings_restore_the_same_profile_and_preferences_as_the_desktop_store() 
 }
 
 #[test]
+fn removing_profiles_preserves_other_connections_and_rejects_the_last_or_missing_one() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("settings.json");
+    assert!(!cli(&path, &["remove-profile", "default"]).status.success());
+    assert!(!path.exists());
+    let original = document(cli(
+        &path,
+        &[
+            "set",
+            "--target",
+            "first-hub",
+            "--timeout-ms",
+            "9000",
+            "--show-preview",
+            "false",
+        ],
+    ));
+    for id in ["second", "third"] {
+        document(cli(
+            &path,
+            &[
+                "add-profile",
+                "--id",
+                id,
+                "--name",
+                id,
+                "--target",
+                "another-hub",
+            ],
+        ));
+    }
+    let unselected = document(cli(&path, &["remove-profile", "third"]));
+    assert_eq!(unselected.default_profile, "default");
+    assert_eq!(unselected.profiles[0], original.profiles[0]);
+    document(cli(&path, &["select-profile", "second"]));
+    let removed = document(cli(&path, &["remove-profile", "second"]));
+    assert_eq!(removed.default_profile, "default");
+    assert_eq!(removed.profiles, original.profiles);
+    assert_eq!(removed.preferences, original.preferences);
+    assert_eq!(removed.device, original.device);
+    let before = std::fs::read(&path).unwrap();
+    for id in ["default", "missing"] {
+        assert!(!cli(&path, &["remove-profile", id]).status.success());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+    assert_eq!(document(cli(&path, &["show"])), removed);
+}
+
+#[test]
 fn failed_cli_edits_preserve_corrupt_files_and_existing_profiles() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("settings.json");

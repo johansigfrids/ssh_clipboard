@@ -36,6 +36,8 @@ pub enum SettingsCommand {
     },
     /// Select the profile used by the desktop and target-less CLI transfers.
     SelectProfile { id: String },
+    /// Remove a local profile. Removing the selected one selects the first remaining profile.
+    RemoveProfile { id: String },
     /// Initialize missing shared settings from a backed-up legacy agent file.
     MigrateAgent {
         #[arg(long)]
@@ -197,6 +199,11 @@ fn apply(config: &mut Configuration, command: SettingsCommand) -> Result<()> {
                 return Err(eyre!("unknown profile ID {id:?}"));
             }
             config.default_profile = id;
+        }
+        SettingsCommand::RemoveProfile { id } => {
+            config
+                .remove_profile(&id)
+                .map_err(|message| eyre!(message))?;
         }
         SettingsCommand::Show | SettingsCommand::Path | SettingsCommand::MigrateAgent { .. } => {
             unreachable!("read-only commands handled before apply")

@@ -95,6 +95,18 @@ impl Default for TransportSettings {
 }
 
 impl Profile {
+    /// A new connection has its own stable identity and independent transport defaults.
+    pub fn new(name: String) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            name,
+            target: String::new(),
+            port: None,
+            identity_file: String::new(),
+            transport: TransportSettings::default(),
+        }
+    }
+
     pub fn client_config(&self) -> crate::client::transport::ClientConfig {
         crate::client::transport::ClientConfig {
             ssh: crate::client::ssh::SshConfig {
@@ -147,6 +159,23 @@ impl Default for Configuration {
 }
 
 impl Configuration {
+    /// Keep a usable selection when removing a connection, without changing its server.
+    pub fn remove_profile(&mut self, id: &str) -> Result<(), String> {
+        if !self.profiles.iter().any(|p| p.id == id) {
+            return Err("This connection no longer exists. Reload saved settings.".into());
+        }
+        if self.profiles.len() == 1 {
+            return Err(
+                "Keep at least one connection. Edit its details to use a different server.".into(),
+            );
+        }
+        self.profiles.retain(|p| p.id != id);
+        if self.default_profile == id {
+            self.default_profile = self.profiles[0].id.clone();
+        }
+        Ok(())
+    }
+
     pub fn selected_profile(&self) -> Result<&Profile, ConfigError> {
         self.profiles
             .iter()

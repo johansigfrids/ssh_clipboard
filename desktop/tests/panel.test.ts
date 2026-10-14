@@ -17,14 +17,26 @@ beforeEach(() => {
   bridge.native = true;
   bridge.invoke.mockReset();
   bridge.listen.mockReset().mockResolvedValue(() => {});
-  bridge.invoke.mockImplementation(async (name: string, args?: { settings: PanelView["settings"] }) => {
+  bridge.invoke.mockImplementation(async (name: string, args?: { settings?: PanelView["settings"]; profileId?: string }) => {
     if (name === "apply_settings") {
-      state.settings = args!.settings;
+      state.settings = { ...args!.settings!, profileId: args!.settings!.profileId ?? "new-profile" };
+      const profile = { id: state.settings.profileId!, name: state.settings.profileName, target: state.settings.target, port: state.settings.port, identityFile: state.settings.identityFile };
+      const index = state.profiles.findIndex(({ id }) => id === profile.id);
+      if (index === -1) state.profiles.push(profile); else state.profiles[index] = profile;
       state.settingsSaved = true;
       state.settingsRevision = String(Number(state.settingsRevision ?? "0") + 1);
       state.item = null;
       state.clipboardChecked = false;
       state.connected = false;
+    }
+    if (name === "remove_profile") {
+      state.profiles = state.profiles.filter(({ id }) => id !== args!.profileId);
+      const profile = state.profiles[0];
+      state.settings = { ...state.settings, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile };
+      state.settingsRevision = String(Number(state.settingsRevision ?? "0") + 1);
+      state.item = null;
+      state.connected = false;
+      state.clipboardChecked = false;
     }
     return structuredClone(state);
   });
@@ -32,6 +44,112 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  function savedProfiles() {
+    state.settings.target = "shared-hub";
+    state.settings.identityFile = "first/key";
+    state.settingsSaved = true;
+    state.settingsRevision = "4";
+    state.profiles = [
+      { id: "default", name: "Default", target: "shared-hub", port: null, identityFile: "first/key" },
+      { id: "other", name: "Other account", target: "shared-hub", port: 2222, identityFile: "other/key" },
+    ];
+  }
+
+  it("choosing a profile is a draft until Apply and does not fetch or copy an item", async () => {
+    savedProfiles();
+    state.item = { kind: "text", label: "Old item", text: "Old snapshot", imageUrl: null, encodedBytes: 12, createdAt: 1 };
+    render(App);
+    await screen.findByText("Old snapshot");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.change(screen.getByLabelText("Connection"), { target: { value: "other" } });
+    expect((screen.getByLabelText("Connection name") as HTMLInputElement).value).toBe("Other account");
+    expect((screen.getByLabelText(/Identity file/) as HTMLInputElement).value).toBe("other/key");
+    expect(screen.getByRole("button", { name: "Test saved connection" }).hasAttribute("disabled")).toBe(true);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("Settings applied.");
+    const args = bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1];
+    expect(args.settings.profileId).toBe("other");
+    expect(args.settings.port).toBe(2222);
+    expect(args.expectedRevision).toBe("4");
+    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByText("Other account")).toBeTruthy();
+    expect(screen.queryByText("Old snapshot")).toBeNull();
+    expect(screen.getByRole("button", { name: "Copy to this computer" }).hasAttribute("disabled")).toBe(true);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "apply_settings"]);
+  });
+
+  it("a new connection starts without another connection's key and can be cancelled before saving", async () => {
+    savedProfiles();
+    render(App);
+    await screen.findByText("shared-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
+    expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText(/Identity file/) as HTMLInputElement).value).toBe("");
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((screen.getByLabelText(/Identity file/) as HTMLInputElement).value).toBe("first/key");
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    await fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
+    await fireEvent.input(screen.getByLabelText("Connection name"), { target: { value: "New server" } });
+    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "new-hub" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("Settings applied.");
+    expect(bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1].settings.profileId).toBeNull();
+    expect(state.profiles).toHaveLength(3);
+    expect((screen.getByLabelText("Connection") as HTMLSelectElement).value).toBe("new-profile");
+  });
+
+  it("removal requires confirmation, carries the revision, and clears the old preview", async () => {
+    savedProfiles();
+    render(App);
+    await screen.findByText("shared-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Remove…" }));
+    expect(screen.getByRole("group", { name: "Remove connection confirmation" })).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    await fireEvent.click(screen.getByRole("button", { name: "Remove…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Remove connection", exact: true }));
+    await screen.findByText("Connection removed. Another saved connection is now active.");
+    expect(bridge.invoke.mock.calls.find(([name]) => name === "remove_profile")![1]).toEqual({ profileId: "default", expectedRevision: "4" });
+    expect((screen.getByLabelText("Connection name") as HTMLInputElement).value).toBe("Other account");
+    expect(screen.getByRole("button", { name: "Remove…" }).hasAttribute("disabled")).toBe(true);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "remove_profile"]);
+  });
+
+  it("a CLI removal invalidates a profile draft and Discard returns to the surviving profile", async () => {
+    savedProfiles();
+    render(App);
+    await screen.findByText("shared-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.change(screen.getByLabelText("Connection"), { target: { value: "other" } });
+    state.profiles.pop();
+    state.settingsRevision = "5";
+    bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
+    await screen.findByText("Saved settings changed. Discard your draft to load them before editing again.");
+    expect((screen.getByLabelText("Connection name") as HTMLInputElement).value).toBe("Other account");
+    expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(true);
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((screen.getByLabelText("Connection name") as HTMLInputElement).value).toBe("Default");
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
+  });
+
+  it("a failed removal keeps the existing connection and reports no success", async () => {
+    savedProfiles();
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => name === "remove_profile" ? Promise.reject("Settings changed in another process.") : normal(name, args));
+    render(App);
+    await screen.findByText("shared-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Remove…" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Remove connection", exact: true }));
+    await screen.findByRole("alert");
+    expect(screen.queryByText("Connection removed. Another saved connection is now active.")).toBeNull();
+    expect(state.profiles).toHaveLength(2);
+    expect((screen.getByLabelText("Connection name") as HTMLInputElement).value).toBe("Default");
+  });
+
   it("an imported configuration explains preserved setup choices while remaining editable", async () => {
     state.settings.target = "legacy-hub";
     state.settingsSaved = true;

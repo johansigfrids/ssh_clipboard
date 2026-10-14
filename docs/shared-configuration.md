@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe the Phase 2 configuration foundation: a shared Rust schema/store, persistent desktop settings, CLI profile selection/edits, and live reload. [Configuration migration](configuration-migration.md) covers legacy/schema 1 conversion and backups; [build variants](build-variants.md) cover the headless boundary. Advanced desktop controls and native/platform acceptance remain pending.
+Describe shared configuration, persistent desktop settings, connection profiles, CLI parity, and live reload. [Configuration migration](configuration-migration.md) covers legacy/schema 1 conversion and backups; [build variants](build-variants.md) cover the headless boundary. Advanced desktop controls and broader platform acceptance remain pending.
 
 ## Key Files
 
@@ -16,13 +16,23 @@ Describe the Phase 2 configuration foundation: a shared Rust schema/store, persi
 
 The prototype reads `ssh_clipboard/settings-v1.json` beneath the platform user configuration directory: `%APPDATA%` on Windows, `~/Library/Application Support` on macOS, and `$XDG_CONFIG_HOME` or `~/.config` on Linux. The historical filename is stable; schema 2 is now written, with a backed-up schema 1 upgrade. The file is separate from old agent configuration and replaceable executables. Startup can initialize a missing shared file from a valid, backed-up legacy agent file; it never overwrites the original. See [migration source selection](configuration-migration.md#source-selection).
 
-Opening the app reads existing settings, or initializes from a legacy source when the shared file is missing. With neither source present it waits for setup/Apply. Schema 2 includes revisions, stable profile IDs, target/port/key reference, advanced transport settings, device identity, panel preferences, retained startup/direct-shortcut choices, and future update policy. The desktop edits basic fields without dropping other profiles or advanced settings. The CLI adds/selects profiles and edits connection/transport/preview/dismissal/device-name settings. Desktop profile/advanced controls and actual startup/updater activation remain later work.
+Opening the app reads existing settings, or initializes from a legacy source when the shared file is missing. With neither source present it waits for setup/Apply. Schema 2 includes revisions, stable profile IDs, target/port/key reference, advanced transport settings, device identity, panel preferences, retained startup/direct-shortcut choices, and future update policy. Desktop Connection settings add/select/rename/remove profiles and edit basic fields without dropping other profiles or advanced policy. The CLI also edits connection/transport/preview/dismissal/device-name settings. Advanced desktop controls and actual startup/updater activation remain later work.
 
 The file contains configuration only; clipboard payloads and SSH key contents are not persisted. Starting the app does not connect, download, share, or write the clipboard. Clipboard snapshots remain process-local.
 
 Corrupt, unsupported-version, oversized, or unrecognized-field documents produce a visible recovery message. Apply is disabled; the existing file is preserved. Repair the named file or move it aside after making a backup; the watcher reloads valid settings automatically. Never automatically replace unreadable settings with defaults: that would lose connection choices while appearing to recover successfully.
 
 ## Save Contract and Guardrails
+
+### Desktop Connections
+
+The Connection selector edits a draft. Apply selects that profile as the shared default for desktop and target-less CLI transfers; merely choosing it does not connect, fetch, or write a clipboard. Apply or Discard an edited draft before choosing another connection. The panel displays the active connection name and SSH target.
+
+After initial setup, Add connection starts a blank connection with independent built-in transport defaults and no copied key/port/options. Apply requires a name and target and assigns a stable UUID. Discard abandons it without writing. Existing profiles retain their IDs and advanced settings when their basic fields or names are edited; renaming alone preserves the current snapshot.
+
+Remove requires an inline confirmation and is disabled while a draft is edited or only one profile remains. Removing the active profile selects the first remaining profile in saved order. The shared removal service also supports CLI deletion of an inactive profile without switching. Removal changes local configuration only; it does not contact a server or clear its clipboard. Device identity, global preferences, and other profiles remain intact.
+
+Both Apply and Remove take the displayed revision, compare the full saved document under the writer lock, and prepare the file before OS activation. A failed activation abandons the write; a failed replacement attempts to restore the previous shortcut. GUI saves and watcher reloads share the same activation boundary: changes to selected profile ID, destination, port, key, or transport clear the snapshot and connection status, even when two profiles use the same SSH target. This must remain true for both paths; checking only target strings during GUI Apply could otherwise expose the previous profile's item.
 
 ### CLI Selection and Edits (Rework Branch)
 
@@ -33,13 +43,14 @@ ssh_clipboard settings set --target clipboard-hub
 ssh_clipboard settings add-profile --id second --name "Second server" --target other-hub
 ssh_clipboard settings select-profile second
 ssh_clipboard peek --profile second --ssh-option BatchMode=yes
+ssh_clipboard settings remove-profile second
 ```
 
 Push, pull, peek, and doctor select the saved default profile when no destination is supplied. `--profile <id>` makes a one-shot selection without changing the saved default. Within a selected profile, explicit target/host/port/key/binary/size/timeout/resync flags override saved fields, then built-in defaults. CLI SSH options precede saved options. `--resync-frames true|false` explicitly overrides a saved choice; `--strict-frames` forces strict mode. Doctor supports its existing subset of overrides and uses the selected policy for metadata probes.
 
 Without `--profile`, an explicit `--target` or `--host` is an independent connection: do not inherit the selected profile's port/key/options. This also bypasses a damaged shared settings file without rewriting it. Default discovery can migrate a valid legacy file if shared settings are absent; a damaged shared document is an error, not permission to switch servers. Doctor uses the same discovery rather than the old `confy::load` fallback, which could create an empty old-agent file. Push resolves configuration before reading stdin or the OS clipboard.
 
-All these commands accept `--settings-file <path>` for a separate file. Paths may be relative. With an explicit destination and no `--profile`, transfers bypass saved configuration even when a path was supplied. The old `config`, agent, and autostart commands still operate on the legacy agent file. Do not confuse those with the new shared `settings` namespace.
+All these commands accept `--settings-file <path>` for a separate file. Paths may be relative. `remove-profile <id>` rejects missing/last profiles without writing; deleting the default selects the first remaining profile. With an explicit destination and no `--profile`, transfers bypass saved configuration even when a path was supplied. The old `config`, agent, and autostart commands still operate on the legacy agent file. Do not confuse those with the new shared `settings` namespace.
 
 The desktop checks the shared file every two seconds and notifies the frontend only when settings or their recovery state change. It defers activation while a transfer/settings operation holds the operation lock. Valid CLI edits take effect without restart. Connection or selected-profile changes clear the old snapshot and connection status, including when two profiles have the same target. Preference-only changes preserve the snapshot. Reload never connects, fetches content, reads the OS clipboard, or replays a write.
 
@@ -69,6 +80,8 @@ These tests never access the user's settings or OS clipboard. The user confirmed
 Live-reload backend probes cover profile isolation, preference-only retention, unchanged-file silence, corrupted-file recovery, rejected OS activation, and deletion back to setup. Frontend probes cover preserving/invalidating drafts, clean-form reload, notifications during startup/a pending transfer, subscription-failure cleanup, and stale transfer guards. Subscribe before the initial state read, queue startup notifications until it completes, and keep controls disabled until ready; otherwise an edit can be missed or an early draft replaced by initialization. Clean up successful subscriptions if another registration fails. On 2026-10-14 the user confirmed the native Windows app/CLI live-reload check: changing preview visibility through CLI updates the open app, and restoring it works. Fault probes still use controlled activation callbacks.
 
 The 2026-10-13 target-less CLI `peek --ssh-option BatchMode=yes --json` also reached the server using the saved desktop profile and returned PNG metadata. This probe fetched no payload and changed neither clipboard.
+
+On 2026-10-14, temporary-store desktop probes cover creating/renaming/removing connections, UUID stability, preserved device/preferences/transport, same-target profile isolation, stale saves, activation rejection, and replacement rollback. Executable CLI checks cover deleting selected/inactive profiles and refusing missing/last profiles without changing bytes. Rendered frontend checks cover draft selection, cancelling creation, confirmation/cancellation, failed removal, and recovery after external deletion. These checks do not prove native profile controls; that Windows smoke remains pending.
 
 ## Update Triggers
 

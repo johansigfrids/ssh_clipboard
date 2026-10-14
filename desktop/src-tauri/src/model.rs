@@ -32,6 +32,8 @@ pub fn validate_transfer_size(request: &Request, max_size: usize) -> Result<(), 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSettings {
+    pub profile_id: Option<String>,
+    pub profile_name: String,
     pub target: String,
     pub port: Option<u16>,
     pub identity_file: String,
@@ -44,6 +46,8 @@ pub struct SessionSettings {
 impl Default for SessionSettings {
     fn default() -> Self {
         Self {
+            profile_id: Some("default".into()),
+            profile_name: "Default".into(),
             target: String::new(),
             port: None,
             identity_file: String::new(),
@@ -61,6 +65,8 @@ impl SessionSettings {
     ) -> Result<Self, String> {
         let profile = config.selected_profile().map_err(|e| e.to_string())?;
         Ok(Self {
+            profile_id: Some(profile.id.clone()),
+            profile_name: profile.name.clone(),
             target: profile.target.clone(),
             port: profile.port,
             identity_file: profile.identity_file.clone(),
@@ -76,7 +82,24 @@ impl SessionSettings {
         config: &mut ssh_clipboard::configuration::Configuration,
     ) -> Result<(), String> {
         self.validate()?;
+        let id = if let Some(id) = &self.profile_id {
+            if !config.profiles.iter().any(|p| &p.id == id) {
+                return Err("This connection no longer exists. Discard your draft to reload saved settings.".into());
+            }
+            id.clone()
+        } else {
+            if self.target.trim().is_empty() {
+                return Err("Enter an SSH alias or user@host for the new connection.".into());
+            }
+            let profile =
+                ssh_clipboard::configuration::Profile::new(self.profile_name.trim().into());
+            let id = profile.id.clone();
+            config.profiles.push(profile);
+            id
+        };
+        config.default_profile = id;
         let profile = config.selected_profile_mut().map_err(|e| e.to_string())?;
+        profile.name = self.profile_name.trim().into();
         profile.target = self.target.clone();
         profile.port = self.port;
         profile.identity_file = self.identity_file.clone();
@@ -88,6 +111,9 @@ impl SessionSettings {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        if self.profile_name.trim().is_empty() || self.profile_name.chars().any(char::is_control) {
+            return Err("Enter a connection name without control characters.".into());
+        }
         ssh_clipboard::configuration::validate_connection(
             self.target.trim(),
             self.port,
@@ -120,6 +146,28 @@ impl SessionSettings {
             timeout_ms: 7000,
             resync_frames: true,
             resync_max_bytes: 8192,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionProfile {
+    pub id: String,
+    pub name: String,
+    pub target: String,
+    pub port: Option<u16>,
+    pub identity_file: String,
+}
+
+impl From<&ssh_clipboard::configuration::Profile> for ConnectionProfile {
+    fn from(profile: &ssh_clipboard::configuration::Profile) -> Self {
+        Self {
+            id: profile.id.clone(),
+            name: profile.name.clone(),
+            target: profile.target.clone(),
+            port: profile.port,
+            identity_file: profile.identity_file.clone(),
         }
     }
 }
@@ -219,6 +267,28 @@ fn truncate(text: &str, limit: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_or_last_profile_cannot_be_removed_or_recreated_by_a_stale_edit() {
+        let mut config = ssh_clipboard::configuration::Configuration::default();
+        let original = config.clone();
+        assert!(config.remove_profile("missing").is_err());
+        assert!(config.remove_profile("default").is_err());
+        let stale = SessionSettings {
+            profile_id: Some("missing".into()),
+            target: "stale-hub".into(),
+            ..Default::default()
+        };
+        assert!(stale.update_configuration(&mut config).is_err());
+        assert_eq!(config, original);
+
+        let empty = SessionSettings {
+            profile_id: None,
+            ..Default::default()
+        };
+        assert!(empty.update_configuration(&mut config).is_err());
+        assert_eq!(config, original);
+    }
 
     #[test]
     fn settings_round_trip_preserves_profile_identity_and_other_profiles() {

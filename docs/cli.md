@@ -23,6 +23,8 @@ ssh_clipboard settings select-profile second
 
 `settings set` changes supplied fields only: `--target`, `--name`, `--port`, `--identity-file`, `--clear-port`, `--clear-identity-file`, `--show-preview true|false`, `--close-after-copy true|false`. `--settings-file <path>` selects a separate file for these commands. Corrupt or concurrently modified settings are preserved and reported; Show never creates a default file.
 
+`settings remove-profile <id>` removes a local connection profile. Removing the selected profile selects the first remaining profile in saved order; removing an inactive profile keeps the current selection. Missing or last-profile removal fails without writing. Servers and clipboard contents are untouched.
+
 Advanced Set flags are `--ssh-option` (repeatable, appended), `--clear-ssh-options`, `--ssh-bin`, `--clear-ssh-bin`, `--max-size`, `--timeout-ms`, `--resync-frames true|false`, `--resync-max-bytes`, and `--device-name`. Connection policy must remain valid; a settings-file size/timeout/resync budget of zero is rejected.
 
 `settings migrate-agent [--legacy-file <path>]` initializes only missing shared settings and saves an exact legacy backup. Existing shared settings win. Default desktop startup/target-less CLI discovery can do this automatically; custom files require the explicit command. Schema 1 prototype settings upgrade in memory and get an exact backup before schema 2 is saved. See [migration/recovery](configuration-migration.md) before returning to an older prototype binary.

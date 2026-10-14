@@ -2,6 +2,8 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 export interface Settings {
+  profileId: string | null;
+  profileName: string;
   target: string;
   port: number | null;
   identityFile: string;
@@ -11,8 +13,17 @@ export interface Settings {
   closeAfterCopy: boolean;
 }
 
+export interface ConnectionProfile {
+  id: string;
+  name: string;
+  target: string;
+  port: number | null;
+  identityFile: string;
+}
+
 export interface PanelView {
   settings: Settings;
+  profiles: ConnectionProfile[];
   item: null | {
     kind: "text" | "image";
     label: string;
@@ -36,7 +47,8 @@ export interface PanelView {
 }
 
 export const initialView: PanelView = {
-  settings: { target: "", port: null, identityFile: "", openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, showPreview: true, closeAfterCopy: false },
+  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, showPreview: true, closeAfterCopy: false },
+  profiles: [{ id: "default", name: "Default", target: "", port: null, identityFile: "" }],
   item: null,
   connected: false,
   clipboardChecked: false,

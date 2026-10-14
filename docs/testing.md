@@ -66,6 +66,7 @@ sudo apt-get install -y \
 - **Shared CLI configuration**: JSON/store parity across executable launches, profile addition/selection, direct destination and override precedence, rejected/corrupt edits, relative paths, and missing-profile failure before SSH/clipboard access. Use `--settings-file` with a temporary path so probes never alter real settings.
 - **Headless boundary**: shared PNG/action tests run without `arboard`; executable checks reject unsupported OS clipboard actions before SSH. CI guards the Linux dependency tree against desktop libraries. See [build variants](build-variants.md).
 - **Migration**: exact original/backup bytes, schema 1 read-only upgrade and first-write backup, schema 2 strictness, current-agent serialization, repeat import, backup conflict/retry, shared-file precedence, stable device IDs, advanced overrides, and retained startup/direct-shortcut choices. These use temporary files; they do not import the user's real agent file. See [migration/recovery](configuration-migration.md).
+- **Desktop profiles**: real temporary-store create/rename/select/remove flows, independent defaults, retained global preferences and device identity, snapshot clearing for same-target profiles, stale-save rejection before activation, abandoned saves, and replacement rollback. Rendered controls check draft selection, creation cancellation, confirmation, removal failure, and external-deletion recovery. Native profile controls remain a separate smoke test.
 
 ## Notes
 - Some tests are Linux-only (`#[cfg(test)]` in `src/daemon.rs`).

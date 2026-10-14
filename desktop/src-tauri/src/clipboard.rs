@@ -8,7 +8,8 @@ use ssh_clipboard::client_actions::{
 #[cfg(test)]
 use ssh_clipboard::protocol::DEFAULT_MAX_SIZE;
 use ssh_clipboard::protocol::{CONTENT_TYPE_PNG, ClipboardValue, Response, ResponseKind};
-use std::sync::{Mutex, mpsc};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread::JoinHandle;
 use tokio::sync::oneshot;
 
@@ -136,19 +137,36 @@ impl ClipboardAccess for NativeClipboard {
     }
 }
 
+// The owner thread, rather than its async caller, releases admission. Dropping a
+// cancelled caller must not allow a later clipboard write to queue behind its read.
+struct Permit(Arc<AtomicBool>);
+
+impl Drop for Permit {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
 enum Job {
     Read(
         usize,
         usize,
         oneshot::Sender<Result<ClipboardValue, String>>,
+        Permit,
     ),
-    Write(ClipboardValue, usize, oneshot::Sender<Result<(), String>>),
+    Write(
+        ClipboardValue,
+        usize,
+        oneshot::Sender<Result<(), String>>,
+        Permit,
+    ),
     Stop,
 }
 
 pub struct ClipboardWorker {
     sender: mpsc::SyncSender<Job>,
     thread: Mutex<Option<JoinHandle<()>>>,
+    busy: Arc<AtomicBool>,
 }
 
 impl ClipboardWorker {
@@ -177,7 +195,7 @@ impl ClipboardWorker {
                         Ok(())
                     };
                     match job {
-                        Job::Read(max_size, max_decoded, reply) => {
+                        Job::Read(max_size, max_decoded, reply, permit) => {
                             let result = init
                                 .map_err(|err| format!("Clipboard unavailable: {err}"))
                                 .and_then(|()| {
@@ -187,9 +205,10 @@ impl ClipboardWorker {
                                         max_decoded,
                                     )
                                 });
+                            drop(permit);
                             let _ = reply.send(result);
                         }
-                        Job::Write(value, max_decoded, reply) => {
+                        Job::Write(value, max_decoded, reply, permit) => {
                             let result = init
                                 .map_err(|err| format!("Clipboard unavailable: {err}"))
                                 .and_then(|()| {
@@ -203,6 +222,7 @@ impl ClipboardWorker {
                                     )
                                     .map_err(|err| err.message)
                                 });
+                            drop(permit);
                             let _ = reply.send(result);
                         }
                         Job::Stop => break,
@@ -213,7 +233,18 @@ impl ClipboardWorker {
         Ok(Self {
             sender,
             thread: Mutex::new(Some(thread)),
+            busy: Arc::new(AtomicBool::new(false)),
         })
+    }
+
+    fn reserve(&self) -> Result<Permit, String> {
+        self.busy
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map(|_| Permit(self.busy.clone()))
+            .map_err(|_| {
+                "Clipboard worker is still finishing an operation. Try again when it finishes."
+                    .into()
+            })
     }
 
     pub async fn read(&self, max_size: usize) -> Result<ClipboardValue, String> {
@@ -226,9 +257,10 @@ impl ClipboardWorker {
         max_size: usize,
         max_decoded: usize,
     ) -> Result<ClipboardValue, String> {
+        let permit = self.reserve()?;
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Job::Read(max_size, max_decoded, reply))
+            .try_send(Job::Read(max_size, max_decoded, reply, permit))
             .map_err(|_| "Clipboard worker is busy or unavailable.".to_string())?;
         receive
             .await
@@ -245,9 +277,10 @@ impl ClipboardWorker {
         value: ClipboardValue,
         max_decoded: usize,
     ) -> Result<(), String> {
+        let permit = self.reserve()?;
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Job::Write(value, max_decoded, reply))
+            .try_send(Job::Write(value, max_decoded, reply, permit))
             .map_err(|_| "Clipboard worker is busy or unavailable.".to_string())?;
         receive
             .await
@@ -388,6 +421,93 @@ mod tests {
         assert!(error.contains("11.00 MiB"));
         assert!(error.contains("10485760 bytes"));
         assert!(error.contains("Copy less text"));
+    }
+
+    #[tokio::test]
+    async fn cancelled_read_keeps_admission_until_native_work_finishes() {
+        struct GatedClipboard {
+            started: Option<oneshot::Sender<()>>,
+            release: mpsc::Receiver<()>,
+            writes: Arc<AtomicUsize>,
+        }
+        impl ClipboardAccess for GatedClipboard {
+            fn read_text(&mut self) -> Result<String> {
+                if let Some(started) = self.started.take() {
+                    let _ = started.send(());
+                    self.release.recv()?;
+                }
+                Ok("captured once".into())
+            }
+            fn read_image(&mut self) -> Result<ImageData<'static>> {
+                Err(eyre::eyre!("unused"))
+            }
+            fn write_text(&mut self, _: &str) -> Result<()> {
+                self.writes.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }
+            fn write_image(&mut self, _: ImageData<'static>) -> Result<()> {
+                Err(eyre::eyre!("unused"))
+            }
+        }
+        // Release even when an assertion fails, so joining the native worker cannot hang.
+        struct Release(Option<mpsc::Sender<()>>);
+        impl Drop for Release {
+            fn drop(&mut self) {
+                if let Some(sender) = self.0.take() {
+                    let _ = sender.send(());
+                }
+            }
+        }
+        let (started, receive_started) = oneshot::channel();
+        let (release, receive_release) = mpsc::channel();
+        let writes = Arc::new(AtomicUsize::new(0));
+        let mut native = Some(GatedClipboard {
+            started: Some(started),
+            release: receive_release,
+            writes: writes.clone(),
+        });
+        let worker = ClipboardWorker::start_with(move || Ok(native.take().unwrap())).unwrap();
+        let release = Release(Some(release));
+        {
+            let read = worker.read(1024);
+            tokio::pin!(read);
+            tokio::select! {
+                result = &mut read => panic!("native read must still be blocked: {result:?}"),
+                result = receive_started => result.unwrap(),
+            }
+            // Cancel the waiting future while its native owner is still inside read_text.
+        }
+        let value = build_text_value("explicit write".into(), 1024).unwrap();
+        assert!(
+            worker
+                .read(1024)
+                .await
+                .unwrap_err()
+                .contains("still finishing")
+        );
+        assert!(
+            worker
+                .write(value.clone())
+                .await
+                .unwrap_err()
+                .contains("still finishing")
+        );
+        assert_eq!(writes.load(Ordering::SeqCst), 0);
+        drop(release);
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while worker.busy.load(Ordering::Acquire) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            writes.load(Ordering::SeqCst),
+            0,
+            "cancelled work must not queue a write"
+        );
+        worker.write(value).await.unwrap();
+        assert_eq!(writes.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

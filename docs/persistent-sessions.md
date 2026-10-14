@@ -22,6 +22,8 @@ Operations take the connection out of the cache before awaiting and return it on
 
 Share freezes exactly one capture before waiting for SSH. A later clipboard change must not replace it after a slow connection. Local policy bounds capture; negotiated limits then check the frozen bytes and native RGBA8 PNG descriptor before upload. A narrower limit/failure never triggers another sample, resizing, or replay. Preparation dimensions stay out of preview IPC.
 
+Native clipboard admission belongs to the owner-thread job. An atomic permit rejects additional reads/writes until that job finishes, even if its async caller was dropped. A bounded channel alone allows a later write to queue behind a cancelled read; never treat dropping the receiver as stopping OS work. Release admission before delivering the result so the next explicit action can proceed immediately. Already running native work remains synchronous and cannot be forcibly interrupted.
+
 ## Failure and Cleanup
 
 Typed rejections can retain a healthy stream. Partial/malformed replies, timeout, process loss, or epoch change invalidate it. Failed connections close pipes, kill/reap the direct child under a separate two-second bound, and finish/abort diagnostics. Explicit Close allows bounded shutdown/normal exit and kills a stuck child. Synchronous invalidation/drop kills and aborts immediately, with Tokio's best-effort drop reaping.
@@ -33,6 +35,8 @@ Pending payload retention/reconciliation, background state/backoff, subscription
 ## Evidence and Fixture Guardrails
 
 Portable subprocess probes cover several requests on one child, flooded-but-bounded stderr, uncertainty/epoch retention and reaping after a lost acknowledgment, and cancellation of a reader taken for cleanup. A desktop fake-clipboard probe checks one capture precedes SSH failure and no clipboard write occurs.
+
+A gated native clipboard probe drops the async reader while the owner remains blocked, rejects later reads/writes without queueing, then releases the owner and verifies only a newly requested write executes. This verifies cancellation admission without touching the OS clipboard.
 
 A native WSL probe shares/lists/fetches/checks health through one real proxy launch, kills/restarts the disposable daemon, verifies no hidden replacement/replay, then explicitly opens a new empty epoch. This is local process/socket evidence, not remote SSH/native paste acceptance.
 

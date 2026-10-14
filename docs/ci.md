@@ -26,6 +26,8 @@ The server job installs no GUI prerequisites and rejects OS clipboard/tray/hotke
 
 Linux-only maintenance code must pass warnings-as-errors on the CI toolchain as well as Windows checks. Use `Err(eyre!(...))` for match-result expressions, or a statement block with `bail!(...);`: the pinned eyre macro emits a trailing semicolon that Rust rejects in expression position. Older local Linux toolchains may miss this diagnostic.
 
+Process-backed timeout fixtures must allow Windows PowerShell to start and drain their synthetic stderr before the operation assertion. The persistent-connection uncertainty probe uses the shared ten-second fixture budget rather than three seconds; it still requires an unacknowledged mutation timeout, retained epoch and reaped child. Production timeout defaults are unchanged.
+
 ## Desktop Prototype Checks
 
 The `desktop` job checks the isolated Phase 1 prototype on Windows, macOS, and Linux. It uses Node.js 24, the committed npm/Cargo lockfiles, Svelte type/build checks, rendered frontend interaction tests, Rust formatting/lint/tests, and `npm run build:prototype` for a standalone executable with an embedded-asset check. Linux installs WebKitGTK 4.1 and tray/clipboard build dependencies. This job does not publish artifacts or run a native GUI session; OS clipboard/paste and focus/shortcut behavior need separate evidence in [desktop-prototype.md](desktop-prototype.md).

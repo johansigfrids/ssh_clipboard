@@ -12,6 +12,8 @@ Document the protocol framing and message types used between:
 - `src/daemon.rs`
 
 ## Framing
+
+This page describes the current version 2 endpoint. The new [shelf core](shelf-core.md) is implemented separately and has not changed these serialized enums or endpoint bytes. A separate negotiated session/bootstrap contract and fixtures must land before exposing its item-aware operations.
 Each request/response is **one-shot** per connection/session.
 
 Wire format:

@@ -78,6 +78,8 @@ sudo apt-get install -y \
 
 ## Native Test Scheduling
 
+The standalone shelf core has synthetic [resource/behavior probes](shelf-core.md#evidence-and-integration-work). These do not establish daemon integration or Linux socket/ownership behavior.
+
 Manual Windows testing is grouped at larger milestones: daily clipboard/settings/reconnect use, OS integration/installation, and signed updates/recovery. Continue automated implementation and commit usable slices between these passes. Individual advanced-settings and diagnostic UI checks are deferred into the next daily-use pass; do not ask for a new manual check after every small commit. Focused repeats are appropriate when a native failure needs confirmation. Other platforms still need their own supported-platform evidence.
 
 Optional direct shortcuts join the daily-use pass. [Shortcut evidence](desktop-shortcuts.md#evidence-and-remaining-checks) separates automated registry/recorder probes from native background transfers, focus suppression, and occupied-key checks.

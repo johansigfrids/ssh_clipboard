@@ -3,6 +3,7 @@ pub mod client_actions;
 pub mod configuration;
 pub mod framing;
 pub mod protocol;
+pub mod shelf;
 
 #[cfg(target_os = "linux")]
 pub mod daemon;

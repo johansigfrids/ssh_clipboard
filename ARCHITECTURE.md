@@ -33,6 +33,8 @@ The new prototype has a compact panel, explicit share/refresh/copy, inert text/i
 
 The rework one-shot core now validates correlated reply kinds, drains SSH stderr concurrently with bounded retention, uses one operation deadline, and kills/reaps failed or timed-out direct SSH children. Typed failures and a metadata-only shared diagnostic service replace raw stderr reporting. CLI doctor uses only the proxy protocol and distinguishes verified, failed, and unverified steps, including with proxy-only keys; see [connection diagnostics](docs/connection-diagnostics.md). Persistent sessions, subscriptions, reconnection, and a Cancel control remain planned.
 
+A platform-independent shelf core now implements bounded upload reservations, immutable fetched leases, stable item/epoch IDs, server ordering, monotonic expiry/eviction, and bounded retry deduplication. It is not yet connected to the daemon or UI; the current single-value service and version 2 endpoint are unchanged. See [core contracts and integration gaps](docs/shelf-core.md).
+
 ## Target Product Contract
 
 - A compact **quick panel** is the primary interface. The tray/menu and normal application launcher open it; one configurable shortcut opens it too.

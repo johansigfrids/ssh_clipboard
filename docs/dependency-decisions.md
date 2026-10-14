@@ -68,6 +68,10 @@ Shared PNG/image actions use a library-owned RGBA type. OS clipboard access is o
 
 Use Tauri's notification plugin behind Rust-only application commands, pinned in the separate desktop lockfile. Keep notification bodies static and private. Windows portable/debug builds must retain panel fallback until stable installed identity exists; the plugin's desktop permission stub does not verify OS settings or delivery. See [feedback contracts and native gaps](desktop-notifications.md).
 
+## Shelf Retry Fingerprints
+
+Use SHA-256 (`sha2` 0.10, locked) for bounded, content/metadata-sensitive retry records without retaining duplicate payloads. Domain-separate and length-delimit the captured upload fields. These fingerprints detect operation-ID reuse; they are not update signatures or a replacement for SSH authentication. See [shelf retry guarantees](shelf-core.md#retry-guarantees).
+
 ## Update Triggers
 
 - Desktop prototype/framework selection and native platform results.

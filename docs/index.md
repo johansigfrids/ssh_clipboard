@@ -17,6 +17,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [ARCHITECTURE.md](../ARCHITECTURE.md): Current system and planned rework architecture.
 - [docs/implementation-plan.md](implementation-plan.md): Phased quick-panel, settings, shelf, transport, and signed-update rework, with migration and acceptance checks.
 - [docs/desktop-prototype.md](desktop-prototype.md): Phase 1 source-build prototype, controls, limitations, and platform validation status.
+- [docs/desktop-shortcuts.md](desktop-shortcuts.md): Optional direct transfers, safe recording, grouped registration, and recovery.
 - [docs/shared-configuration.md](shared-configuration.md): Shared store, desktop profiles/advanced policy, CLI overrides, live reload, and save/recovery contracts.
 - [docs/configuration-migration.md](configuration-migration.md): Legacy/prototype migration, exact backups, schema 2 settings, preserved preferences, and recovery.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.

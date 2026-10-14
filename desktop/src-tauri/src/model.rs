@@ -43,6 +43,9 @@ pub struct SessionSettings {
     pub transport: TransportDraft,
     pub open_shortcut: String,
     pub shortcut_enabled: bool,
+    pub direct_shortcuts_enabled: bool,
+    pub direct_share_shortcut: Option<String>,
+    pub direct_copy_shortcut: Option<String>,
     pub show_preview: bool,
     pub close_after_copy: bool,
 }
@@ -58,6 +61,9 @@ impl Default for SessionSettings {
             transport: TransportDraft::default(),
             open_shortcut: "CommandOrControl+Shift+V".into(),
             shortcut_enabled: !is_wayland(),
+            direct_shortcuts_enabled: false,
+            direct_share_shortcut: None,
+            direct_copy_shortcut: None,
             show_preview: true,
             close_after_copy: false,
         }
@@ -78,6 +84,9 @@ impl SessionSettings {
             transport: TransportDraft::from(&profile.transport),
             open_shortcut: config.preferences.open_shortcut.clone(),
             shortcut_enabled: config.preferences.shortcut_enabled,
+            direct_shortcuts_enabled: config.preferences.direct_shortcuts_enabled,
+            direct_share_shortcut: config.preferences.direct_share_shortcut.clone(),
+            direct_copy_shortcut: config.preferences.direct_copy_shortcut.clone(),
             show_preview: config.preferences.show_preview,
             close_after_copy: config.preferences.close_after_copy,
         })
@@ -113,6 +122,9 @@ impl SessionSettings {
         profile.transport = transport;
         config.preferences.open_shortcut = self.open_shortcut.clone();
         config.preferences.shortcut_enabled = self.shortcut_enabled;
+        config.preferences.direct_shortcuts_enabled = self.direct_shortcuts_enabled;
+        config.preferences.direct_share_shortcut = self.direct_share_shortcut.clone();
+        config.preferences.direct_copy_shortcut = self.direct_copy_shortcut.clone();
         config.preferences.show_preview = self.show_preview;
         config.preferences.close_after_copy = self.close_after_copy;
         Ok(())
@@ -298,6 +310,7 @@ mod tests {
         let mut config = ssh_clipboard::configuration::Configuration::default();
         config.preferences.start_at_login = true;
         config.preferences.direct_share_shortcut = Some("Ctrl+Alt+KeyC".into());
+        config.preferences.direct_copy_shortcut = Some("Ctrl+Alt+KeyV".into());
         config.profiles[0].transport.timeout_ms = 9000;
         let mut other = config.profiles[0].clone();
         other.id = "other".into();
@@ -310,6 +323,7 @@ mod tests {
             port: Some(2222),
             show_preview: false,
             close_after_copy: true,
+            direct_shortcuts_enabled: true,
             ..SessionSettings::from_configuration(&config).unwrap()
         };
         settings.update_configuration(&mut config).unwrap();
@@ -319,6 +333,11 @@ mod tests {
         assert_eq!(restored.identity_file, settings.identity_file);
         assert!(!restored.show_preview);
         assert!(restored.close_after_copy);
+        assert!(restored.direct_shortcuts_enabled);
+        assert_eq!(
+            restored.direct_copy_shortcut.as_deref(),
+            Some("Ctrl+Alt+KeyV")
+        );
         assert_eq!(config.profiles[0].id, "default");
         assert_eq!(config.default_profile, "default");
         assert_eq!(config.profiles[1], other);

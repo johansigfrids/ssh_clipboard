@@ -2,11 +2,15 @@ use crate::clipboard::ClipboardWorker;
 use crate::model::{
     ConnectionProfile, ItemPreview, SessionSettings, is_wayland, validate_transfer_size,
 };
+use crate::shortcuts::{Action, Bindings, Registry};
 use serde::Serialize;
 use ssh_clipboard::client::diagnostics::{ConnectionReport, diagnose, server_problem};
 use ssh_clipboard::client::transport::{make_request, send_request};
 use ssh_clipboard::configuration::{ConfigStore, Configuration};
 use ssh_clipboard::protocol::{ClipboardValue, ErrorCode, RequestKind, ResponseKind};
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tokio::sync::Mutex;
@@ -15,7 +19,7 @@ struct Session {
     settings: SessionSettings,
     item: Option<ClipboardValue>,
     clipboard_checked: bool,
-    shortcut_active: Option<String>,
+    shortcuts: Bindings,
     shortcut_status: String,
     tray_status: String,
     connected: bool,
@@ -25,7 +29,9 @@ struct Session {
 }
 
 struct Desktop {
-    session: Mutex<Session>,
+    session: Arc<Mutex<Session>>,
+    pressed_shortcuts: StdMutex<HashSet<u32>>,
+    recording_shortcut: AtomicBool,
     clipboard: ClipboardWorker,
     config_store: Option<ConfigStore>,
 }
@@ -99,10 +105,10 @@ impl Session {
             settings_saved: self.saved_config.is_some(),
             settings_writable: self.settings_notice.is_none(),
             settings_notice: self.settings_notice.clone(),
-            active_shortcut: self.shortcut_active.clone(),
+            active_shortcut: self.shortcuts.open_label(),
             settings_revision: self.saved_config.as_ref().map(|c| c.revision.to_string()),
             migration_summary: self.saved_config.as_ref().and_then(|c| c.legacy_import.as_ref())
-                .map(|_| "Imported your existing connection and preferences and saved a backup. Start-at-login and direct-shortcut choices are retained for the later desktop setup."),
+                .map(|_| "Imported your existing connection and preferences and saved a backup. Review retained direct shortcuts before enabling them. Start-at-login is retained for the later desktop setup."),
         })
     }
 
@@ -217,51 +223,41 @@ async fn get_panel(state: State<'_, Desktop>) -> Result<PanelView, String> {
     state.session.lock().await.view()
 }
 
+#[tauri::command]
+fn set_shortcut_recording(state: State<'_, Desktop>, active: bool) {
+    // Independent of the transfer lock: losing focus while recording must not start a share.
+    state.recording_shortcut.store(active, Ordering::SeqCst);
+}
+
 fn configure_shortcut(
     app: &AppHandle,
     session: &mut Session,
     next: &SessionSettings,
 ) -> Result<String, String> {
-    if next.shortcut_enabled && is_wayland() {
+    if is_wayland() {
         // Preserve the saved preference across platforms, while allowing other settings to be edited.
         return Ok("Wayland: use the launcher or tray menu. Portal support is pending.".into());
     }
-    let requested = next.shortcut_enabled.then_some(next.open_shortcut.clone());
-    if requested == session.shortcut_active {
-        return Ok(if requested.is_some() {
-            "Registered"
-        } else {
-            "Disabled"
+    struct NativeRegistry<'a>(&'a AppHandle);
+    impl Registry for NativeRegistry<'_> {
+        fn register(&mut self, shortcut: Shortcut) -> Result<(), ()> {
+            self.0.global_shortcut().register(shortcut).map_err(|_| ())
         }
-        .into());
-    }
-    if let Some(binding) = &requested {
-        let shortcut: Shortcut = binding
-            .parse()
-            .map_err(|_| "Choose a valid shortcut with a modifier and a key.".to_string())?;
-        if shortcut.mods.is_empty() {
-            return Err("Choose a shortcut with Ctrl/Cmd, Alt, or Shift and a key.".into());
+        fn unregister(&mut self, shortcut: Shortcut) -> Result<(), ()> {
+            self.0
+                .global_shortcut()
+                .unregister(shortcut)
+                .map_err(|_| ())
         }
-        app.global_shortcut().register(binding.as_str())
-            .map_err(|_| "That shortcut could not be registered. It may be in use; choose another or disable it.".to_string())?;
     }
-    if let Some(previous) = &session.shortcut_active
-        && app.global_shortcut().unregister(previous.as_str()).is_err()
-    {
-        if let Some(binding) = &requested {
-            let _ = app.global_shortcut().unregister(binding.as_str());
+    let desired = Bindings::requested(next)?;
+    match session.shortcuts.replace(desired, &mut NativeRegistry(app)) {
+        Ok(status) => Ok(status),
+        Err(error) => {
+            session.shortcut_status = error.clone();
+            Err(error)
         }
-        return Err(
-            "Could not replace the existing shortcut. Previous settings remain active.".into(),
-        );
     }
-    session.shortcut_active = requested;
-    Ok(if session.shortcut_active.is_some() {
-        "Registered"
-    } else {
-        "Disabled"
-    }
-    .into())
 }
 
 #[tauri::command]
@@ -313,7 +309,10 @@ fn save_configuration(
         Err(error) => {
             session.shortcut_status = match configure(session, &previous_settings) {
                 Ok(status) => status,
-                Err(_) => "Could not restore the previous shortcut. Quit and reopen to restore saved settings.".into(),
+                Err(_) => {
+                    session.shortcuts.suspend_direct();
+                    "Could not restore previous shortcuts. Direct actions are paused. Quit and reopen to restore saved settings.".into()
+                }
             };
             return Err(error.to_string());
         }
@@ -425,7 +424,12 @@ async fn refresh_item(
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
-    match request(&mut session, RequestKind::Get).await? {
+    fetch_item(&mut session).await?;
+    session.view()
+}
+
+async fn fetch_item(session: &mut Session) -> Result<(), String> {
+    match request(session, RequestKind::Get).await? {
         ResponseKind::Value { value } => {
             ItemPreview::from_value(&value, session.settings.show_preview)?;
             session.item = Some(value);
@@ -434,7 +438,7 @@ async fn refresh_item(
         _ => return Err("Unexpected server response to refresh.".into()),
     }
     session.clipboard_checked = true;
-    session.view()
+    Ok(())
 }
 
 #[tauri::command]
@@ -447,14 +451,16 @@ async fn share_clipboard(
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
+    share_current(&mut session, &state.clipboard).await?;
+    session.view()
+}
+
+async fn share_current(session: &mut Session, clipboard: &ClipboardWorker) -> Result<(), String> {
     session.settings.validate_connection()?;
-    let value = state
-        .clipboard
-        .read(session.client_config()?.max_size)
-        .await?;
+    let value = clipboard.read(session.client_config()?.max_size).await?;
     ItemPreview::from_value(&value, session.settings.show_preview)?;
     match request(
-        &mut session,
+        session,
         RequestKind::Set {
             value: value.clone(),
         },
@@ -465,7 +471,113 @@ async fn share_clipboard(
         _ => return Err("Unexpected server response to share.".into()),
     }
     session.clipboard_checked = true;
-    session.view()
+    Ok(())
+}
+
+// Direct actions are explicit background gestures. While this window has focus, send
+// keys to the recorder instead; never transfer while someone is configuring shortcuts.
+fn panel_focused(app: &AppHandle) -> bool {
+    app.get_webview_window("main")
+        .is_none_or(|window| window.is_focused().unwrap_or(true))
+}
+
+fn handle_shortcut(
+    app: &AppHandle,
+    shortcut: &Shortcut,
+    event: tauri_plugin_global_shortcut::ShortcutEvent,
+) {
+    let Some(state) = app.try_state::<Desktop>() else {
+        return;
+    };
+    let Ok(mut pressed) = state.pressed_shortcuts.lock() else {
+        return;
+    };
+    if event.state() == ShortcutState::Released {
+        pressed.remove(&shortcut.id());
+        return;
+    }
+    if !pressed.insert(shortcut.id()) {
+        return;
+    }
+    drop(pressed);
+    // Reserve the operation immediately. Never queue captures behind an earlier transfer
+    // or a profile change, and dispatch only from the actual committed registration map.
+    let Ok(mut session) = state.session.clone().try_lock_owned() else {
+        return;
+    };
+    let Some(action) = session.shortcuts.action(shortcut.id()) else {
+        return;
+    };
+    if state.recording_shortcut.load(Ordering::SeqCst) || panel_focused(app) {
+        #[derive(Clone, Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Press {
+            binding: String,
+            open_panel: bool,
+        }
+        let _ = app.emit(
+            "shortcut-pressed",
+            Press {
+                binding: shortcut.to_string(),
+                open_panel: action == Action::Open,
+            },
+        );
+        return;
+    }
+    if action == Action::Open {
+        drop(session);
+        show_panel(app, false);
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if app
+            .state::<Desktop>()
+            .recording_shortcut
+            .load(Ordering::SeqCst)
+            || panel_focused(&app)
+        {
+            return;
+        }
+        let state = app.state::<Desktop>();
+        let result = if session.settings_notice.is_some() {
+            Err("Repair the saved settings before using direct shortcuts.".into())
+        } else {
+            match action {
+                Action::Share => share_current(&mut session, &state.clipboard).await,
+                Action::Copy => match fetch_item(&mut session).await {
+                    Ok(()) => match session.item.clone() {
+                        Some(value) => state.clipboard.write(value).await,
+                        None => Err(
+                            "The shared clipboard is empty. Your clipboard was left unchanged."
+                                .into(),
+                        ),
+                    },
+                    Err(error) => Err(error),
+                },
+                Action::Open => unreachable!(),
+            }
+        };
+        drop(session);
+        let _ = app.emit("settings-changed", ());
+        // Until native notification controls land, show an explicit result in the panel.
+        show_panel(&app, false);
+        match result {
+            Ok(()) => {
+                let _ = app.emit(
+                    "operation-complete",
+                    if action == Action::Share {
+                        "Current clipboard shared."
+                    } else {
+                        "Shared clipboard copied to this computer."
+                    },
+                );
+            }
+            Err(error) => {
+                let _ = app.emit("operation-notice", error);
+            }
+        }
+    });
 }
 
 #[tauri::command]
@@ -577,11 +689,7 @@ pub fn run() {
     if !is_wayland() {
         builder = builder.plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _, event| {
-                    if event.state() == ShortcutState::Pressed {
-                        show_panel(app, false);
-                    }
-                })
+                .with_handler(handle_shortcut)
                 .build(),
         );
     }
@@ -603,7 +711,7 @@ pub fn run() {
                 settings: settings.clone(),
                 item: None,
                 clipboard_checked: false,
-                shortcut_active: None,
+                shortcuts: Bindings::default(),
                 shortcut_status: "Disabled".into(),
                 tray_status: "Available".into(),
                 connected: false,
@@ -618,7 +726,9 @@ pub fn run() {
                     .unwrap_or_else(|message| message)
             };
             app.manage(Desktop {
-                session: Mutex::new(session),
+                session: Arc::new(Mutex::new(session)),
+                pressed_shortcuts: StdMutex::new(HashSet::new()),
+                recording_shortcut: AtomicBool::new(false),
                 clipboard: ClipboardWorker::start()?,
                 config_store,
             });
@@ -638,6 +748,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_panel,
+            set_shortcut_recording,
             apply_settings,
             remove_profile,
             test_connection,
@@ -922,6 +1033,39 @@ mod tests {
     }
 
     #[test]
+    fn failed_file_and_shortcut_restoration_suspend_direct_dispatch() {
+        let (directory, store, mut session) = persisted_session();
+        let path = directory.path().join("settings.json");
+        let original = session.saved_config.clone().unwrap();
+        let mut next = original.clone();
+        next.preferences.direct_shortcuts_enabled = true;
+        next.preferences.direct_share_shortcut = Some("Ctrl+Alt+C".into());
+        let mut first = true;
+        assert!(
+            save_configuration(&mut session, &store, next, |session, settings| {
+                if first {
+                    first = false;
+                    session.shortcuts = Bindings::requested(settings).unwrap();
+                    std::fs::remove_file(&path).unwrap();
+                    std::fs::create_dir(&path).unwrap();
+                    Ok("Registered".into())
+                } else {
+                    Err("Injected OS restoration failure".into())
+                }
+            })
+            .is_err()
+        );
+        assert_eq!(session.saved_config, Some(original));
+        let share: Shortcut = "Ctrl+Alt+C".parse().unwrap();
+        assert_eq!(session.shortcuts.action(share.id()), None);
+        assert!(
+            session
+                .shortcut_status
+                .contains("Direct actions are paused")
+        );
+    }
+
+    #[test]
     fn imported_transport_is_used_and_gui_batch_mode_precedes_legacy_options() {
         let mut session = session();
         let settings = &mut session.saved_config.as_mut().unwrap().profiles[0].transport;
@@ -977,7 +1121,7 @@ mod tests {
             }),
             clipboard_checked: true,
             connected: true,
-            shortcut_active: Some("CommandOrControl+Shift+V".into()),
+            shortcuts: Bindings::requested(&SessionSettings::default()).unwrap(),
             shortcut_status: "Registered".into(),
             tray_status: "Available".into(),
         }

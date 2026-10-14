@@ -14,5 +14,9 @@ export function shortcutFromEvent(event) {
 
 /** @param {string} shortcut */
 export function displayShortcut(shortcut) {
-  return shortcut.replace("CommandOrControl", "Ctrl/Cmd").replace("Control", "Ctrl").replace("Super", "Cmd").replace(/Key([A-Z])/g, "$1").replace(/Digit([0-9])/g, "$1").replaceAll("+", " + ");
+  const modifiers = { commandorcontrol: "Ctrl/Cmd", cmdorctrl: "Ctrl/Cmd", control: "Ctrl", ctrl: "Ctrl", super: "Cmd", alt: "Alt", shift: "Shift" };
+  return shortcut.split("+").map((token) => {
+    const key = token.trim();
+    return modifiers[/** @type {keyof typeof modifiers} */ (key.toLowerCase())] ?? key.replace(/^Key([A-Z])$/, "$1").replace(/^Digit([0-9])$/, "$1");
+  }).join(" + ");
 }

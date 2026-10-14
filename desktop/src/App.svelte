@@ -11,7 +11,11 @@
   let busy = $state(false);
   let message = $state("");
   let error = $state(false);
-  let recording = $state(false);
+  type ShortcutField = "openShortcut" | "directShareShortcut" | "directCopyShortcut";
+  let recording = $state<ShortcutField | null>(null);
+  let recordingRequested = $state(false);
+  let recordingEpoch = 0;
+  let recordingSync = Promise.resolve();
   let removingProfile = $state(false);
   let ready = $state(false);
   let content = $state<HTMLElement>();
@@ -27,7 +31,34 @@
 
   function inform(text: string, failed = false) { message = text; error = failed; }
 
-  function discardDraft() { draft = cloneSettings(view.settings); sshOptionsText = draft.transport.sshOptions.join("\n"); draftRevision = view.settingsRevision; recording = false; removingProfile = false; }
+  function discardDraft() { draft = cloneSettings(view.settings); sshOptionsText = draft.transport.sshOptions.join("\n"); draftRevision = view.settingsRevision; stopRecording(); removingProfile = false; }
+
+  function syncRecording(active: boolean) {
+    recordingSync = recordingSync.catch(() => {}).then(() => command<void>("set_shortcut_recording", { active }));
+    return recordingSync;
+  }
+
+  function stopRecording() {
+    recordingEpoch++;
+    recording = null;
+    if (!recordingRequested) return;
+    recordingRequested = false;
+    void syncRecording(false).catch(() => inform("Shortcut recording could not be reset. Quit and reopen before using direct shortcuts.", true));
+  }
+
+  async function startRecording(field: ShortcutField) {
+    if (!ready || busy) return;
+    if (recording === field) { stopRecording(); return; }
+    const epoch = ++recordingEpoch;
+    recording = null;
+    recordingRequested = true;
+    try {
+      await syncRecording(true);
+      if (epoch === recordingEpoch && !disposed) recording = field;
+    } catch (cause) {
+      if (epoch === recordingEpoch) { stopRecording(); inform(String(cause), true); }
+    }
+  }
 
   function chooseProfile(id: string) {
     if (dirty || busy || !ready) return;
@@ -98,7 +129,7 @@
 
   function navigate(next: string) {
     if (busy) return;
-    recording = false;
+    stopRecording();
     removingProfile = false;
     page = next;
     if (content) content.scrollTop = 0;
@@ -106,23 +137,30 @@
 
   function selectSection(next: string) {
     section = next;
-    recording = false;
+    stopRecording();
     removingProfile = false;
     if (content) content.scrollTop = 0;
   }
 
   function handleKey(event: KeyboardEvent) {
-    if (recording) {
+    if (recordingRequested) {
       event.preventDefault();
-      if (event.key === "Escape") { recording = false; return; }
+      if (event.repeat) return;
+      if (event.key === "Escape") { stopRecording(); return; }
       const shortcut = shortcutFromEvent(event);
-      if (shortcut) { draft.openShortcut = shortcut; recording = false; }
+      if (shortcut) recordShortcut(shortcut);
       return;
     }
     if (event.key === "Escape" && !busy) {
       if (page === "settings") navigate("panel");
       else void command("hide_panel").catch((cause) => inform(String(cause), true));
     }
+  }
+
+  function recordShortcut(binding: string) {
+    if (!recording || busy || !ready) return;
+    draft[recording] = binding;
+    stopRecording();
   }
 
   function formatSize(bytes: number) { return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KiB`; }
@@ -136,8 +174,12 @@
     void (async () => {
       try {
         // Subscribe before taking the initial snapshot so startup changes cannot be missed.
-        const unsubscribe = await subscribe(navigate, (text) => inform(text, true), () => {
+        const unsubscribe = await subscribe(navigate, inform, () => {
           if (!ready) reloadPending = true; else void reloadSavedSettings();
+        }, (binding, openPanel) => {
+          if (recording) recordShortcut(binding);
+          else if (openPanel) navigate("panel");
+          else inform("Direct shortcuts work while this app is in the background. Use the panel buttons here.");
         });
         if (disposed) unsubscribe(); else stop = unsubscribe;
       } catch { inform("Could not listen for tray or settings changes. Reopen through the launcher.", true); }
@@ -149,11 +191,11 @@
         if (reloadPending) void reloadSavedSettings();
       } catch (cause) { inform(cause instanceof Error ? cause.message : String(cause), true); }
     })();
-    return () => { disposed = true; stop(); };
+    return () => { disposed = true; stopRecording(); stop(); };
   });
 </script>
 
-<svelte:window onkeydown={handleKey} />
+<svelte:window onkeydown={handleKey} onblur={stopRecording} />
 
 <div class="app-shell">
   <header>
@@ -265,9 +307,18 @@
           <p class="section-intro">One shortcut opens the clipboard panel. You can also use the tray menu or launch the app.</p>
           <label class="toggle"><input type="checkbox" bind:checked={draft.shortcutEnabled} disabled={!ready || busy} />Enable Open panel shortcut</label>
           <label for="shortcut">Open panel</label>
-          <button id="shortcut" type="button" class:recording class="shortcut-recorder" disabled={!ready || !draft.shortcutEnabled || busy} onclick={() => recording = !recording}>{recording ? "Press a shortcut · Esc to cancel" : displayShortcut(draft.openShortcut)}</button>
+          <button id="shortcut" type="button" class:recording={recording === "openShortcut"} class="shortcut-recorder" disabled={!ready || !draft.shortcutEnabled || busy} onclick={() => startRecording("openShortcut")}>{recording === "openShortcut" ? "Press a shortcut · Esc to cancel" : displayShortcut(draft.openShortcut)}</button>
           <p class="field-help">{recording ? "Use Ctrl/Cmd or Alt with a key." : view.shortcutStatus}</p>
           <button type="button" class="text-button" disabled={!ready || busy} onclick={() => draft.openShortcut = "CommandOrControl+Shift+V"}>Restore default shortcut</button>
+          <h3>Optional direct shortcuts</h3>
+          <p class="field-help">Share or copy immediately while the app is in the background. While this window has focus, use the panel buttons. Each action opens the panel with its result.</p>
+          <label class="toggle"><input type="checkbox" bind:checked={draft.directShortcutsEnabled} disabled={!ready || busy || !view.shortcutAvailable} />Enable direct shortcuts</label>
+          {#each [["directShareShortcut", "Share current clipboard"], ["directCopyShortcut", "Copy shared clipboard"]] as [field, label]}
+            <label for={field}>{label}</label>
+            <button id={field} type="button" class:recording={recording === field} class="shortcut-recorder" disabled={!ready || !draft.directShortcutsEnabled || busy || !view.shortcutAvailable} onclick={() => startRecording(field as ShortcutField)}>{recording === field ? "Press a shortcut · Esc to cancel" : draft[field as ShortcutField] ? displayShortcut(draft[field as ShortcutField]!) : "Record shortcut"}</button>
+            {#if draft[field as ShortcutField]}<button type="button" class="text-button" disabled={!ready || busy} aria-label={`Clear ${label} shortcut`} onclick={() => { draft[field as "directShareShortcut" | "directCopyShortcut"] = null; stopRecording(); }}>Clear shortcut</button>{/if}
+          {/each}
+          <p class="field-help">Share sends the clipboard copied on this computer. Copy fetches the latest shared item and replaces this computer's clipboard. Recording a shortcut never transfers content.</p>
         {:else}
           <label class="toggle"><input type="checkbox" bind:checked={draft.showPreview} disabled={!ready || busy} />Show content previews</label>
           <p class="field-help">Hide text and image previews when sharing your screen.</p>
@@ -277,7 +328,7 @@
           <p class="field-help">Start at login and updates will be added after the desktop foundation is verified.</p>
         {/if}
         {#if staleDraft}<p class="field-help">Saved settings changed. Discard your draft to load them.</p>{/if}
-        <div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !view.settingsWritable || !dirty || staleDraft || busy || recording}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { discardDraft(); inform("Loaded current saved settings."); }}>Discard changes</button></div>
+        <div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { discardDraft(); inform("Loaded current saved settings."); }}>Discard changes</button></div>
       </form>
     {/if}
 

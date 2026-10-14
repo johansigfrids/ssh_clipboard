@@ -10,6 +10,9 @@ export interface Settings {
   transport: TransportSettings;
   openShortcut: string;
   shortcutEnabled: boolean;
+  directShortcutsEnabled: boolean;
+  directShareShortcut: string | null;
+  directCopyShortcut: string | null;
   showPreview: boolean;
   closeAfterCopy: boolean;
 }
@@ -78,7 +81,7 @@ export interface ConnectionReport {
 }
 
 export const initialView: PanelView = {
-  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, showPreview: true, closeAfterCopy: false },
+  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, directShortcutsEnabled: false, directShareShortcut: null, directCopyShortcut: null, showPreview: true, closeAfterCopy: false },
   profiles: [{ id: "default", name: "Default", target: "", port: null, identityFile: "", transport: defaultTransport() }],
   item: null,
   connected: false,
@@ -101,11 +104,13 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
   return invoke<T>(name, args);
 }
 
-export async function subscribe(navigate: (page: string) => void, notice: (message: string) => void, settingsChanged: () => void) {
+export async function subscribe(navigate: (page: string) => void, notice: (message: string, failed: boolean) => void, settingsChanged: () => void, shortcutPressed: (binding: string, openPanel: boolean) => void) {
   if (!isTauri()) return () => {};
   const results = await Promise.allSettled([
     listen<string>("navigate", (event) => navigate(event.payload)),
-    listen<string>("operation-notice", (event) => notice(event.payload)),
+    listen<string>("operation-notice", (event) => notice(event.payload, true)),
+    listen<string>("operation-complete", (event) => notice(event.payload, false)),
+    listen<{ binding: string; openPanel: boolean }>("shortcut-pressed", (event) => shortcutPressed(event.payload.binding, event.payload.openPanel)),
     listen("settings-changed", settingsChanged),
   ]);
   const failed = results.find((result) => result.status === "rejected");

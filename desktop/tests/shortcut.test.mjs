@@ -15,4 +15,5 @@ test("shortcut recorder does not capture typing or standalone modifiers", () => 
 
 test("display shortcut keeps the registered key visible", () => {
   assert.equal(displayShortcut("Control+Shift+KeyV"), "Ctrl + Shift + V");
+  assert.equal(displayShortcut("control+alt+KeyC"), "Ctrl + Alt + C");
 });

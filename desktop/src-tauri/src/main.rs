@@ -4,6 +4,7 @@ mod clipboard;
 mod connection;
 mod model;
 mod panel;
+mod shortcuts;
 
 fn main() {
     panel::run();

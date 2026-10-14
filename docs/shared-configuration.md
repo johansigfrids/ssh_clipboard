@@ -35,6 +35,10 @@ Remove requires an inline confirmation and is disabled while a draft is edited o
 
 Both Apply and Remove take the displayed revision, compare the full saved document under the writer lock, and prepare the file before OS activation. A failed activation abandons the write; a failed replacement attempts to restore the previous shortcut. GUI saves and watcher reloads share the same activation boundary: changes to selected profile ID, destination, port, key, or transport clear the snapshot and connection status, even when two profiles use the same SSH target. This must remain true for both paths; checking only target strings during GUI Apply could otherwise expose the previous profile's item.
 
+### Direct Shortcuts
+
+Optional direct Share/Copy preferences now have desktop recorders and an explicit enable control. They remain global across profiles and preserve imported disabled bindings. Activation uses a grouped OS registration transaction; see [shortcuts](desktop-shortcuts.md) for background-only transfers, recording suppression, alias conflicts, and rollback behavior.
+
 ### Advanced Connection Policy
 
 Connection settings have a collapsed Advanced section. Its draft belongs to the chosen profile and follows the same Apply/Discard, revision, reload, and snapshot-clearing rules as basic connection fields. Opening/typing/resetting settings never runs SSH or samples the clipboard.

@@ -46,6 +46,87 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("direct shortcuts are opt-in, independently recorded drafts with no clipboard commands", async () => {
+    state.settings.target = "hub";
+    state.settings.directShareShortcut = "Control+Alt+KeyS";
+    render(App);
+    await screen.findByText("hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
+    const share = screen.getByLabelText("Share current clipboard") as HTMLButtonElement;
+    expect(share.disabled).toBe(true);
+    expect((screen.getByLabelText("Enable direct shortcuts") as HTMLInputElement).checked).toBe(false);
+    await fireEvent.click(screen.getByLabelText("Enable direct shortcuts"));
+    await fireEvent.click(share);
+    await screen.findByText("Press a shortcut · Esc to cancel");
+    // Registered bindings may be consumed by the OS: the native event also feeds the recorder.
+    bridge.listen.mock.calls.find(([name]) => name === "shortcut-pressed")![1]({ payload: { binding: "control+alt+KeyC", openPanel: false } });
+    await waitFor(() => expect(share.textContent).toContain("Ctrl + Alt + C"));
+    await fireEvent.click(screen.getByLabelText("Copy shared clipboard"));
+    await screen.findByText("Press a shortcut · Esc to cancel");
+    await fireEvent.keyDown(window, { key: "v", code: "KeyV", ctrlKey: true, altKey: true });
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("Settings applied.");
+    const args = bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1];
+    expect(args.settings.directShortcutsEnabled).toBe(true);
+    expect(args.settings.directShareShortcut).toBe("control+alt+KeyC");
+    expect(args.settings.directCopyShortcut).toBe("Control+Alt+KeyV");
+    expect(args.settings.openShortcut).toBe(initialView.settings.openShortcut);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "set_shortcut_recording", "set_shortcut_recording", "set_shortcut_recording", "set_shortcut_recording", "apply_settings"]);
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "set_shortcut_recording").map(([, args]) => args.active)).toEqual([true, false, true, false]);
+  });
+
+  it("recording can be cancelled and retained direct bindings can be disabled without forgetting them", async () => {
+    state.settings.directShortcutsEnabled = true;
+    state.settings.directCopyShortcut = "Control+Alt+KeyV";
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
+    await fireEvent.click(screen.getByLabelText("Copy shared clipboard"));
+    await screen.findByText("Press a shortcut · Esc to cancel");
+    await fireEvent.keyDown(window, { key: "x", code: "KeyX", ctrlKey: true, repeat: true });
+    expect(screen.getByText("Press a shortcut · Esc to cancel")).toBeTruthy();
+    await fireEvent.keyDown(window, { key: "Escape" });
+    await fireEvent.click(screen.getByLabelText("Enable direct shortcuts"));
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("Settings applied.");
+    const args = bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1];
+    expect(args.settings.directShortcutsEnabled).toBe(false);
+    expect(args.settings.directCopyShortcut).toBe("Control+Alt+KeyV");
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "set_shortcut_recording", "set_shortcut_recording", "apply_settings"]);
+  });
+
+  it("losing focus cancels a pending recorder and clears native suppression in order", async () => {
+    const normal = bridge.invoke.getMockImplementation()!;
+    let acknowledge!: () => void;
+    bridge.invoke.mockImplementation((name, args) => name === "set_shortcut_recording" && args.active
+      ? new Promise<void>((resolve) => { acknowledge = resolve; }) : normal(name, args));
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
+    await fireEvent.click(screen.getByLabelText("Open panel"));
+    await waitFor(() => expect(acknowledge).toBeTypeOf("function"));
+    await fireEvent.blur(window);
+    acknowledge();
+    await waitFor(() => expect(bridge.invoke.mock.calls.filter(([name]) => name === "set_shortcut_recording").map(([, args]) => args.active)).toEqual([true, false]));
+    expect(screen.queryByText("Press a shortcut · Esc to cancel")).toBeNull();
+    expect(bridge.invoke.mock.calls.every(([name]) => ["get_panel", "set_shortcut_recording"].includes(name))).toBe(true);
+  });
+
+  it("direct action completion is shown as success and foreground shortcuts do not transfer", async () => {
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
+    const press = bridge.listen.mock.calls.find(([name]) => name === "shortcut-pressed")![1];
+    press({ payload: { binding: "Control+Alt+KeyC", openPanel: false } });
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Direct shortcuts work while this app is in the background. Use the panel buttons here.");
+    bridge.listen.mock.calls.find(([name]) => name === "operation-complete")![1]({ payload: "Current clipboard shared." });
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Current clipboard shared.");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+  });
+
   it("connection diagnostics distinguish verified SSH/proxy from a missing daemon", async () => {
     state.settings.target = "hub";
     const normal = bridge.invoke.getMockImplementation()!;
@@ -319,7 +400,7 @@ describe("quick panel contracts", () => {
     render(App);
     await screen.findByText("Could not listen for tray or settings changes. Reopen through the launcher.");
     await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
-    expect(stop).toHaveBeenCalledTimes(2);
+    expect(stop).toHaveBeenCalledTimes(4);
     expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
   });
 

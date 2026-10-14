@@ -1,6 +1,7 @@
-use arboard::{Clipboard, ImageData};
+use arboard::Clipboard;
 use eyre::Result;
 use image::ImageEncoder;
+use ssh_clipboard::client::image::ImageData;
 use ssh_clipboard::client_actions::{
     ClipboardAccess, apply_pull_response_with_clipboard, build_text_value,
 };
@@ -77,13 +78,22 @@ impl ClipboardAccess for NativeClipboard {
         Ok(self.0.get_text()?)
     }
     fn read_image(&mut self) -> Result<ImageData<'static>> {
-        Ok(self.0.get_image()?)
+        let image = self.0.get_image()?;
+        Ok(ImageData {
+            width: image.width,
+            height: image.height,
+            bytes: image.bytes.into_owned().into(),
+        })
     }
     fn write_text(&mut self, text: &str) -> Result<()> {
         Ok(self.0.set_text(text)?)
     }
     fn write_image(&mut self, image: ImageData<'static>) -> Result<()> {
-        Ok(self.0.set_image(image)?)
+        Ok(self.0.set_image(arboard::ImageData {
+            width: image.width,
+            height: image.height,
+            bytes: image.bytes,
+        })?)
     }
 }
 

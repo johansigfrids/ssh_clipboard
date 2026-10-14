@@ -60,6 +60,10 @@ See [the prototype guide](desktop-prototype.md) for current evidence and open ch
 
 The first shared configuration slice uses `dirs` for a common per-user path and `tempfile` for same-directory atomic replacement, with standard-library file locks to coordinate writers. Keep the lock file stable across replacement and read settings without implicitly creating defaults. See [shared configuration](shared-configuration.md) for the contract and remaining migration work.
 
+## Headless Image and Clipboard Boundary
+
+Shared PNG/image actions use a library-owned RGBA type. OS clipboard access is optional through `system-clipboard`; the old `agent` feature includes it, while the new desktop owns a retained adapter. Disable default image codecs and select PNG explicitly, since no other image representation is supported by the protocol. See [build variants](build-variants.md) for the dependency guard and checks.
+
 ## Update Triggers
 
 - Desktop prototype/framework selection and native platform results.

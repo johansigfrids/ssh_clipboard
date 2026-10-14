@@ -54,7 +54,14 @@ async fn build_clipboard_value(
         return crate::client_actions::build_text_value(text, max_size);
     }
 
-    crate::client_actions::build_clipboard_value_from_clipboard(max_size)
+    #[cfg(feature = "system-clipboard")]
+    {
+        crate::client_actions::build_clipboard_value_from_clipboard(max_size)
+    }
+    #[cfg(not(feature = "system-clipboard"))]
+    {
+        Err(ClipboardBuildError { code: 6, message: "This build has no OS clipboard support. Use push --stdin or a client build with --features system-clipboard.".into() })
+    }
 }
 
 async fn read_stdin_text() -> Result<String> {

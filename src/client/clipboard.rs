@@ -1,4 +1,5 @@
-use arboard::{Clipboard, ImageData};
+use super::image::ImageData;
+use arboard::Clipboard;
 use eyre::{Result, eyre};
 
 pub fn read_text() -> Result<String> {
@@ -31,7 +32,11 @@ pub fn read_image() -> Result<ImageData<'static>> {
 pub fn write_image(image: ImageData<'static>) -> Result<()> {
     let mut clipboard = Clipboard::new().map_err(|err| eyre!("clipboard init failed: {err}"))?;
     clipboard
-        .set_image(image)
+        .set_image(arboard::ImageData {
+            width: image.width,
+            height: image.height,
+            bytes: image.bytes,
+        })
         .map_err(|err| eyre!("clipboard image write failed: {err}"))?;
     Ok(())
 }

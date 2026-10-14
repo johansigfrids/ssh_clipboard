@@ -386,12 +386,13 @@ mod tests {
 
     #[test]
     fn image_preview_is_bounded_and_can_be_hidden_without_losing_payload() {
-        let data = ssh_clipboard::client::image::encode_png(arboard::ImageData {
-            width: 1,
-            height: 1,
-            bytes: vec![255, 0, 0, 255].into(),
-        })
-        .unwrap();
+        let data =
+            ssh_clipboard::client::image::encode_png(ssh_clipboard::client::image::ImageData {
+                width: 1,
+                height: 1,
+                bytes: vec![255, 0, 0, 255].into(),
+            })
+            .unwrap();
         let value = ClipboardValue {
             content_type: CONTENT_TYPE_PNG.into(),
             data: data.clone(),

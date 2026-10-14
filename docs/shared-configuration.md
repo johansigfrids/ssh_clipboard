@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe the Phase 2 configuration foundation: a shared Rust schema/store, persistent desktop settings, CLI profile selection/edits, and live reload. Legacy migration, advanced profile controls, and dependency isolation remain unfinished.
+Describe the Phase 2 configuration foundation: a shared Rust schema/store, persistent desktop settings, CLI profile selection/edits, and live reload. Legacy migration and advanced profile controls remain unfinished. [Build variants](build-variants.md) cover the headless dependency boundary and platform evidence.
 
 ## Key Files
 
@@ -66,7 +66,7 @@ Temporary-directory Rust probes cover restoration, stale writers, competing hand
 
 These tests never access the user's settings or OS clipboard. The user confirmed the native Windows Quit/relaunch flow on 2026-10-13: applied settings are remembered in the persistent-settings artifact. Other platforms' native persistence checks remain pending.
 
-Live-reload backend probes cover profile isolation, preference-only retention, unchanged-file silence, corrupted-file recovery, rejected OS activation, and deletion back to setup. Frontend probes cover preserving/invalidating drafts, clean-form reload, notifications during startup/a pending transfer, subscription-failure cleanup, and stale transfer guards. Subscribe before the initial state read, queue startup notifications until it completes, and keep controls disabled until ready; otherwise an edit can be missed or an early draft replaced by initialization. Clean up successful subscriptions if another registration fails. The integrated native watcher still needs a Windows app/CLI session; unit probes use controlled activation callbacks.
+Live-reload backend probes cover profile isolation, preference-only retention, unchanged-file silence, corrupted-file recovery, rejected OS activation, and deletion back to setup. Frontend probes cover preserving/invalidating drafts, clean-form reload, notifications during startup/a pending transfer, subscription-failure cleanup, and stale transfer guards. Subscribe before the initial state read, queue startup notifications until it completes, and keep controls disabled until ready; otherwise an edit can be missed or an early draft replaced by initialization. Clean up successful subscriptions if another registration fails. On 2026-10-14 the user confirmed the native Windows app/CLI live-reload check: changing preview visibility through CLI updates the open app, and restoring it works. Fault probes still use controlled activation callbacks.
 
 The 2026-10-13 target-less CLI `peek --ssh-option BatchMode=yes --json` also reached the server using the saved desktop profile and returned PNG metadata. This probe fetched no payload and changed neither clipboard.
 

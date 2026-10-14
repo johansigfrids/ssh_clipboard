@@ -28,6 +28,8 @@ Rework push/pull/peek/doctor commands accept `--profile <id>` and `--settings-fi
 ### `push`
 Send local clipboard to server (text or PNG).
 
+In a headless `--no-default-features` build, use `--stdin`; OS clipboard requests fail before SSH with exit code 6. Normal agent/client builds retain clipboard support. A clipboard-only CLI can use `--no-default-features --features system-clipboard`.
+
 Common usage:
 ```
 ssh_clipboard push --target user@server
@@ -47,6 +49,8 @@ Flags:
 
 ### `pull`
 Fetch from server and write to clipboard (default), or output to stdout/file.
+
+Headless builds require `--stdout`/`--output`, or `--peek` for metadata. They do not fetch a payload before reporting missing OS clipboard support.
 
 Common usage:
 ```

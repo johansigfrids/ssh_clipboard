@@ -161,3 +161,22 @@ fn relative_settings_paths_work_without_rewriting_other_files() {
     );
     assert!(directory.path().join("local.json").is_file());
 }
+
+#[cfg(not(feature = "system-clipboard"))]
+#[test]
+fn headless_clipboard_requests_explain_stdio_alternatives_before_starting_ssh() {
+    for command in ["push", "pull"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
+            .args([
+                command,
+                "--target",
+                "synthetic-hub",
+                "--ssh-bin",
+                "nonexistent-test-ssh",
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(6));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("no OS clipboard support"));
+    }
+}

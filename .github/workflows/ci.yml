@@ -136,6 +136,15 @@ jobs:
       - name: Format
         run: cargo fmt -- --check
 
+      - name: Guard headless dependency graph
+        if: matrix.features != 'agent'
+        shell: bash
+        run: |
+          tree="$(cargo tree --locked --no-default-features --edges normal --prefix none --format '{p}')"
+          if printf '%s\n' "$tree" | grep -E '^(arboard|tao|tray-icon|global-hotkey|gtk|gdk|x11rb|x11-dl|wayland-client|libappindicator|notify-rust|winreg) '; then
+            exit 1
+          fi
+
       - name: Clippy
         run: |
           if [ "${{ matrix.features }}" = "agent" ]; then

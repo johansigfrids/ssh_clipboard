@@ -1,3 +1,4 @@
+#[cfg(feature = "system-clipboard")]
 pub mod clipboard;
 pub mod image;
 pub mod ssh;

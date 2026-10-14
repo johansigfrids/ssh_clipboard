@@ -1,8 +1,16 @@
-use arboard::ImageData;
 use eyre::{Result, eyre};
 use image::codecs::png::{PngDecoder, PngEncoder};
 use image::{ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat, Rgba};
+use std::borrow::Cow;
 use std::io::Cursor;
+
+/// RGBA pixels shared by codecs and clipboard adapters without an OS dependency.
+#[derive(Clone, Debug)]
+pub struct ImageData<'a> {
+    pub width: usize,
+    pub height: usize,
+    pub bytes: Cow<'a, [u8]>,
+}
 
 pub fn encode_png(image: ImageData<'static>) -> Result<Vec<u8>> {
     let width = image.width as u32;

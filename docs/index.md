@@ -20,6 +20,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/shared-configuration.md](shared-configuration.md): Phase 2 configuration store, persistent desktop settings, CLI profiles/overrides, save/recovery contracts, and remaining migration work.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
 - `docs/dependency-decisions.md`: Rationale and guardrails for high-impact dependency choices.
+- [docs/build-variants.md](build-variants.md): Headless, clipboard-only, agent, and desktop dependency boundaries and validation evidence.
 - `docs/server-setup.md`: Linux daemon setup and proxy usage.
 - `docs/client-setup.md`: Windows/macOS client usage and SSH troubleshooting.
 - `docs/linux-client.md`: Linux desktop client notes (Wayland/X11, tray, hotkeys).

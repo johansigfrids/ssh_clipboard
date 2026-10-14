@@ -151,11 +151,13 @@ fn live_legacy_server_round_trip() {
 
             let image = ClipboardValue {
                 content_type: CONTENT_TYPE_PNG.into(),
-                data: ssh_clipboard::client::image::encode_png(arboard::ImageData {
-                    width: 2,
-                    height: 1,
-                    bytes: vec![255, 0, 0, 255, 0, 255, 0, 128].into(),
-                })
+                data: ssh_clipboard::client::image::encode_png(
+                    ssh_clipboard::client::image::ImageData {
+                        width: 2,
+                        height: 1,
+                        bytes: vec![255, 0, 0, 255, 0, 255, 0, 128].into(),
+                    },
+                )
                 .unwrap(),
                 created_at: 456,
             };

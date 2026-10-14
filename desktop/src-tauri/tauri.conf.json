@@ -13,6 +13,8 @@
     "windows": [{
       "label": "main",
       "title": "SSH Clipboard",
+      "visible": false,
+      "focus": false,
       "width": 440,
       "height": 670,
       "minWidth": 340,

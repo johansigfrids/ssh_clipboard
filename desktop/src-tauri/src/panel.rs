@@ -1647,13 +1647,10 @@ pub fn run() {
                 monitor_tasks: StdMutex::new(Vec::new()),
                 updates: updates.clone(),
             });
-            if install_tray(app.handle()).is_err() {
+            let tray_available = install_tray(app.handle()).is_ok();
+            if !tray_available {
                 app.state::<Desktop>().session.blocking_lock().tray_status =
                     "Unavailable: reopen through the app launcher.".into();
-            }
-            if crate::startup_native::available() && std::env::args().any(|arg| arg == "--background")
-                && let Some(window) = app.get_webview_window("main") {
-                let _ = window.hide();
             }
             watch_settings(app.handle().clone());
             let monitor_state = app.state::<Desktop>();
@@ -1669,6 +1666,13 @@ pub fn run() {
                     }
                 }
             });
+            // The configured window starts hidden: hiding it here is too late to
+            // prevent a visible flash (and possible focus theft) during creation.
+            let background = crate::startup_native::available()
+                && std::env::args().any(|arg| arg == "--background");
+            if !background || !tray_available {
+                show_panel(app.handle(), false);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

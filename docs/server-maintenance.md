@@ -2,11 +2,14 @@
 
 ## Purpose
 
-Track Phase 7's user-owned release and recovery engine. This is a library foundation, not an exposed maintenance command or replacement for the current installer. Signature policy, bounded download, stable launcher/unit generation, systemd/proxy health adapters, and reviewed legacy migration remain to be integrated.
+Track Phase 7's signed server package policy and user-owned release/recovery engine. Only read-only package verification is exposed through the CLI; activation remains a library foundation. Bounded download, stable launcher/unit generation, systemd/proxy health adapters, and reviewed legacy migration remain to be integrated.
 
 ## Key Files
 
 - `src/server_releases.rs`: immutable staging, owned paths/lock, atomic selection, journal, and recovery.
+- `src/server_package.rs`: bounded Minisign verification, authenticated version/platform/channel, and matching Linux ELF admission.
+- `tests/fixtures/server-signing.json`: public synthetic signatures and nonexecutable ELF-header fixtures.
+- `src/cli/server_maintenance.rs`, `tests/server_package_cli.rs`: read-only verification command and process evidence.
 - `src/cli/install_daemon.rs`: existing installer; its shared global link and extracted-directory unit remain unchanged.
 - [Implementation plan](implementation-plan.md), [server setup](server-setup.md), and [release operations](releasing.md).
 
@@ -22,7 +25,13 @@ Recovery accepts only selection matching the journal's previous/next version, co
 
 Eight WSL filesystem/service-adapter probes pass: retained bytes after source removal, version immutability/lock exclusion, rejected admission leaving current untouched, healthy selection with retained predecessor, failed restart/protocol health, interrupted switch and subsequent recovery, failed outcome write/rollback, and unsafe/tampered paths. The full headless suite also passes. These use a deliberately fake verifier and service; they neither prove server artifact cryptography nor exercise a real systemd installation. The desktop's cryptographic tests are separate evidence.
 
-Next integration must supply pinned-key verification with signed version/platform/channel bindings, bounded staging/download, a stable per-user launcher and actual unit file, bounded user-systemd commands, and health through the correct proxy/socket. Preserve target UID and all reviewed socket/limit options. Adoption of the old global link/service needs an explicit migration review; never replace a shared installation automatically. Validate on a disposable Linux installation before any live-host rollout. The user's current Ubuntu service has not been changed.
+The concrete package policy now verifies exact bytes and the authenticated trusted-comment version/filename before admission. Names are `SSHClipboardServer-stable-linux-<arch>-<version>` for x86_64/aarch64; desktop packages or another channel/platform cannot be relabelled. Only after signature verification does a small ELF header check reject a wrong architecture/representation. Signatures/key text are bounded; packages cap at 256 MiB. The store reverifies on activation and rollback, while normal activation independently rejects version replay/downgrade. No production server signing key was created or chosen.
+
+Three additional WSL probes use real synthetic Minisign signatures to reject tampering, wrong keys, missing/unversioned signatures, forged versions, another channel/platform, and a signed invalid ELF header. One joins this policy to staging/activation and a failed-health rollback, without executing fixture bytes. Regenerate only server fixtures with `node desktop/scripts/generate-update-test-fixtures.mjs --server`; private synthetic keys are removed and desktop fixtures remain unchanged. The shared core uses the same locked verifier version as the desktop; existing dependency pins are preserved.
+
+Linux now exposes `ssh_clipboard server-maintenance verify --version <version> --public-key <independently-trusted.pub> --signature <package.sig> --package <package>`. It reads bounded regular files, selects the native architecture, verifies without executing bytes, and never changes a service/install. A real CLI process probe accepts the synthetic signed fixture and rejects forged versions, wrong keys, and altered bytes without changing any input file. This command is not yet a downloader, installer, or maintenance activation path.
+
+Next integration must supply bounded downloads, pinned trust-file initialization, a stable per-user launcher and actual unit file, bounded user-systemd commands, and health through the correct proxy/socket. Preserve target UID and all reviewed socket/limit options. Adoption of the old global link/service needs an explicit migration review; never replace a shared installation automatically. Validate on a disposable Linux installation before any live-host rollout. The user's current Ubuntu service has not been changed.
 
 ## Update Triggers
 

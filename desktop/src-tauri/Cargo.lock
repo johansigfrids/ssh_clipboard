@@ -4042,6 +4042,7 @@ dependencies = [
  "eyre",
  "image",
  "libc",
+ "minisign-verify",
  "serde",
  "serde_json",
  "sha2",

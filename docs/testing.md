@@ -110,7 +110,7 @@ Desktop update checks run with `cargo test --manifest-path desktop/src-tauri/Car
 
 ## Server Maintenance Evidence
 
-The Linux server release-store tests use disposable directories and fake admission/service adapters. They fault new restart/health, durable outcome writes, rollback health, and journal recovery, while checking immutable retained bytes and path/ownership rejection. The complete WSL headless suite passes with this engine. No real signature, systemd service, stable launcher migration, or live installation is claimed by these tests; see [server maintenance gaps](server-maintenance.md).
+The Linux server release-store tests use disposable directories and fake admission/service adapters. They fault restart/health, durable outcome writes, rollback health, and journal recovery while checking retained bytes and path/ownership rejection. Separate real synthetic signature probes now join the concrete server policy to activation/rollback, and a real read-only verification CLI process rejects altered/forged inputs without executing them. The complete WSL headless suite passes with these policy probes. No real systemd service, stable launcher migration, or live installation is claimed; see [server maintenance gaps](server-maintenance.md).
 
 ## Platform `cfg` Hygiene
 

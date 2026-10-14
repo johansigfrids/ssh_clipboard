@@ -328,7 +328,7 @@ fn write_new(path: &Path, bytes: &[u8], mode: u32) -> Result<()> {
     file.sync_all()?;
     Ok(())
 }
-fn validate_version(value: &str) -> Result<()> {
+pub(crate) fn validate_version(value: &str) -> Result<()> {
     let parts: Vec<_> = value.split('.').collect();
     if value.len() > 64
         || parts.len() != 3

@@ -19,6 +19,8 @@ cargo build --release --no-default-features
 
 The resulting binary is `target/release/ssh_clipboard`.
 
+The rework has a read-only `server-maintenance verify` command for signed raw server packages, plus a library for versioned storage/recovery. It does not yet replace `install-daemon` or manage updates automatically. See [maintenance implementation and gaps](server-maintenance.md).
+
 ## Run the Daemon
 
 The rework branch also has a separate experimental [shelf daemon/session proxy](shelf-server.md). It is not installed automatically. Its optional explicit V2 compatibility socket lets existing clients share the shelf; running separate old/new daemon modes without that adapter produces separate stores. Both current-source daemon modes reject duplicate ownership/live sockets and require an owner-only final socket directory; custom paths should use a dedicated private directory. Startup no longer unlinks a live socket or chmods an arbitrary existing parent.

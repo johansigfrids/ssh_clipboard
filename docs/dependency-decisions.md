@@ -72,6 +72,10 @@ Use Tauri's notification plugin behind Rust-only application commands, pinned in
 
 Use SHA-256 (`sha2` 0.10, locked) for bounded, content/metadata-sensitive retry records without retaining duplicate payloads. Domain-separate and length-delimit the captured upload fields. These fingerprints detect operation-ID reuse; they are not update signatures or a replacement for SSH authentication. See [shelf retry guarantees](shelf-core.md#retry-guarantees).
 
+## Signed Release Verification
+
+Signed desktop/server packages use the locked `minisign-verify` implementation for exact bytes and global trusted-comment verification, with explicit version/filename bindings. Server admission additionally checks the signed artifact's Linux architecture. This verifier has no native GUI or network dependencies, preserving the headless build. Synthetic test signatures come from the existing Tauri CLI and never retain private keys. Dependency additions must preserve existing lock pins; avoid a broad `generate-lockfile`/unrelated update while adding a verifier. See [update trust](desktop-updates.md) and [server maintenance](server-maintenance.md).
+
 ## Update Triggers
 
 - Desktop prototype/framework selection and native platform results.

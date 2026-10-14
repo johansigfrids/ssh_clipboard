@@ -22,6 +22,8 @@ mod install_daemon;
 mod peek;
 mod pull;
 mod push;
+#[cfg(target_os = "linux")]
+mod server_maintenance;
 mod settings;
 #[cfg(all(
     feature = "agent",
@@ -49,6 +51,9 @@ enum Commands {
     Settings(settings::SettingsArgs),
     /// Use the experimental item-aware endpoint explicitly.
     Shelf(shelf::ShelfArgs),
+    /// Verify signed Linux server packages; never changes an installed service.
+    #[cfg(target_os = "linux")]
+    ServerMaintenance(server_maintenance::MaintenanceArgs),
     Push(PushArgs),
     Pull(PullArgs),
     Peek(PeekArgs),
@@ -510,6 +515,8 @@ pub async fn run() -> Result<()> {
     match cli.command {
         Commands::Settings(args) => settings::run(args),
         Commands::Shelf(args) => shelf::run(args).await,
+        #[cfg(target_os = "linux")]
+        Commands::ServerMaintenance(args) => server_maintenance::run(args),
         Commands::Push(args) => push::run(args).await,
         Commands::Pull(args) => pull::run(args).await,
         Commands::Peek(args) => peek::run(args).await,

@@ -136,6 +136,8 @@ Reconnect refreshes remote state and never silently samples/uploads the local cl
 
 ## Phase 6: Build Stable Desktop Packaging and Signed Updates
 
+**First source slice implemented:** strict package verification authenticates exact bytes plus signed version/filename bindings for channel and platform. Synthetic key/signature probes cover tampering, wrong key, missing signature, forged version, replay, cross-platform/channel relabelling, and an old-to-new key transition payload. Packaging, runtime updater/startup, protected workflow, and installed acceptance remain open; see [update trust evidence](desktop-updates.md).
+
 Package the chosen desktop framework at a stable per-user location, with configuration outside the replaceable application files. Bundle or install the CLI through a documented path; prevent drift between bundled CLI/core versions. Start-at-login points to the stable installed entry point, and replacing the app preserves the choice.
 
 Use the framework's supported Windows/macOS updater packages and Linux AppImage updater. Package-manager installations use their package manager. Define minimum supported platform/runtime versions from the prototype results.

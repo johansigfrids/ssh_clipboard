@@ -7,6 +7,7 @@ Document the GitHub Actions setup for tests and releases, including build varian
 - `.github/workflows/ci.yml` (PR/push checks)
 - `.github/workflows/release.yml` (tagged release builds)
 - `.github/workflows/desktop-release.yml` (manual environment-gated Windows signed drafts)
+- `.github/workflows/server-release.yml` (manual environment-gated Linux x64 signed drafts)
 - `docs/testing.md` (local test commands and Linux deps)
 
 ## CI Overview
@@ -43,6 +44,10 @@ The `desktop` job checks the isolated Phase 1 prototype on Windows, macOS, and L
 ## Desktop Release Staging
 
 Desktop CI also lints/tests installed features without release credentials and builds a synthetic-key NSIS package on Windows without installing it. The mock framework handoff and bounded download probes run as tests. The separate manual desktop workflow pins actions/toolchain, validates an immutable master commit, and exposes signing credentials only in its protected packaging step. It creates drafts; publishing, environment configuration, and installed/native acceptance remain separate. See [release operations](releasing.md).
+
+## Server Release Staging
+
+The manual server workflow validates the exact stable core commit on master, pins Rust/actions, and runs headless checks without credentials. A separate `server-release` environment gates the Linux x64 signing step. It builds on Ubuntu 24.04, verifies exact signed bytes/version/platform with the server policy, and creates a `server-v<version>` draft without publishing/overwriting. Source SHA/profile/key ID/checksum evidence accompanies the package. Other architectures/runtime compatibility and real user-systemd acceptance remain gates. This workflow has not run on GitHub; the real staging helper has passed locally with synthetic trust on Windows/Ubuntu WSL. See [release setup](releasing.md#signed-server-drafts).
 
 ## Update Triggers
 - Changing build variants, features, or supported OSes.

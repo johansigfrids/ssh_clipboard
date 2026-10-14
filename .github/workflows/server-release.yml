@@ -1,0 +1,107 @@
+name: Stage signed server release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version already committed in the core Cargo.toml
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, resolved 2026-10-14
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Validate immutable source and version
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const version=process.env.RELEASE_VERSION;
+          const core=readFileSync('Cargo.toml','utf8').match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+          if(!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(version??'')||core!==version||version==='0.0.0')throw Error('Version must match the reviewed stable core');
+          if(execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()!==process.env.GITHUB_SHA)throw Error('Unexpected source commit');
+          JS
+      - name: Pin Rust toolchain and validate headless server without credentials
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component rustfmt,clippy
+          cargo +1.99.0 fmt -- --check
+          cargo +1.99.0 clippy --locked --no-default-features --all-targets -- -D warnings
+          cargo +1.99.0 test --locked --no-default-features
+
+  package:
+    needs: validate
+    runs-on: ubuntu-24.04
+    # Configure required reviewers and master-only deployment rules before first use.
+    environment: server-release
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RUSTUP_TOOLCHAIN: '1.99.0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Prepare trusted tools without signing credentials
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal
+          npm --prefix desktop ci
+      - name: Build, sign, and verify exact Linux x64 package
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.SERVER_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.SERVER_SIGNING_PASSWORD }}
+          SERVER_PUBLIC_KEY: ${{ vars.SERVER_UPDATE_PUBLIC_KEY }}
+        run: |
+          test -n "$TAURI_SIGNING_PRIVATE_KEY" && test -n "$SERVER_PUBLIC_KEY"
+          public_key="$RUNNER_TEMP/server-public-key.pub"
+          printf '%s' "$SERVER_PUBLIC_KEY" > "$public_key"
+          node desktop/scripts/build-server.mjs --version "$RELEASE_VERSION" --public-key-file "$public_key"
+      - name: Create reviewable draft, never publish or overwrite
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync,readdirSync} from 'node:fs';
+          import path from 'node:path';
+          import {execFileSync,spawnSync} from 'node:child_process';
+          const version=process.env.RELEASE_VERSION,base='desktop/artifacts';
+          const stages=readdirSync(base).filter(name=>name.startsWith(`server-${version}-`));
+          if(stages.length!==1)throw Error('Expected one verified server stage');
+          const stage=path.join(base,stages[0]);
+          const proof=JSON.parse(readFileSync(path.join(stage,'build-evidence.json'),'utf8'));
+          if(proof.testOnly||proof.profile!=='release'||proof.platform!=='linux-x86_64'||proof.version!==version||proof.source!==process.env.GITHUB_SHA)throw Error('Unexpected server package identity');
+          const tag=`server-v${version}`,repo=process.env.GITHUB_REPOSITORY;
+          if(spawnSync('gh',['release','view',tag,'--repo',repo],{stdio:'ignore'}).status===0)throw Error('Never overwrite an existing signed release');
+          const name=`SSHClipboardServer-stable-linux-x86_64-${version}`;
+          const assets=[name,`${name}.sig`,`${name}.sha256`,'candidate.json','build-evidence.json'].map(name=>path.join(stage,name));
+          for(const file of assets)readFileSync(file);
+          execFileSync('gh',['release','create',tag,...assets,'--repo',repo,'--target',process.env.GITHUB_SHA,'--draft','--title',`SSH Clipboard server ${version}`,'--notes-file','CHANGELOG.md'],{stdio:'inherit'});
+          JS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: server-release-review
+          path: desktop/artifacts/server-*/
+          if-no-files-found: ignore

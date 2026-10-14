@@ -42,6 +42,7 @@ ssh-ed25519 AAAA... your-key-comment
 Notes:
 - If `ssh_clipboard` is not on `PATH` for that user, use an absolute path in `command="..."`.
 - `no-pty` helps ensure the proxy’s binary protocol isn’t corrupted by terminal behavior.
+- A fixed `proxy` key remains V2. The new shelf endpoint needs a separately reviewed absolute `session-proxy` forced command and matching custom socket arguments. Use separate routes/keys for fixed legacy/new endpoints during migration. Transfer keys never gain maintenance permissions; see [compatibility and cutover](compatibility-and-cutover.md#ssh-route-and-privilege-boundary).
 
 ### 3. Avoid “insecure convenience” defaults
 Do not disable host key checking by default. If a user wants that behavior, it should be explicit via SSH config or `--ssh-option`.

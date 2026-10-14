@@ -114,6 +114,8 @@ The Linux server release-store tests use disposable directories and fake admissi
 
 `node desktop/scripts/smoke-server-maintenance.mjs` builds isolated headless versions with the existing Ubuntu WSL toolchain, signs actual binaries with a disposable key, and exercises the CLI under a temporary Linux HOME. It uses **fake systemctl and real daemon/proxy processes**, plus actual `systemd-analyze --user verify` for unit grammar. Checks include initial enable/restart failure cleanup, signed upgrade, saved custom options, retained executables after download removal, tampering/forgery/replay rejection, failed-restart rollback and modeled interrupted-journal recovery. No production key, real user service or live installation is changed. Actual systemd/login lifecycle, real HTTPS artifacts, installed migration and native desktop checks remain distinct gates; see [maintenance evidence](server-maintenance.md).
 
+`npm run test:server-package` from `desktop` separately invokes the real headless staging helper with synthetic trust, verifies the canonical signed Linux x64 package and rejects mismatched public trust before successful candidate/build evidence. It retains public verification/evidence files. The debug artifact is test-only; private synthetic keys are deleted. The protected server draft workflow parses locally but has not been executed on GitHub. See [server release setup](releasing.md#signed-server-drafts) and the [cutover gates](compatibility-and-cutover.md).
+
 ## Platform `cfg` Hygiene
 
 

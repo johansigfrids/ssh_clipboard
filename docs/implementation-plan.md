@@ -159,7 +159,7 @@ The Updates page checks quietly, shows notes/version/status, and installs only a
 
 ## Phase 7: Make Server Installation and Maintenance Reliable
 
-**Implemented source slices:** private immutable releases, atomic selection, writer ownership, durable recovery, downgrade refusal, and restart/health rollback. Concrete signatures bind server bytes to version/platform/channel/ELF architecture. Explicit Linux install/update/status/recover commands pin trust/UID/socket/limits, bound download/process lifecycles, and create a stable launcher/actual unit. Disposable signed executable tests with fake systemctl, real proxy health and systemd unit parsing pass. Production artifact packaging, actual systemd/login acceptance and reviewed legacy migration remain open; no live service was changed. See [maintenance evidence](server-maintenance.md).
+**Implemented source slices:** private immutable releases, atomic selection, writer ownership, durable recovery, downgrade refusal, and restart/health rollback. Concrete signatures bind server bytes to version/platform/channel/ELF architecture. Explicit Linux install/update/status/recover commands pin trust/UID/socket/limits, bound download/process lifecycles, and create a stable launcher/actual unit. Signed server staging and an environment-gated Linux x64 draft workflow are implemented. Disposable signed executable tests with fake systemctl, real proxy health and systemd unit parsing, plus synthetic package staging, pass. Production trust/workflow setup, actual systemd/login acceptance and reviewed legacy migration remain open; no live service was changed. See [maintenance evidence](server-maintenance.md).
 
 Replace symlinks into extracted archives with user-owned versioned releases, a stable launcher, and a stable user service file. Migrate the existing user service carefully, preserving target UID and socket/configuration. Do not rewrite shared global installations automatically.
 
@@ -172,6 +172,8 @@ The desktop may show server version and maintenance instructions. It can perform
 **Exit checks:** installation survives removal of the download folder; correct socket/user permissions remain; signature failure leaves the running service untouched; restart/health failure restores the executable/service; disk interruption preserves a bootable active version. Validate on a disposable Linux installation before any live-host rollout.
 
 ## Phase 8: Validate Migration and Cut Over
+
+**Prepared:** the [compatibility/cutover checklist](compatibility-and-cutover.md) maps actual endpoint/configuration behavior, server-first/desktop-first sequences, SSH privilege boundaries and return paths. Installed/released-client/native/service acceptance and the separately authorized live cutover remain open. No support-window end date or legacy-agent removal has been chosen.
 
 Publish a compatibility matrix covering new/legacy clients and servers, supported protocol ranges, platform packages, and forced-command key setup. Release version numbers and the support window are decided from the tested migration path, not from mockup sample versions.
 

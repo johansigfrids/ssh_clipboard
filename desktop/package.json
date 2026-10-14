@@ -11,6 +11,9 @@
     "tauri": "tauri",
     "build:prototype": "node scripts/build-prototype.mjs",
     "build:installed": "node scripts/build-installed.mjs",
+    "build:server": "node scripts/build-server.mjs",
+    "test:server-package": "node scripts/smoke-server-package.mjs",
+    "test:server-maintenance": "node scripts/smoke-server-maintenance.mjs",
     "test:package": "node scripts/smoke-installed-build.mjs",
     "test": "node --test tests/*.test.mjs && vitest run"
   },

@@ -21,7 +21,7 @@ The resulting binary is `target/release/ssh_clipboard`.
 
 ## Run the Daemon
 
-The rework branch also has a separate experimental [shelf daemon/session proxy](shelf-server.md). It is not installed automatically and currently has a separate store from the legacy commands below. Both current-source daemon modes reject duplicate ownership/live sockets and require an owner-only final socket directory; custom paths should use a dedicated private directory. Startup no longer unlinks a live socket or chmods an arbitrary existing parent.
+The rework branch also has a separate experimental [shelf daemon/session proxy](shelf-server.md). It is not installed automatically. Its optional explicit V2 compatibility socket lets existing clients share the shelf; running separate old/new daemon modes without that adapter produces separate stores. Both current-source daemon modes reject duplicate ownership/live sockets and require an owner-only final socket directory; custom paths should use a dedicated private directory. Startup no longer unlinks a live socket or chmods an arbitrary existing parent.
 Run as the target user (per-user daemon):
 ```
 ssh_clipboard daemon

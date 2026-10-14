@@ -9,6 +9,10 @@ Concise command/flag reference for the `ssh_clipboard` CLI.
 
 ## Commands
 
+### Experimental Linux Shelf
+
+`shelf-daemon [--socket-path <private-path>]` serves the new item-aware protocol. `session-proxy` bridges it over binary stdio. Add `--legacy-socket-path <private-path>` to the shelf daemon to serve the same store to V2 clients; `--legacy-max-frame-bytes` defaults to 10 MiB. Existing `proxy` clients use that compatibility socket, while new sessions use the separate shelf socket. Startup refuses an occupied socket. This does not install or replace the current server. See [endpoint policy and native evidence](shelf-server.md).
+
 ### `settings` (Rework Branch)
 
 Edit the versioned configuration shared with the desktop prototype. This command is available without the old agent feature; the existing `config` command still edits the legacy agent file.

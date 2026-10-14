@@ -90,7 +90,10 @@ Optional direct shortcuts join the daily-use pass. [Shortcut evidence](desktop-s
 
 Pipe fixtures launch noninteractive PowerShell on Windows and `/bin/sh` on Unix; they never run SSH or access a clipboard. They cover flood/EOF/deadline/reaping and invalid-reply cases with at most two fixture processes at once. Core probes verify that reports expose no sentinel/private output and distinguish unverified layers from passed checks. The real authorized-server probe is metadata-only and separate from these fixtures. See [diagnostic evidence](connection-diagnostics.md#evidence).
 
+The optional V2 shelf adapter is tested with mixed stream clients and both real Linux proxy processes: unknown legacy origin, exact text/PNG bytes and capture timestamps, latest-item selection, shared clear/admission, size refusal with metadata access, malformed/trailing frames, incomplete-upload cleanup, and refusal to detach an occupied legacy endpoint. These checks use synthetic data in disposable local sockets; they do not replace the installed server or prove SSH cutover.
+
 ## Platform `cfg` Hygiene
+
 - Keep function/item `#[cfg(...)]` aligned with where it is used.
 - If a helper is only called from Windows-gated code, gate the helper too (for example `#[cfg(target_os = "windows")]`).
 - If tests need a platform-gated helper on other platforms, use `#[cfg(any(target_os = "windows", test))]`.

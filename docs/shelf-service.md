@@ -2,12 +2,13 @@
 
 ## Purpose
 
-Describe the transport-independent service connecting the session codec to the shelf. It is tested over local byte streams, with no SSH/clipboard/server installation. The [native Linux listener/proxy](shelf-server.md) now exists with separate process evidence; compatibility and clients remain separate integration work.
+Describe the transport-independent service connecting both session and legacy codecs to one shelf. It is tested over local byte streams, with no SSH/clipboard/server installation. The [native Linux listener/proxy](shelf-server.md) has separate process evidence; item-aware clients remain integration work.
 
 ## Key Files
 
 - `src/shelf_service.rs`: connection admission, deadlines, handlers, and maintenance hook.
 - `src/shelf_service/tests.rs`: duplex stream lifecycle and action tests.
+- `src/shelf_service/legacy.rs`: frozen V2 borrowed shapes and budgeted compatibility handler.
 - `src/session_protocol.rs`, `src/session_protocol/framing.rs`: typed metadata and bounded raw frames.
 - `src/shelf.rs`: payload validation/ownership and shelf state.
 
@@ -29,11 +30,17 @@ The shelf mutex is never held over stream I/O or image validation. Reply metadat
 
 `maintenance()` expires items/retry records and returns epoch/sequence. The native shelf daemon calls it every second even with no traffic. Authentication is outside this generic stream layer: a native listener must enforce private socket/directory permissions, same-UID peers, exclusive daemon ownership, bounded accepted tasks, and safe stale-socket recovery before calling `serve`.
 
-The service currently has no subscriptions, cancellation request, reconnection driver, or OS clipboard access. New endpoint command wiring now has native WSL evidence. Legacy compatibility, item-aware CLI, and desktop history are pending. The installed legacy daemon still holds one value and retains its existing limits.
+The service currently has no subscriptions, cancellation request, reconnection driver, or OS clipboard access. New endpoint command wiring and its optional V2 socket have native WSL evidence. Item-aware CLI and desktop history are pending. The installed legacy daemon still holds one value and retains its existing limits.
+
+## Legacy Adapter
+
+`serve_legacy` handles exactly one V2 request under the shared nonwaiting admission guard and operation deadline. Validate its header before reserving bytes. Borrow `&str`/`&[u8]` directly from a budgeted frame, then compact the payload in place for validation/commit. Keep the original frame capacity charged until the stored blob's last lease drops. No unchecked second payload allocation follows decoding. Frozen borrowed DTOs preserve V2 enum order, integer encoding, bytes, and timestamps; reject malformed/trailing data. Legacy uploads have neither invented device metadata nor operation-ID retry guarantees.
+
+Get leases the newest item and computes the serialized response size before allocation. Its serialization buffer is charged to the same resident budget, while the original item remains pinned. Small control/error responses are bounded to 1 KiB. The configured legacy frame policy and historical 64 MiB decoded-image cap stay explicit; metadata can describe an item that Get must refuse. Resource/validation errors preserve existing content. A timed-out validation job cannot commit later.
 
 ## Evidence
 
-Ten local duplex tests cover multiple actions in one session, exact Unicode/whitespace bytes, simultaneous identical commits, sequence-safe pagination, epoch/invalid-content rejection, admission and handshake cleanup, incomplete-upload deadlines, unsupported version errors, validated PNG descriptors/native decode budgets, Busy drain/retry, and blocked-reader expiry/lease cleanup. The blocked-reader probe leaves a response body unread, expires the stored item concurrently, then verifies the retained bytes are released at the write deadline.
+Duplex tests cover multiple actions in one session, exact Unicode/whitespace bytes, simultaneous identical commits, sequence-safe pagination, epoch/invalid-content rejection, admission and handshake cleanup, incomplete-upload deadlines, unsupported version errors, validated PNG descriptors/native decode budgets, Busy drain/retry, and blocked-reader expiry/lease cleanup. Mixed-client tests cover latest-item visibility, unknown origin, timestamps, clear, size refusal with metadata access, shared admission, retained frame charging, malformed/trailing data, and incomplete-upload cleanup. The blocked-reader probe leaves a response body unread, expires the stored item concurrently, then verifies the retained bytes are released at the write deadline.
 
 These tests prove generic stream/service behavior. They do not prove native socket ownership, process/stdio lifecycle, SSH forwarding, platform packaging, or the desktop's native clipboard behavior.
 
@@ -44,6 +51,7 @@ These tests prove generic stream/service behavior. They do not prove native sock
 - Do not write an early Busy reply and wait forever while a sequential client is still blocked writing its body. Bound/drain the validated rejected body or close the stream.
 - Use actual decoder output size as well as RGBA dimensions when enforcing a peer's image budget.
 - Capture server time under the shelf mutex, never before waiting for validation/another request.
+- Legacy decoding/encoding must reserve memory too; borrowed DTOs and in-place compaction avoid a hidden payload copy while retaining the full allocation charge.
 
 ## Update Triggers
 

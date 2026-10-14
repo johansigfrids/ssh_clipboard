@@ -259,6 +259,11 @@ pub struct ProxyArgs {
 pub struct ShelfDaemonArgs {
     #[arg(long)]
     pub socket_path: Option<PathBuf>,
+    /// Explicitly expose the same shelf through a V2 socket; never replaces a running daemon.
+    #[arg(long)]
+    pub legacy_socket_path: Option<PathBuf>,
+    #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
+    pub legacy_max_frame_bytes: usize,
     #[arg(long, default_value_t = 20)]
     pub max_items: usize,
     #[arg(long, default_value_t = 3600)]
@@ -535,7 +540,13 @@ pub async fn run() -> Result<()> {
                 idle_timeout: std::time::Duration::from_millis(args.idle_timeout_ms),
                 ..Default::default()
             };
-            crate::shelf_daemon::run(path, limits, policy).await
+            let legacy = args
+                .legacy_socket_path
+                .map(|path| crate::shelf_daemon::LegacyEndpoint {
+                    path,
+                    max_frame: args.legacy_max_frame_bytes,
+                });
+            crate::shelf_daemon::run_with_legacy(path, limits, policy, legacy).await
         }
         #[cfg(target_os = "linux")]
         Commands::SessionProxy(args) => {

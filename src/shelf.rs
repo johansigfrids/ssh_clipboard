@@ -189,6 +189,27 @@ impl UploadBudget {
         if bytes > self.limits.max_item_bytes {
             return Err(ShelfError::ItemTooLarge);
         }
+        self.allocate_reserved(bytes)
+    }
+
+    pub(crate) fn allocate_framed(
+        &self,
+        bytes: usize,
+        metadata_allowance: usize,
+    ) -> Result<IncomingUpload, ShelfError> {
+        if metadata_allowance > 65536
+            || bytes
+                > self
+                    .limits
+                    .max_item_bytes
+                    .saturating_add(metadata_allowance)
+        {
+            return Err(ShelfError::ItemTooLarge);
+        }
+        self.allocate_reserved(bytes)
+    }
+
+    fn allocate_reserved(&self, bytes: usize) -> Result<IncomingUpload, ShelfError> {
         let mut current = self.state.encoded.load(Ordering::SeqCst);
         loop {
             let next = current
@@ -226,6 +247,27 @@ impl UploadBudget {
 }
 
 impl IncomingUpload {
+    pub fn bytes(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// Borrowed legacy decoding finds the payload inside its reserved frame. Compact
+    /// it in place, retaining the original allocation charge; no second payload Vec.
+    pub(crate) fn retain_payload(
+        mut self,
+        range: std::ops::Range<usize>,
+    ) -> Result<Self, ShelfError> {
+        if range.start > range.end || range.end > self.data.len() {
+            return Err(ShelfError::ForeignUpload);
+        }
+        let length = range.len();
+        if length > self.limits.max_item_bytes {
+            return Err(ShelfError::ItemTooLarge);
+        }
+        self.data.copy_within(range, 0);
+        self.data.truncate(length);
+        Ok(self)
+    }
     pub fn bytes_mut(&mut self) -> &mut [u8] {
         &mut self.data
     }
@@ -238,6 +280,9 @@ impl IncomingUpload {
         created_at_ms: Option<i64>,
         operation_id: Option<Uuid>,
     ) -> Result<ValidatedUpload, ShelfError> {
+        if self.data.len() > self.limits.max_item_bytes {
+            return Err(ShelfError::ItemTooLarge);
+        }
         if let Some(origin) = &origin
             && (origin.device_id.is_nil()
                 || origin.name.trim().is_empty()

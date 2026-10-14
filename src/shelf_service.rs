@@ -392,5 +392,6 @@ fn code(error: &ShelfError) -> ErrorCode {
     }
 }
 
+mod legacy;
 #[cfg(test)]
 mod tests;

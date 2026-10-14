@@ -30,8 +30,16 @@ async fn daemon(path: &Path) -> Daemon {
 }
 
 async fn daemon_mode(path: &Path, mode: &str) -> Daemon {
-    let child = Command::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
-        .arg(mode)
+    daemon_with_legacy(path, mode, None).await
+}
+
+async fn daemon_with_legacy(path: &Path, mode: &str, legacy: Option<&Path>) -> Daemon {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_ssh_clipboard"));
+    command.arg(mode);
+    if let Some(legacy) = legacy {
+        command.arg("--legacy-socket-path").arg(legacy);
+    }
+    let child = command
         .arg("--socket-path")
         .arg(path)
         .stdin(Stdio::null())
@@ -46,7 +54,9 @@ async fn daemon_mode(path: &Path, mode: &str) -> Daemon {
                 daemon.0.try_wait().unwrap().is_none(),
                 "disposable daemon exited during startup"
             );
-            if UnixStream::connect(path).await.is_ok() {
+            if UnixStream::connect(path).await.is_ok()
+                && (legacy.is_none() || UnixStream::connect(legacy.unwrap()).await.is_ok())
+            {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(5)).await;
@@ -55,6 +65,205 @@ async fn daemon_mode(path: &Path, mode: &str) -> Daemon {
     .await
     .unwrap();
     daemon
+}
+
+async fn old_proxy(
+    path: &Path,
+    kind: ssh_clipboard::protocol::RequestKind,
+) -> ssh_clipboard::protocol::Response {
+    use ssh_clipboard::{framing as frame, protocol as v2};
+    let mut child = AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
+        .arg("proxy")
+        .arg("--socket-path")
+        .arg(path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    frame::write_frame_payload(
+        &mut input,
+        &frame::encode_message(&v2::Request {
+            request_id: 42,
+            kind,
+        })
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    let response = frame::decode_message(
+        &tokio::time::timeout(
+            Duration::from_secs(3),
+            frame::read_frame_payload(child.stdout.as_mut().unwrap(), 2048),
+        )
+        .await
+        .unwrap()
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        tokio::time::timeout(Duration::from_secs(3), child.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    drop(input);
+    response
+}
+
+#[tokio::test]
+async fn both_real_proxy_modes_share_the_same_shelf() {
+    use ssh_clipboard::protocol::{self as v2, RequestKind as Old, ResponseKind as Reply};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("runtime/shelf.sock");
+    let legacy = path.with_file_name("daemon.sock");
+    let _server = daemon_with_legacy(&path, "shelf-daemon", Some(&legacy)).await;
+    let data = " legacy α\n ".as_bytes();
+    assert!(matches!(
+        old_proxy(
+            &legacy,
+            Old::Set {
+                value: v2::ClipboardValue {
+                    content_type: v2::CONTENT_TYPE_TEXT.into(),
+                    data: data.to_vec(),
+                    created_at: -123
+                }
+            }
+        )
+        .await
+        .kind,
+        Reply::Ok
+    ));
+    let mut child = proxy(&path);
+    let mut input = child.stdin.take().unwrap();
+    let mut output = child.stdout.take().unwrap();
+    let Response::Welcome { epoch, limits, .. } = hello(&mut input, &mut output).await else {
+        panic!("not welcomed")
+    };
+    let limits = limits.frame_limits().unwrap();
+    framing::write_message(
+        &mut input,
+        &Request::List {
+            request_id: 2.into(),
+            epoch,
+            offset: 0,
+            limit: 16,
+            expected_sequence: None,
+        },
+        &[],
+        limits,
+    )
+    .await
+    .unwrap();
+    let Response::Listed { items, .. } = receive(&mut output, limits).await.0 else {
+        panic!("not listed")
+    };
+    assert_eq!(items.len(), 1);
+    assert!(items[0].origin.is_none());
+    framing::write_message(
+        &mut input,
+        &Request::Fetch {
+            request_id: 3.into(),
+            epoch,
+            item_id: items[0].id,
+            representation_id: 0,
+        },
+        &[],
+        limits,
+    )
+    .await
+    .unwrap();
+    assert_eq!(receive(&mut output, limits).await.1, data);
+    // A real PNG stays byte-for-byte identical through new share -> old proxy Get.
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::new_rgba8(2, 3)
+        .write_to(&mut png, image::ImageFormat::Png)
+        .unwrap();
+    let png = png.into_inner();
+    let share = Request::Share {
+        request_id: 4.into(),
+        epoch,
+        operation_id: Uuid::from_u128(30),
+        origin: Origin {
+            device_id: Uuid::from_u128(31),
+            name: "Synthetic".into(),
+        },
+        representation: Representation {
+            id: 0,
+            content_type: ContentType::Png,
+            encoded_bytes: png.len() as u32,
+            dimensions: None,
+            decoded_bytes: None,
+        },
+        created_at_ms: Some(456.into()),
+    };
+    framing::write_message(&mut input, &share, &png, limits)
+        .await
+        .unwrap();
+    assert!(matches!(
+        receive(&mut output, limits).await.0,
+        Response::Shared { .. }
+    ));
+    assert!(
+        matches!(old_proxy(&legacy, Old::Get).await.kind, Reply::Value {value} if value.data == png && value.created_at == 456 && value.content_type == v2::CONTENT_TYPE_PNG)
+    );
+    framing::write_message(
+        &mut input,
+        &Request::Clear {
+            request_id: 5.into(),
+            epoch,
+        },
+        &[],
+        limits,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(
+        receive(&mut output, limits).await.0,
+        Response::Cleared { .. }
+    ));
+    assert!(matches!(
+        old_proxy(&legacy, Old::Get).await.kind,
+        Reply::Empty
+    ));
+    drop(input);
+    assert!(
+        tokio::time::timeout(Duration::from_secs(3), child.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+}
+
+#[tokio::test]
+async fn occupied_legacy_endpoint_refuses_cutover_and_releases_the_new_socket() {
+    let dir = tempfile::tempdir().unwrap();
+    let legacy = dir.path().join("runtime/daemon.sock");
+    let shelf = legacy.with_file_name("shelf.sock");
+    let _old = daemon_mode(&legacy, "daemon").await;
+    let status = AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
+        .arg("shelf-daemon")
+        .arg("--socket-path")
+        .arg(&shelf)
+        .arg("--legacy-socket-path")
+        .arg(&legacy)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .await
+        .unwrap();
+    assert!(!status.success());
+    assert!(!shelf.exists());
+    assert!(matches!(
+        old_proxy(&legacy, ssh_clipboard::protocol::RequestKind::Get)
+            .await
+            .kind,
+        ssh_clipboard::protocol::ResponseKind::Empty
+    ));
 }
 
 fn proxy(path: &Path) -> tokio::process::Child {

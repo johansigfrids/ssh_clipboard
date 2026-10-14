@@ -72,7 +72,7 @@ New framing is strict initially; bounded noisy-shell resynchronization belongs t
 
 ## Evidence and Remaining Work
 
-The codec/negotiation fixtures are tested independently of OS sockets and SSH. Version 2 fixtures stay in their existing module. The [transport-independent service](shelf-service.md) now has duplex lifecycle/action tests, including pagination and deadlines. [Native Linux daemon/proxy/process checks](shelf-server.md) now pass in WSL. Forced-command compatibility/cutover, client integration, and a new real SSH endpoint test remain pending.
+The codec/negotiation fixtures are tested independently of OS sockets and SSH. Version 2 fixtures stay in their existing module. The [transport-independent service](shelf-service.md) now has duplex lifecycle/action tests, including pagination and deadlines. [Native Linux daemon/proxy/process checks](shelf-server.md) now pass in WSL. The optional V2 socket now exposes the same store to legacy clients, with frozen bytes and budgeted serialization. Forced-command cutover, item-aware client integration, and a new real SSH endpoint test remain pending.
 
 ## Update Triggers
 

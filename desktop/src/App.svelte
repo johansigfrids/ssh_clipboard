@@ -377,7 +377,8 @@
             <button id={field} type="button" class:recording={recording === field} class="shortcut-recorder" disabled={!ready || !draft.directShortcutsEnabled || busy || !view.shortcutAvailable} onclick={() => startRecording(field as ShortcutField)}>{recording === field ? "Press a shortcut · Esc to cancel" : draft[field as ShortcutField] ? displayShortcut(draft[field as ShortcutField]!) : "Record shortcut"}</button>
             {#if draft[field as ShortcutField]}<button type="button" class="text-button" disabled={!ready || busy} aria-label={`Clear ${label} shortcut`} onclick={() => { draft[field as "directShareShortcut" | "directCopyShortcut"] = null; stopRecording(); }}>Clear shortcut</button>{/if}
           {/each}
-          <p class="field-help">Share sends the clipboard copied on this computer. Copy fetches the latest shared item and replaces this computer's clipboard. Recording a shortcut never transfers content.</p>
+          <p class="field-help">To share: copy text or an image normally first, then press your Share shortcut. It sends what's already on this computer's clipboard; it doesn't copy selected text.</p>
+          <p class="field-help">To receive: press your Copy shortcut to put the latest shared item on this computer's clipboard, then paste normally. It doesn't paste into the active app. Recording a shortcut never transfers content.</p>
         {:else}
           <label class="toggle"><input type="checkbox" bind:checked={draft.showPreview} disabled={!ready || busy} />Show content previews</label>
           <p class="field-help">Hide text and image previews when sharing your screen.</p>

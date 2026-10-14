@@ -81,7 +81,7 @@ Live-reload backend probes cover profile isolation, preference-only retention, u
 
 The 2026-10-13 target-less CLI `peek --ssh-option BatchMode=yes --json` also reached the server using the saved desktop profile and returned PNG metadata. This probe fetched no payload and changed neither clipboard.
 
-On 2026-10-14, temporary-store desktop probes cover creating/renaming/removing connections, UUID stability, preserved device/preferences/transport, same-target profile isolation, stale saves, activation rejection, and replacement rollback. Executable CLI checks cover deleting selected/inactive profiles and refusing missing/last profiles without changing bytes. Rendered frontend checks cover draft selection, cancelling creation, confirmation/cancellation, failed removal, and recovery after external deletion. These checks do not prove native profile controls; that Windows smoke remains pending.
+On 2026-10-14, temporary-store desktop probes cover creating/renaming/removing connections, UUID stability, preserved device/preferences/transport, same-target profile isolation, stale saves, activation rejection, and replacement rollback. Executable CLI checks cover deleting selected/inactive profiles and refusing missing/last profiles without changing bytes. Rendered frontend checks cover draft selection, cancelling creation, confirmation/cancellation, failed removal, and recovery after external deletion. Separately, on 2026-10-14 the user confirmed native Windows creation/Test, switching with preview clearing, rename/relaunch persistence, and removal back to the original connection in SSHClipboardPrototype-20261014T070735201Z.exe.
 
 ## Update Triggers
 

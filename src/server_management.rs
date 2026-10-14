@@ -594,7 +594,7 @@ fn load_package(
             let signature=String::from_utf8(download(&format!("{url}.sig"),16384,20).await?)?;
             Ok((download(&url,MAX_PACKAGE_BYTES,300).await?,signature.trim().into()))
         }),
-        _=>bail!("Provide both --package and --signature, or neither to download the requested version."),
+        _=>Err(eyre::eyre!("Provide both --package and --signature, or neither to download the requested version.")),
     }
 }
 async fn download(url: &str, limit: usize, seconds: u64) -> Result<Vec<u8>> {

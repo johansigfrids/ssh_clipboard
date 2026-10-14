@@ -10,7 +10,9 @@ pub fn native_platform() -> Result<&'static str> {
     match std::env::consts::ARCH {
         "x86_64" => Ok("linux-x86_64"),
         "aarch64" => Ok("linux-aarch64"),
-        _ => bail!("this Linux architecture has no server update package"),
+        _ => Err(eyre::eyre!(
+            "this Linux architecture has no server update package"
+        )),
     }
 }
 

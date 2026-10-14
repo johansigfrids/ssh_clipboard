@@ -180,12 +180,16 @@ fn report(outcome: Outcome, recovery: bool) -> Result<()> {
         Outcome::RemovedFailedInitial if recovery => println!(
             "Recovered the failed initial installation; service disabled and selection removed."
         ),
-        Outcome::RestoredPrevious => bail!(
-            "Requested release failed; previous executable restored and protocol health passed. In-memory items were not restored."
-        ),
-        Outcome::RemovedFailedInitial => bail!(
-            "Initial release failed; service disabled and selection removed. Inspect the user service locally before retrying."
-        ),
+        Outcome::RestoredPrevious => {
+            bail!(
+                "Requested release failed; previous executable restored and protocol health passed. In-memory items were not restored."
+            );
+        }
+        Outcome::RemovedFailedInitial => {
+            bail!(
+                "Initial release failed; service disabled and selection removed. Inspect the user service locally before retrying."
+            );
+        }
     }
     Ok(())
 }

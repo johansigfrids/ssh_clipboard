@@ -145,7 +145,9 @@ impl Store {
     pub fn needs_recovery(&self) -> Result<bool> {
         match fs::symlink_metadata(self.root.join("transition.json")) {
             Ok(meta) if meta.is_file() && !meta.is_symlink() => Ok(true),
-            Ok(_) => bail!("unexpected transition path; repair is required"),
+            Ok(_) => Err(eyre::eyre!(
+                "unexpected transition path; repair is required"
+            )),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error.into()),
         }

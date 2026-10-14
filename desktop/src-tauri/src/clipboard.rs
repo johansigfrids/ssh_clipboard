@@ -5,25 +5,29 @@ use ssh_clipboard::client::image::ImageData;
 use ssh_clipboard::client_actions::{
     ClipboardAccess, apply_pull_response_with_clipboard, build_text_value,
 };
-use ssh_clipboard::protocol::{
-    CONTENT_TYPE_PNG, ClipboardValue, DEFAULT_MAX_SIZE, Response, ResponseKind,
-};
+#[cfg(test)]
+use ssh_clipboard::protocol::DEFAULT_MAX_SIZE;
+use ssh_clipboard::protocol::{CONTENT_TYPE_PNG, ClipboardValue, Response, ResponseKind};
 use std::sync::{Mutex, mpsc};
 use std::thread::JoinHandle;
 use tokio::sync::oneshot;
 
 struct NativeClipboard(Clipboard);
 
-fn capture(clipboard: &mut impl ClipboardAccess) -> Result<ClipboardValue, String> {
+fn capture(
+    clipboard: &mut impl ClipboardAccess,
+    max_size: usize,
+) -> Result<ClipboardValue, String> {
     match clipboard.read_text() {
         Ok(text) => {
-            if text.len() > DEFAULT_MAX_SIZE {
+            if text.len() > max_size {
                 return Err(format!(
-                    "This text is {:.2} MiB. The prototype transfer limit is 10 MiB. Copy less text and try again.",
-                    text.len() as f64 / 1048576.0
+                    "This text is {:.2} MiB. The transfer limit is {:.2} MiB ({max_size} bytes). Copy less text and try again.",
+                    text.len() as f64 / 1048576.0,
+                    max_size as f64 / 1048576.0
                 ));
             }
-            build_text_value(text, DEFAULT_MAX_SIZE).map_err(|err| err.message)
+            build_text_value(text, max_size).map_err(|err| err.message)
         }
         Err(text_error) => {
             let image = clipboard.read_image().map_err(|image_error| format!(
@@ -55,10 +59,11 @@ fn capture(clipboard: &mut impl ClipboardAccess) -> Result<ClipboardValue, Strin
             )
             .write_image(&image.bytes, width, height, image::ExtendedColorType::Rgba8)
             .map_err(|_| "Could not encode the clipboard image as PNG.".to_string())?;
-            if png.len() > DEFAULT_MAX_SIZE {
+            if png.len() > max_size {
                 return Err(format!(
-                    "Image {width} x {height} is {:.2} MiB as PNG. The prototype transfer limit is 10 MiB. Copy a smaller image and try again.",
-                    png.len() as f64 / 1048576.0
+                    "Image {width} x {height} is {:.2} MiB as PNG. The transfer limit is {:.2} MiB ({max_size} bytes). Copy a smaller image and try again.",
+                    png.len() as f64 / 1048576.0,
+                    max_size as f64 / 1048576.0
                 ));
             }
             Ok(ClipboardValue {
@@ -98,7 +103,7 @@ impl ClipboardAccess for NativeClipboard {
 }
 
 enum Job {
-    Read(oneshot::Sender<Result<ClipboardValue, String>>),
+    Read(usize, oneshot::Sender<Result<ClipboardValue, String>>),
     Write(ClipboardValue, oneshot::Sender<Result<(), String>>),
     Stop,
 }
@@ -134,10 +139,10 @@ impl ClipboardWorker {
                         Ok(())
                     };
                     match job {
-                        Job::Read(reply) => {
+                        Job::Read(max_size, reply) => {
                             let result = init
                                 .map_err(|err| format!("Clipboard unavailable: {err}"))
-                                .and_then(|()| capture(clipboard.as_mut().unwrap()));
+                                .and_then(|()| capture(clipboard.as_mut().unwrap(), max_size));
                             let _ = reply.send(result);
                         }
                         Job::Write(value, reply) => {
@@ -167,10 +172,10 @@ impl ClipboardWorker {
         })
     }
 
-    pub async fn read(&self) -> Result<ClipboardValue, String> {
+    pub async fn read(&self, max_size: usize) -> Result<ClipboardValue, String> {
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Job::Read(reply))
+            .try_send(Job::Read(max_size, reply))
             .map_err(|_| "Clipboard worker is busy or unavailable.".to_string())?;
         receive
             .await
@@ -265,7 +270,7 @@ mod tests {
             height: 16,
             bytes: pixels.clone().into(),
         }));
-        let value = capture(&mut clipboard).unwrap();
+        let value = capture(&mut clipboard, DEFAULT_MAX_SIZE).unwrap();
         assert_eq!(value.content_type, CONTENT_TYPE_PNG);
         let decoded = ssh_clipboard::client::image::decode_png(
             &value.data,
@@ -283,7 +288,7 @@ mod tests {
             height: 8192,
             bytes: Vec::new().into(),
         }));
-        let error = capture(&mut clipboard).unwrap_err();
+        let error = capture(&mut clipboard, DEFAULT_MAX_SIZE).unwrap_err();
         assert!(error.contains("8192 x 8192"));
         assert!(error.contains("256.00 MiB of pixels"));
         assert!(error.contains("64 MiB image limit"));
@@ -295,9 +300,9 @@ mod tests {
             text: "a".repeat(DEFAULT_MAX_SIZE + 1048576),
             dropped: Arc::new(AtomicBool::new(false)),
         };
-        let error = capture(&mut clipboard).unwrap_err();
+        let error = capture(&mut clipboard, DEFAULT_MAX_SIZE).unwrap_err();
         assert!(error.contains("11.00 MiB"));
-        assert!(error.contains("10 MiB"));
+        assert!(error.contains("10485760 bytes"));
         assert!(error.contains("Copy less text"));
     }
 
@@ -320,17 +325,20 @@ mod tests {
             0,
             "Opening the app must not access the clipboard"
         );
-        assert_eq!(worker.read().await.unwrap().data, b"initial");
+        assert_eq!(
+            worker.read(DEFAULT_MAX_SIZE).await.unwrap().data,
+            b"initial"
+        );
         worker
             .write(ssh_clipboard::client_actions::build_text_value("copied".into(), 1024).unwrap())
             .await
             .unwrap();
-        assert_eq!(worker.read().await.unwrap().data, b"copied");
+        assert_eq!(worker.read(DEFAULT_MAX_SIZE).await.unwrap().data, b"copied");
         assert_eq!(created.load(Ordering::SeqCst), 1);
         assert!(!dropped.load(Ordering::SeqCst));
         worker.stop();
         assert!(dropped.load(Ordering::SeqCst));
-        assert!(worker.read().await.is_err());
+        assert!(worker.read(DEFAULT_MAX_SIZE).await.is_err());
         worker.stop(); // Explicit shutdown followed by Drop must be safe.
     }
 }

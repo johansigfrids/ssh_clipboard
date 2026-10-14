@@ -28,11 +28,11 @@ The root codec supports PNG only, the protocol's image representation. Enabling 
 
 ## Guardrails and Evidence
 
-The old shared pixel type was `arboard::ImageData`, so even server-side PNG validation required an OS clipboard library. Use the owned/borrowed RGBA type in `src/client/image.rs` across shared code; convert at OS adapters. The desktop must retain its adapter on its worker thread rather than delegating ownership to one-shot CLI helpers.
+The old shared pixel type was `arboard::ImageData`, so building the server also compiled shared image/action APIs against an OS clipboard library. Use the owned/borrowed RGBA type in `src/client/image.rs` across shared code; convert at OS adapters. The current daemon checks content type, encoded length, and text UTF-8; full server-side PNG validation remains Phase 4 work. The desktop must retain its adapter on its worker thread rather than delegating ownership to one-shot CLI helpers.
 
 CI checks the headless runtime tree for clipboard, tray, hotkey, X11/Wayland, GTK, and registry integration libraries. The Linux server job does not install agent GUI prerequisites. Keep optional dependencies out of normal imports and test types; adapter contract tests use the shared pixel type so they also run headlessly.
 
-On 2026-10-14, Windows headless (42 unit + 5 executable checks), legacy agent (56 + 4), and desktop backend (18) tests pass, with required lint/format checks. The Linux-target normal dependency tree also contains no OS clipboard/desktop libraries. This is dependency evidence, not a native Linux build: the authorized test server has no Cargo available in its SSH environment, and no toolchain was installed. CI's Linux compilation/native platform checks remain required. No running server was replaced or restarted.
+At the initial dependency-split checkpoint on 2026-10-14, Windows headless (42 unit + 5 executable checks), legacy agent (56 + 4), and desktop backend (18) tests passed, with required lint/format checks. Subsequent migration adds its own probes; see [migration evidence](configuration-migration.md#evidence). The Linux-target normal dependency tree remains free of OS clipboard/desktop libraries after those additions. This is dependency evidence, not a native Linux build: the authorized test server has no Cargo available in its SSH environment, and no toolchain was installed. CI's Linux compilation/native platform checks remain required. No running server was replaced or restarted.
 
 ## Update Triggers
 

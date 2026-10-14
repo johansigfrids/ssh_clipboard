@@ -42,7 +42,7 @@ Capture high-impact dependency choices, their rationale, and guardrails for futu
 
 ### Provisional Decision
 
-Evaluate Tauri 2 with Svelte/TypeScript in an isolated `desktop/` project before replacing the old agent. This provides a real settings/panel surface with the existing Rust transfer code, while keeping the framework choice reversible. The new project has separate lockfiles and a distinct application identifier; installed agent configuration and startup registration are not migrated by the spike.
+Evaluate Tauri 2 with Svelte/TypeScript in an isolated `desktop/` project before replacing the old agent. This provides a real settings/panel surface with the existing Rust transfer code, while keeping the framework choice reversible. The new project has separate lockfiles and a distinct application identifier. Phase 2 can migrate configuration with exact backups; installed executables and OS startup registrations remain untouched.
 
 ### Guardrails
 
@@ -58,7 +58,7 @@ See [the prototype guide](desktop-prototype.md) for current evidence and open ch
 
 ## Shared Configuration Storage
 
-The first shared configuration slice uses `dirs` for a common per-user path and `tempfile` for same-directory atomic replacement, with standard-library file locks to coordinate writers. Keep the lock file stable across replacement and read settings without implicitly creating defaults. See [shared configuration](shared-configuration.md) for the contract and remaining migration work.
+The shared configuration store uses `dirs` for a common per-user path and `tempfile` for same-directory atomic replacement, with standard-library file locks to coordinate writers. Keep the lock file stable across replacement and read settings without implicitly creating defaults. `confy` supplies the exact legacy path; migration reads bounded bytes and parses TOML directly rather than using its default-creating loader. A UUID is assigned once on durable save for future device identity. See [shared configuration](shared-configuration.md) and [migration/recovery](configuration-migration.md).
 
 ## Headless Image and Clipboard Boundary
 

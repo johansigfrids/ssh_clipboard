@@ -8,6 +8,7 @@ Describe how to run tests locally and what kinds of tests exist in this repo.
 - `src/protocol.rs` (protocol round-trip tests)
 - `src/client_actions.rs` (clipboard contract tests)
 - `src/configuration.rs` (temporary-directory save, conflict, corruption, and recovery probes)
+- `src/configuration/migration.rs`, `tests/configuration_migration.rs` (legacy/schema upgrades, backups, preserved policy and identity)
 - `src/cli/settings.rs`, `tests/shared_settings_cli.rs` (profile resolution and executable-level shared settings checks)
 - `src/daemon.rs` (Linux-only daemon tests)
 - `Cargo.toml` (dev-dependencies for tests)
@@ -64,6 +65,7 @@ sudo apt-get install -y \
 - **Configuration**: restoration, stale writers, competing locks, abandoned preparations, corrupt/future/oversized documents, profile selection, and failed replacement. These use temporary directories and never edit the user's settings.
 - **Shared CLI configuration**: JSON/store parity across executable launches, profile addition/selection, direct destination and override precedence, rejected/corrupt edits, relative paths, and missing-profile failure before SSH/clipboard access. Use `--settings-file` with a temporary path so probes never alter real settings.
 - **Headless boundary**: shared PNG/action tests run without `arboard`; executable checks reject unsupported OS clipboard actions before SSH. CI guards the Linux dependency tree against desktop libraries. See [build variants](build-variants.md).
+- **Migration**: exact original/backup bytes, schema 1 read-only upgrade and first-write backup, schema 2 strictness, current-agent serialization, repeat import, backup conflict/retry, shared-file precedence, stable device IDs, advanced overrides, and retained startup/direct-shortcut choices. These use temporary files; they do not import the user's real agent file. See [migration/recovery](configuration-migration.md).
 
 ## Notes
 - Some tests are Linux-only (`#[cfg(test)]` in `src/daemon.rs`).

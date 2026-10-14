@@ -4,15 +4,9 @@ use tokio::io::{AsyncReadExt, BufReader};
 use crate::cli::{ClientConfigArgs, PushArgs, build_client_config, handle_response};
 use crate::client::transport::{make_request, send_request};
 use crate::client_actions::ClipboardBuildError;
-use crate::protocol::{ClipboardValue, DEFAULT_MAX_SIZE, RequestKind};
+use crate::protocol::{ClipboardValue, RequestKind};
 
 pub async fn run(args: PushArgs) -> Result<()> {
-    let effective_max_size = if args.max_size == 0 {
-        DEFAULT_MAX_SIZE
-    } else {
-        args.max_size
-    };
-
     // Resolve settings before reading stdin/the OS clipboard or starting SSH.
     let config = build_client_config(ClientConfigArgs {
         profile: args.profile,
@@ -24,12 +18,13 @@ pub async fn run(args: PushArgs) -> Result<()> {
         identity_file: args.identity_file,
         ssh_option: args.ssh_option,
         ssh_bin: args.ssh_bin,
-        max_size: effective_max_size,
+        max_size: args.max_size,
         timeout_ms: args.timeout_ms,
         strict_frames: args.strict_frames,
+        resync_frames: args.resync_frames,
         resync_max_bytes: args.resync_max_bytes,
     })?;
-    let value = match build_clipboard_value(args.stdin, effective_max_size).await {
+    let value = match build_clipboard_value(args.stdin, config.max_size).await {
         Ok(value) => value,
         Err(err) => return crate::cli::exit::exit_with_code(err.code, &err.message),
     };

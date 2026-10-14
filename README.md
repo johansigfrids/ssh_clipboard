@@ -20,9 +20,9 @@ npm run tauri dev
 
 Enter your SSH alias or `user@host` in Settings, apply it, test the connection, then refresh or share. Copy writes the displayed item to your local clipboard. Close hides the panel; Quit exits the app.
 
-The prototype retains the legacy 10 MiB transfer limit, including request metadata. Images use lossless PNG compression with a separate 64 MiB pixel limit. Size errors explain what exceeded the limit; rejected shares keep the previous item. Larger configurable transfer limits are part of the coordinated client/server rework.
+The prototype defaults to the legacy 10 MiB transfer limit, including request metadata, and honors a selected profile's limit. Images use lossless PNG compression with a separate 64 MiB pixel limit. Size errors explain what exceeded the limit; rejected shares keep the previous item. A client override does not reconfigure the server; larger negotiated limits are part of the coordinated client/server rework.
 
-This is a source-build prototype with persistent settings stored separately from the old agent. The rework CLI can inspect/edit them through `ssh_clipboard settings`; transfers without an explicit destination use the selected profile. The desktop reloads CLI edits automatically and protects unsaved drafts from stale edits. History, legacy configuration migration, autostart, installers, and signed updates are still planned. See the [prototype guide and validation status](docs/desktop-prototype.md), [shared settings and CLI precedence](docs/shared-configuration.md), and [implementation plan](docs/implementation-plan.md).
+This is a source-build prototype with persistent settings stored separately from the old agent. The rework CLI can inspect/edit them through `ssh_clipboard settings`; transfers without an explicit destination use the selected profile. The desktop reloads CLI edits automatically and protects unsaved drafts. Legacy/prototype settings migrate with exact backups; old startup registrations remain untouched. History, desktop autostart controls, installers, and signed updates are still planned. See the [prototype guide](docs/desktop-prototype.md), [shared settings](docs/shared-configuration.md), [migration/recovery](docs/configuration-migration.md), and [implementation plan](docs/implementation-plan.md).
 
 ## Quick Start (recommended)
 

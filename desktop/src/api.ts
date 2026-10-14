@@ -32,6 +32,7 @@ export interface PanelView {
   settingsNotice: string | null;
   activeShortcut: string | null;
   settingsRevision: string | null;
+  migrationSummary: string | null;
 }
 
 export const initialView: PanelView = {
@@ -48,6 +49,7 @@ export const initialView: PanelView = {
   settingsNotice: null,
   activeShortcut: null,
   settingsRevision: null,
+  migrationSummary: null,
 };
 
 export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {

@@ -17,13 +17,7 @@ pub async fn run(args: PullArgs) -> Result<()> {
         return crate::cli::exit::exit_with_code(2, "--base64 requires --stdout");
     }
 
-    let effective_max_size = if args.max_size == 0 {
-        crate::protocol::DEFAULT_MAX_SIZE
-    } else {
-        args.max_size
-    };
-
-    let config = build_client_config(client_config_args(&args, effective_max_size))?;
+    let config = build_client_config(client_config_args(&args))?;
     #[cfg(not(feature = "system-clipboard"))]
     if !args.peek && !args.stdout && args.output.is_none() {
         return crate::cli::exit::exit_with_code(
@@ -46,7 +40,7 @@ pub async fn run(args: PullArgs) -> Result<()> {
 
     #[cfg(feature = "system-clipboard")]
     if !args.stdout && args.output.is_none() && !args.base64 {
-        return handle_pull_to_clipboard(response, effective_max_size);
+        return handle_pull_to_clipboard(response, config.max_size);
     }
 
     if let ResponseKind::Value { value } = &response.kind {
@@ -137,7 +131,7 @@ fn handle_pull_to_clipboard(
     }
 }
 
-fn client_config_args(args: &PullArgs, max_size: usize) -> ClientConfigArgs {
+fn client_config_args(args: &PullArgs) -> ClientConfigArgs {
     ClientConfigArgs {
         profile: args.profile.clone(),
         settings_file: args.settings_file.clone(),
@@ -148,9 +142,10 @@ fn client_config_args(args: &PullArgs, max_size: usize) -> ClientConfigArgs {
         identity_file: args.identity_file.clone(),
         ssh_option: args.ssh_option.clone(),
         ssh_bin: args.ssh_bin.clone(),
-        max_size,
+        max_size: args.max_size,
         timeout_ms: args.timeout_ms,
         strict_frames: args.strict_frames,
+        resync_frames: args.resync_frames,
         resync_max_bytes: args.resync_max_bytes,
     }
 }

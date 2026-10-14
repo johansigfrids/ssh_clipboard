@@ -62,11 +62,6 @@ impl CheckOutcome {
     }
 }
 
-struct AgentConfigInfo {
-    used_for_target: bool,
-    load_error: Option<String>,
-}
-
 #[cfg(target_os = "linux")]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LinuxSession {
@@ -77,7 +72,6 @@ enum LinuxSession {
 
 pub async fn run(args: DoctorArgs) -> Result<()> {
     let explicit_destination = args.target.is_some() || args.host.is_some();
-    let timeout_ms = args.timeout_ms.max(1);
     let mut ssh = SshConfig {
         target: args.target.unwrap_or_default(),
         port: args.port,
@@ -92,25 +86,19 @@ pub async fn run(args: DoctorArgs) -> Result<()> {
         args.settings_file.as_deref(),
         args.profile.as_deref(),
     )?;
-    let agent_info = if shared_defaults || explicit_destination || args.settings_file.is_some() {
-        AgentConfigInfo {
-            used_for_target: false,
-            load_error: None,
-        }
-    } else {
-        maybe_apply_agent_config_defaults(&mut ssh)
-    };
+    let timeout_ms = args
+        .timeout_ms
+        .unwrap_or_else(|| {
+            shared_defaults
+                .as_ref()
+                .map_or(7000, |settings| settings.timeout_ms)
+        })
+        .max(1);
+    // Diagnostics must not create a default old-agent file or wait for GUI prompts.
+    ssh.ssh_options.insert(0, "BatchMode=yes".into());
 
     let (target, port) = resolve_target_and_port(&ssh);
     let mut checks = Vec::new();
-
-    if let Some(err) = agent_info.load_error {
-        checks.push(CheckOutcome::warn(
-            "agent config",
-            format!("could not load saved agent config: {err}"),
-            "if you rely on saved defaults, run `ssh_clipboard config show` to inspect/fix it",
-        ));
-    }
 
     match run_local_ssh_version(&ssh, timeout_ms).await {
         Ok(_) => checks.push(CheckOutcome::ok("ssh binary", "found and executable")),
@@ -128,11 +116,11 @@ pub async fn run(args: DoctorArgs) -> Result<()> {
         checks.push(CheckOutcome::fail(
             "target",
             "missing SSH target",
-            "pass `--target user@server` (or `--host`/`--user`), or run `ssh_clipboard setup-agent --target ...`",
+            "pass `--target user@server` (or `--host`/`--user`), or run `ssh_clipboard settings set --target ...`",
         ));
     } else {
-        let source = if agent_info.used_for_target {
-            "agent config"
+        let source = if shared_defaults.is_some() && !explicit_destination {
+            "shared profile"
         } else {
             "CLI args"
         };
@@ -184,10 +172,18 @@ pub async fn run(args: DoctorArgs) -> Result<()> {
     if proxy_ok {
         let client_config = ClientConfig {
             ssh: ssh.clone(),
-            max_size: DEFAULT_MAX_SIZE,
+            max_size: shared_defaults
+                .as_ref()
+                .map_or(DEFAULT_MAX_SIZE, |settings| settings.max_size),
             timeout_ms,
-            resync_frames: true,
-            resync_max_bytes: DEFAULT_RESYNC_MAX_BYTES,
+            resync_frames: shared_defaults
+                .as_ref()
+                .is_none_or(|settings| settings.resync_frames),
+            resync_max_bytes: shared_defaults
+                .as_ref()
+                .map_or(DEFAULT_RESYNC_MAX_BYTES, |settings| {
+                    settings.resync_max_bytes
+                }),
         };
         match send_request(&client_config, make_request(RequestKind::PeekMeta)).await {
             Ok(response) => match response.kind {
@@ -409,49 +405,4 @@ fn print_report(checks: &[CheckOutcome]) {
         .filter(|check| check.status == CheckStatus::Fail)
         .count();
     println!("summary: {ok} ok, {warn} warning(s), {fail} failure(s)");
-}
-
-#[cfg(all(
-    feature = "agent",
-    any(target_os = "windows", target_os = "macos", target_os = "linux")
-))]
-fn maybe_apply_agent_config_defaults(ssh: &mut SshConfig) -> AgentConfigInfo {
-    let mut info = AgentConfigInfo {
-        used_for_target: false,
-        load_error: None,
-    };
-    let want_target_from_config = resolve_target_and_port(ssh).0.trim().is_empty();
-
-    match crate::agent::load_config() {
-        Ok(config) => {
-            if want_target_from_config && !config.target.trim().is_empty() {
-                ssh.target = config.target.clone();
-                info.used_for_target = true;
-            }
-            if ssh.port.is_none() {
-                ssh.port = config.port;
-            }
-            if ssh.identity_file.is_none() {
-                ssh.identity_file = config.identity_file.clone();
-            }
-            if ssh.ssh_options.is_empty() {
-                ssh.ssh_options = config.ssh_options.clone();
-            }
-        }
-        Err(err) => {
-            info.load_error = Some(err.to_string());
-        }
-    }
-    info
-}
-
-#[cfg(not(all(
-    feature = "agent",
-    any(target_os = "windows", target_os = "macos", target_os = "linux")
-)))]
-fn maybe_apply_agent_config_defaults(_ssh: &mut SshConfig) -> AgentConfigInfo {
-    AgentConfigInfo {
-        used_for_target: false,
-        load_error: None,
-    }
 }

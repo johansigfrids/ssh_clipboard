@@ -8,20 +8,21 @@ use ssh_clipboard::protocol::{
 
 pub const MAX_DECODED_BYTES: usize = 64 * 1024 * 1024;
 
-pub fn validate_transfer_size(request: &Request) -> Result<(), String> {
+pub fn validate_transfer_size(request: &Request, max_size: usize) -> Result<(), String> {
     if let RequestKind::Set { value } = &request.kind {
         let bytes = ssh_clipboard::framing::encode_message(request)
             .map_err(|_| "Could not prepare this item for sharing.".to_string())?
             .len();
-        if bytes > DEFAULT_MAX_SIZE {
+        if bytes > max_size {
             let item = if value.content_type == CONTENT_TYPE_PNG {
                 "image"
             } else {
                 "text"
             };
             return Err(format!(
-                "This {item} needs {:.2} MiB to share, above the 10 MiB transfer limit including metadata. Copy a smaller item and try again.",
-                bytes as f64 / 1048576.0
+                "This {item} needs {:.2} MiB to share, above the {:.2} MiB ({max_size} bytes) transfer limit including metadata. Copy a smaller item and try again.",
+                bytes as f64 / 1048576.0,
+                max_size as f64 / 1048576.0
             ));
         }
     }
@@ -222,6 +223,9 @@ mod tests {
     #[test]
     fn settings_round_trip_preserves_profile_identity_and_other_profiles() {
         let mut config = ssh_clipboard::configuration::Configuration::default();
+        config.preferences.start_at_login = true;
+        config.preferences.direct_share_shortcut = Some("Ctrl+Alt+KeyC".into());
+        config.profiles[0].transport.timeout_ms = 9000;
         let mut other = config.profiles[0].clone();
         other.id = "other".into();
         other.name = "Other".into();
@@ -245,6 +249,12 @@ mod tests {
         assert_eq!(config.profiles[0].id, "default");
         assert_eq!(config.default_profile, "default");
         assert_eq!(config.profiles[1], other);
+        assert!(config.preferences.start_at_login);
+        assert_eq!(
+            config.preferences.direct_share_shortcut.as_deref(),
+            Some("Ctrl+Alt+KeyC")
+        );
+        assert_eq!(config.profiles[0].transport.timeout_ms, 9000);
     }
 
     #[test]
@@ -260,7 +270,7 @@ mod tests {
             },
         };
         assert!(
-            validate_transfer_size(&request)
+            validate_transfer_size(&request, DEFAULT_MAX_SIZE)
                 .unwrap_err()
                 .contains("including metadata")
         );
@@ -277,11 +287,11 @@ mod tests {
                 .len(),
             DEFAULT_MAX_SIZE
         );
-        assert!(validate_transfer_size(&request).is_ok());
+        assert!(validate_transfer_size(&request, DEFAULT_MAX_SIZE).is_ok());
         if let RequestKind::Set { value } = &mut request.kind {
             value.data.push(0);
         }
-        assert!(validate_transfer_size(&request).is_err());
+        assert!(validate_transfer_size(&request, DEFAULT_MAX_SIZE).is_err());
     }
 
     #[test]

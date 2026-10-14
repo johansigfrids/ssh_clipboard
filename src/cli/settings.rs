@@ -1,5 +1,5 @@
 use crate::client::ssh::SshConfig;
-use crate::configuration::{ConfigStore, Configuration, Profile};
+use crate::configuration::{ConfigStore, Configuration, Profile, TransportSettings};
 use clap::{Args, Subcommand};
 use eyre::{Result, WrapErr, eyre};
 use std::path::{Path, PathBuf};
@@ -36,6 +36,11 @@ pub enum SettingsCommand {
     },
     /// Select the profile used by the desktop and target-less CLI transfers.
     SelectProfile { id: String },
+    /// Initialize missing shared settings from a backed-up legacy agent file.
+    MigrateAgent {
+        #[arg(long)]
+        legacy_file: Option<PathBuf>,
+    },
 }
 
 #[derive(Args, Default)]
@@ -57,6 +62,24 @@ pub struct SettingsSetArgs {
     show_preview: Option<bool>,
     #[arg(long, value_parser = clap::value_parser!(bool))]
     close_after_copy: Option<bool>,
+    #[arg(long)]
+    ssh_option: Vec<String>,
+    #[arg(long)]
+    clear_ssh_options: bool,
+    #[arg(long, conflicts_with = "clear_ssh_bin")]
+    ssh_bin: Option<PathBuf>,
+    #[arg(long)]
+    clear_ssh_bin: bool,
+    #[arg(long)]
+    max_size: Option<usize>,
+    #[arg(long)]
+    timeout_ms: Option<u64>,
+    #[arg(long, value_parser = clap::value_parser!(bool))]
+    resync_frames: Option<bool>,
+    #[arg(long)]
+    resync_max_bytes: Option<usize>,
+    #[arg(long)]
+    device_name: Option<String>,
 }
 
 pub fn store_at(path: Option<&Path>) -> Result<ConfigStore> {
@@ -74,6 +97,15 @@ pub fn run(args: SettingsArgs) -> Result<()> {
     let store = store_at(args.settings_file.as_deref())?;
     if matches!(args.command, SettingsCommand::Path) {
         println!("{}", store.path().display());
+        return Ok(());
+    }
+    if let SettingsCommand::MigrateAgent { legacy_file } = args.command {
+        let config = match legacy_file {
+            Some(path) => store.initialize_from_legacy(&path)?,
+            None => store.initialize()?,
+        }
+        .ok_or_else(|| eyre!("no legacy agent settings file was found"))?;
+        println!("{}", serde_json::to_string_pretty(&config)?);
         return Ok(());
     }
     let loaded = store
@@ -110,6 +142,30 @@ fn apply(config: &mut Configuration, command: SettingsCommand) -> Result<()> {
             } else if let Some(identity) = args.identity_file {
                 profile.identity_file = identity;
             }
+            if args.clear_ssh_options {
+                profile.transport.ssh_options.clear();
+            }
+            profile.transport.ssh_options.extend(args.ssh_option);
+            if args.clear_ssh_bin {
+                profile.transport.ssh_bin = None;
+            } else if let Some(bin) = args.ssh_bin {
+                profile.transport.ssh_bin = Some(bin);
+            }
+            if let Some(bytes) = args.max_size {
+                profile.transport.max_size = bytes;
+            }
+            if let Some(ms) = args.timeout_ms {
+                profile.transport.timeout_ms = ms;
+            }
+            if let Some(resync) = args.resync_frames {
+                profile.transport.resync_frames = resync;
+            }
+            if let Some(bytes) = args.resync_max_bytes {
+                profile.transport.resync_max_bytes = bytes;
+            }
+            if let Some(name) = args.device_name {
+                config.device.name = name;
+            }
             if let Some(show) = args.show_preview {
                 config.preferences.show_preview = show;
             }
@@ -133,6 +189,7 @@ fn apply(config: &mut Configuration, command: SettingsCommand) -> Result<()> {
                 target: target.trim().into(),
                 port,
                 identity_file: identity_file.unwrap_or_default(),
+                transport: TransportSettings::default(),
             });
         }
         SettingsCommand::SelectProfile { id } => {
@@ -141,7 +198,7 @@ fn apply(config: &mut Configuration, command: SettingsCommand) -> Result<()> {
             }
             config.default_profile = id;
         }
-        SettingsCommand::Show | SettingsCommand::Path => {
+        SettingsCommand::Show | SettingsCommand::Path | SettingsCommand::MigrateAgent { .. } => {
             unreachable!("read-only commands handled before apply")
         }
     }
@@ -154,20 +211,23 @@ pub fn apply_connection_defaults(
     ssh: &mut SshConfig,
     path: Option<&Path>,
     profile_id: Option<&str>,
-) -> Result<bool> {
+) -> Result<Option<TransportSettings>> {
     let explicit_destination = !ssh.target.is_empty() || ssh.host.is_some();
     if explicit_destination && profile_id.is_none() {
-        return Ok(false);
+        return Ok(None);
     }
     let store = store_at(path)?;
-    let loaded = store
-        .load()
-        .wrap_err_with(|| format!("could not load {}", store.path().display()))?;
+    let loaded = if path.is_none() {
+        store.initialize()
+    } else {
+        store.load()
+    }
+    .wrap_err_with(|| format!("could not load {}", store.path().display()))?;
     let Some(config) = loaded else {
         if let Some(id) = profile_id {
             return Err(eyre!("unknown profile ID {id:?}: no shared settings file"));
         }
-        return Ok(false);
+        return Ok(None);
     };
     let profile = match profile_id {
         Some(id) => config
@@ -184,7 +244,12 @@ pub fn apply_connection_defaults(
     if ssh.identity_file.is_none() && !profile.identity_file.trim().is_empty() {
         ssh.identity_file = Some(profile.identity_file.trim().into());
     }
-    Ok(true)
+    ssh.ssh_options
+        .extend(profile.transport.ssh_options.iter().cloned());
+    if ssh.ssh_bin.is_none() {
+        ssh.ssh_bin = profile.transport.ssh_bin.clone();
+    }
+    Ok(Some(profile.transport.clone()))
 }
 
 #[cfg(test)]
@@ -212,12 +277,20 @@ mod tests {
         config.profiles[0].identity_file = "saved-key".into();
         store.prepare(None, config).unwrap().commit().unwrap();
         let mut saved = ssh("");
-        assert!(apply_connection_defaults(&mut saved, Some(store.path()), None).unwrap());
+        assert!(
+            apply_connection_defaults(&mut saved, Some(store.path()), None)
+                .unwrap()
+                .is_some()
+        );
         assert_eq!(saved.target, "saved-hub");
         assert_eq!(saved.port, Some(2222));
         assert_eq!(saved.identity_file, Some("saved-key".into()));
         let mut direct = ssh("other-host");
-        assert!(!apply_connection_defaults(&mut direct, Some(store.path()), None).unwrap());
+        assert!(
+            apply_connection_defaults(&mut direct, Some(store.path()), None)
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(direct.port, None);
         assert_eq!(direct.identity_file, None);
         let mut overridden = ssh("explicit-host");
@@ -226,6 +299,7 @@ mod tests {
         assert!(
             apply_connection_defaults(&mut overridden, Some(store.path()), Some("default"))
                 .unwrap()
+                .is_some()
         );
         assert_eq!(overridden.target, "explicit-host");
         assert_eq!(overridden.port, Some(2200));

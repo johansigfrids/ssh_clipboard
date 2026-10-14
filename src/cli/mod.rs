@@ -110,16 +110,18 @@ pub struct PushArgs {
     pub ssh_option: Vec<String>,
     #[arg(long)]
     pub ssh_bin: Option<PathBuf>,
-    #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
-    pub max_size: usize,
-    #[arg(long, default_value_t = 7000)]
-    pub timeout_ms: u64,
+    #[arg(long)]
+    pub max_size: Option<usize>,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
     #[arg(long)]
     pub stdin: bool,
     #[arg(long)]
     pub strict_frames: bool,
-    #[arg(long, default_value_t = 8192)]
-    pub resync_max_bytes: usize,
+    #[arg(long, value_parser = clap::value_parser!(bool), conflicts_with = "strict_frames")]
+    pub resync_frames: Option<bool>,
+    #[arg(long)]
+    pub resync_max_bytes: Option<usize>,
 }
 
 #[derive(Args, Clone)]
@@ -142,10 +144,10 @@ pub struct PullArgs {
     pub ssh_option: Vec<String>,
     #[arg(long)]
     pub ssh_bin: Option<PathBuf>,
-    #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
-    pub max_size: usize,
-    #[arg(long, default_value_t = 7000)]
-    pub timeout_ms: u64,
+    #[arg(long)]
+    pub max_size: Option<usize>,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
     #[arg(long)]
     pub stdout: bool,
     #[arg(long)]
@@ -158,8 +160,10 @@ pub struct PullArgs {
     pub json: bool,
     #[arg(long)]
     pub strict_frames: bool,
-    #[arg(long, default_value_t = 8192)]
-    pub resync_max_bytes: usize,
+    #[arg(long, value_parser = clap::value_parser!(bool), conflicts_with = "strict_frames")]
+    pub resync_frames: Option<bool>,
+    #[arg(long)]
+    pub resync_max_bytes: Option<usize>,
 }
 
 #[derive(Args, Clone)]
@@ -182,16 +186,18 @@ pub struct PeekArgs {
     pub ssh_option: Vec<String>,
     #[arg(long)]
     pub ssh_bin: Option<PathBuf>,
-    #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
-    pub max_size: usize,
-    #[arg(long, default_value_t = 7000)]
-    pub timeout_ms: u64,
+    #[arg(long)]
+    pub max_size: Option<usize>,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
     #[arg(long)]
     pub json: bool,
     #[arg(long)]
     pub strict_frames: bool,
-    #[arg(long, default_value_t = 8192)]
-    pub resync_max_bytes: usize,
+    #[arg(long, value_parser = clap::value_parser!(bool), conflicts_with = "strict_frames")]
+    pub resync_frames: Option<bool>,
+    #[arg(long)]
+    pub resync_max_bytes: Option<usize>,
 }
 
 #[derive(Args, Clone)]
@@ -214,8 +220,8 @@ pub struct DoctorArgs {
     pub ssh_option: Vec<String>,
     #[arg(long)]
     pub ssh_bin: Option<PathBuf>,
-    #[arg(long, default_value_t = 7000)]
-    pub timeout_ms: u64,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
 }
 
 #[cfg(target_os = "linux")]
@@ -646,6 +652,7 @@ fn humanize_bytes(size: u64) -> String {
     }
 }
 
+#[derive(Default)]
 pub(crate) struct ClientConfigArgs {
     pub profile: Option<String>,
     pub settings_file: Option<PathBuf>,
@@ -656,10 +663,11 @@ pub(crate) struct ClientConfigArgs {
     pub identity_file: Option<PathBuf>,
     pub ssh_option: Vec<String>,
     pub ssh_bin: Option<PathBuf>,
-    pub max_size: usize,
-    pub timeout_ms: u64,
+    pub max_size: Option<usize>,
+    pub timeout_ms: Option<u64>,
     pub strict_frames: bool,
-    pub resync_max_bytes: usize,
+    pub resync_frames: Option<bool>,
+    pub resync_max_bytes: Option<usize>,
 }
 
 pub(crate) fn build_client_config(args: ClientConfigArgs) -> Result<ClientConfig> {
@@ -679,11 +687,12 @@ pub(crate) fn build_client_config(args: ClientConfigArgs) -> Result<ClientConfig
         ssh_options: args.ssh_option,
         ssh_bin: args.ssh_bin,
     };
-    settings::apply_connection_defaults(
+    let defaults = settings::apply_connection_defaults(
         &mut ssh,
         args.settings_file.as_deref(),
         args.profile.as_deref(),
-    )?;
+    )?
+    .unwrap_or_default();
     let target = ssh.resolve_target();
     crate::configuration::validate_connection(target.trim(), ssh.port, "")
         .map_err(|message| eyre::eyre!(message))?;
@@ -694,10 +703,18 @@ pub(crate) fn build_client_config(args: ClientConfigArgs) -> Result<ClientConfig
     }
     Ok(ClientConfig {
         ssh,
-        max_size: args.max_size,
-        timeout_ms: args.timeout_ms,
-        resync_frames: !args.strict_frames,
-        resync_max_bytes: args.resync_max_bytes,
+        max_size: match args.max_size {
+            Some(0) => DEFAULT_MAX_SIZE,
+            Some(bytes) => bytes,
+            None => defaults.max_size,
+        },
+        timeout_ms: args.timeout_ms.unwrap_or(defaults.timeout_ms),
+        resync_frames: if args.strict_frames {
+            false
+        } else {
+            args.resync_frames.unwrap_or(defaults.resync_frames)
+        },
+        resync_max_bytes: args.resync_max_bytes.unwrap_or(defaults.resync_max_bytes),
     })
 }
 
@@ -743,6 +760,68 @@ pub fn init_tracing_for_agent() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saved_transport_defaults_and_explicit_builtin_values_have_correct_precedence() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = crate::configuration::ConfigStore::new(directory.path().join("settings.json"));
+        let mut config = crate::configuration::Configuration::default();
+        config.profiles[0].target = "saved-hub".into();
+        config.profiles[0].transport = crate::configuration::TransportSettings {
+            ssh_options: vec!["ServerAliveInterval=20".into()],
+            ssh_bin: Some("saved-ssh".into()),
+            max_size: 123456,
+            timeout_ms: 9000,
+            resync_frames: false,
+            resync_max_bytes: 2048,
+        };
+        store.prepare(None, config).unwrap().commit().unwrap();
+        let selected = build_client_config(ClientConfigArgs {
+            settings_file: Some(store.path().into()),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(selected.max_size, 123456);
+        assert_eq!(selected.timeout_ms, 9000);
+        assert!(!selected.resync_frames);
+        assert_eq!(selected.resync_max_bytes, 2048);
+        assert_eq!(selected.ssh.ssh_bin, Some("saved-ssh".into()));
+        let explicit = build_client_config(ClientConfigArgs {
+            settings_file: Some(store.path().into()),
+            max_size: Some(DEFAULT_MAX_SIZE),
+            timeout_ms: Some(7000),
+            resync_frames: Some(true),
+            resync_max_bytes: Some(8192),
+            ssh_bin: Some("explicit-ssh".into()),
+            ssh_option: vec!["ServerAliveInterval=1".into()],
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(explicit.max_size, DEFAULT_MAX_SIZE);
+        assert_eq!(explicit.timeout_ms, 7000);
+        assert!(explicit.resync_frames);
+        assert_eq!(explicit.resync_max_bytes, 8192);
+        assert_eq!(explicit.ssh.ssh_bin, Some("explicit-ssh".into()));
+        assert_eq!(
+            explicit.ssh.ssh_options,
+            ["ServerAliveInterval=1", "ServerAliveInterval=20"]
+        );
+        let parsed = Cli::try_parse_from([
+            "ssh_clipboard",
+            "peek",
+            "--timeout-ms",
+            "7000",
+            "--resync-frames",
+            "true",
+        ])
+        .unwrap();
+        let Commands::Peek(args) = parsed.command else {
+            panic!("expected peek");
+        };
+        assert_eq!(args.timeout_ms, Some(7000));
+        assert_eq!(args.resync_frames, Some(true));
+        assert!(args.max_size.is_none());
+    }
 
     #[test]
     fn humanize_bytes_formats_units() {

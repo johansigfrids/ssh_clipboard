@@ -42,9 +42,21 @@ struct PanelView {
     settings_notice: Option<String>,
     active_shortcut: Option<String>,
     settings_revision: Option<String>,
+    migration_summary: Option<&'static str>,
 }
 
 impl Session {
+    fn client_config(&self) -> Result<ssh_clipboard::client::transport::ClientConfig, String> {
+        let mut config = self
+            .saved_config
+            .as_ref()
+            .map(|c| c.selected_profile().map(|p| p.client_config()))
+            .transpose()
+            .map_err(|e| e.to_string())?
+            .unwrap_or_else(|| self.settings.client_config());
+        config.ssh.ssh_options.insert(0, "BatchMode=yes".into());
+        Ok(config)
+    }
     fn check_revision(&self, expected: Option<&str>) -> Result<(), String> {
         if expected
             != self
@@ -77,6 +89,8 @@ impl Session {
             settings_notice: self.settings_notice.clone(),
             active_shortcut: self.shortcut_active.clone(),
             settings_revision: self.saved_config.as_ref().map(|c| c.revision.to_string()),
+            migration_summary: self.saved_config.as_ref().and_then(|c| c.legacy_import.as_ref())
+                .map(|_| "Imported your existing connection and preferences and saved a backup. Start-at-login and direct-shortcut choices are retained for the later desktop setup."),
         })
     }
 }
@@ -126,7 +140,17 @@ fn synchronize_settings(
     };
     let profile_changed = loaded.as_ref().map(|c| &c.default_profile)
         != session.saved_config.as_ref().map(|c| &c.default_profile);
+    let transport_changed = loaded
+        .as_ref()
+        .and_then(|c| c.selected_profile().ok())
+        .map(|p| &p.transport)
+        != session
+            .saved_config
+            .as_ref()
+            .and_then(|c| c.selected_profile().ok())
+            .map(|p| &p.transport);
     if profile_changed
+        || transport_changed
         || next.target != session.settings.target
         || next.port != session.settings.port
         || next.identity_file != session.settings.identity_file
@@ -274,9 +298,10 @@ async fn apply_settings(
 async fn request(session: &mut Session, kind: RequestKind) -> Result<ResponseKind, String> {
     session.settings.validate_connection()?;
     let request = make_request(kind);
-    validate_transfer_size(&request)?;
+    let config = session.client_config()?;
+    validate_transfer_size(&request, config.max_size)?;
     let request_id = request.request_id;
-    match send_request(&session.settings.client_config(), request).await {
+    match send_request(&config, request).await {
         Ok(response) => {
             if response.request_id != request_id {
                 session.connected = false;
@@ -347,7 +372,10 @@ async fn share_clipboard(
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
     session.settings.validate_connection()?;
-    let value = state.clipboard.read().await?;
+    let value = state
+        .clipboard
+        .read(session.client_config()?.max_size)
+        .await?;
     ItemPreview::from_value(&value, session.settings.show_preview)?;
     match request(
         &mut session,
@@ -484,7 +512,7 @@ pub fn run() {
     let app = builder
         .setup(|app| {
             let (config_store, loaded, settings_notice) = match ConfigStore::user() {
-                Ok(store) => match store.load() {
+                Ok(store) => match store.initialize() {
                     Ok(config) => (Some(store), config, None),
                     Err(error) => {
                         let notice = format!("{error} Settings were left untouched at {}. Repair or move the file, then quit and reopen.", store.path().display());
@@ -553,6 +581,67 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn desktop_lockfile_imports_the_same_legacy_fixture_as_the_cli() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("agent.toml");
+        let fixture = include_str!("../../../tests/fixtures/legacy-agent.toml");
+        std::fs::write(&source, fixture).unwrap();
+        let config = ConfigStore::new(directory.path().join("settings.json"))
+            .initialize_from_legacy(&source)
+            .unwrap()
+            .unwrap();
+        assert_eq!(config.profiles[0].target, "legacy-hub");
+        assert_eq!(config.profiles[0].transport.timeout_ms, 9000);
+        assert_eq!(
+            config.profiles[0].transport.ssh_options,
+            ["BatchMode=no", "ServerAliveInterval=20"]
+        );
+        assert!(config.preferences.start_at_login);
+        assert_eq!(
+            std::fs::read(config.legacy_import.unwrap().backup).unwrap(),
+            fixture.as_bytes()
+        );
+    }
+
+    #[test]
+    fn imported_transport_is_used_and_gui_batch_mode_precedes_legacy_options() {
+        let mut session = session();
+        let settings = &mut session.saved_config.as_mut().unwrap().profiles[0].transport;
+        settings.ssh_options = vec!["BatchMode=no".into(), "ServerAliveInterval=20".into()];
+        settings.timeout_ms = 9000;
+        settings.max_size = 123456;
+        settings.resync_frames = false;
+        settings.resync_max_bytes = 2048;
+        let config = session.client_config().unwrap();
+        assert_eq!(
+            config.ssh.ssh_options,
+            ["BatchMode=yes", "BatchMode=no", "ServerAliveInterval=20"]
+        );
+        assert_eq!(config.timeout_ms, 9000);
+        assert_eq!(config.max_size, 123456);
+        assert!(!config.resync_frames);
+        assert_eq!(config.resync_max_bytes, 2048);
+    }
+
+    #[test]
+    fn changing_advanced_connection_options_clears_the_previous_snapshot() {
+        let mut session = session();
+        let mut next = session.saved_config.clone().unwrap();
+        next.revision += 1;
+        next.profiles[0]
+            .transport
+            .ssh_options
+            .push("ProxyJump=other-gateway".into());
+        assert!(synchronize_settings(
+            &mut session,
+            Ok(Some(next)),
+            |_, _| Ok("Registered".into())
+        ));
+        assert!(session.item.is_none());
+        assert!(!session.connected);
+    }
 
     fn session() -> Session {
         let mut config = Configuration {

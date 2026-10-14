@@ -5,7 +5,9 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 
-const SCHEMA_VERSION: u32 = 1;
+pub mod migration;
+
+const SCHEMA_VERSION: u32 = 2;
 const MAX_CONFIG_BYTES: u64 = 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -16,6 +18,8 @@ pub struct Configuration {
     pub default_profile: String,
     pub profiles: Vec<Profile>,
     pub preferences: Preferences,
+    pub device: Device,
+    pub legacy_import: Option<LegacyImport>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,6 +30,7 @@ pub struct Profile {
     pub target: String,
     pub port: Option<u16>,
     pub identity_file: String,
+    pub transport: TransportSettings,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,6 +40,79 @@ pub struct Preferences {
     pub shortcut_enabled: bool,
     pub show_preview: bool,
     pub close_after_copy: bool,
+    pub start_at_login: bool,
+    pub direct_share_shortcut: Option<String>,
+    pub direct_copy_shortcut: Option<String>,
+    pub direct_shortcuts_enabled: bool,
+    pub check_updates_automatically: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Device {
+    pub id: Option<String>,
+    pub name: String,
+}
+
+impl Default for Device {
+    fn default() -> Self {
+        Self {
+            id: None,
+            name: "This computer".into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LegacyImport {
+    pub source: PathBuf,
+    pub backup: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TransportSettings {
+    pub ssh_options: Vec<String>,
+    pub ssh_bin: Option<PathBuf>,
+    pub max_size: usize,
+    pub timeout_ms: u64,
+    pub resync_frames: bool,
+    pub resync_max_bytes: usize,
+}
+
+impl Default for TransportSettings {
+    fn default() -> Self {
+        Self {
+            ssh_options: Vec::new(),
+            ssh_bin: None,
+            max_size: crate::protocol::DEFAULT_MAX_SIZE,
+            timeout_ms: 7000,
+            resync_frames: true,
+            resync_max_bytes: 8192,
+        }
+    }
+}
+
+impl Profile {
+    pub fn client_config(&self) -> crate::client::transport::ClientConfig {
+        crate::client::transport::ClientConfig {
+            ssh: crate::client::ssh::SshConfig {
+                target: self.target.clone(),
+                port: self.port,
+                identity_file: (!self.identity_file.trim().is_empty())
+                    .then(|| self.identity_file.trim().into()),
+                user: None,
+                host: None,
+                ssh_options: self.transport.ssh_options.clone(),
+                ssh_bin: self.transport.ssh_bin.clone(),
+            },
+            max_size: self.transport.max_size,
+            timeout_ms: self.transport.timeout_ms,
+            resync_frames: self.transport.resync_frames,
+            resync_max_bytes: self.transport.resync_max_bytes,
+        }
+    }
 }
 
 impl Default for Configuration {
@@ -49,13 +127,21 @@ impl Default for Configuration {
                 target: String::new(),
                 port: None,
                 identity_file: String::new(),
+                transport: TransportSettings::default(),
             }],
             preferences: Preferences {
                 open_shortcut: "CommandOrControl+Shift+V".into(),
                 shortcut_enabled: true,
                 show_preview: true,
                 close_after_copy: false,
+                start_at_login: false,
+                direct_share_shortcut: None,
+                direct_copy_shortcut: None,
+                direct_shortcuts_enabled: false,
+                check_updates_automatically: false,
             },
+            device: Device::default(),
+            legacy_import: None,
         }
     }
 }
@@ -87,8 +173,28 @@ impl Configuration {
             }
             validate_connection(&profile.target, profile.port, &profile.identity_file)
                 .map_err(|_| ConfigError::Invalid)?;
+            let transport = &profile.transport;
+            if transport.max_size == 0
+                || transport.timeout_ms == 0
+                || transport.resync_max_bytes == 0
+                || transport
+                    .ssh_options
+                    .iter()
+                    .any(|s| s.chars().any(char::is_control))
+            {
+                return Err(ConfigError::Invalid);
+            }
         }
         if self.preferences.open_shortcut.is_empty() {
+            return Err(ConfigError::Invalid);
+        }
+        if self.device.name.trim().is_empty()
+            || self
+                .device
+                .id
+                .as_deref()
+                .is_some_and(|id| uuid::Uuid::parse_str(id).is_err())
+        {
             return Err(ConfigError::Invalid);
         }
         Ok(())
@@ -123,6 +229,20 @@ pub enum ConfigError {
     Conflict,
     #[error("Another process is saving settings. Try again after it finishes.")]
     Busy,
+    #[error(
+        "A migration backup already exists with different contents. Preserve or move that backup before retrying."
+    )]
+    BackupConflict,
+    #[error(
+        "Legacy agent settings are invalid or unsupported. Repair the original file; it has not been replaced."
+    )]
+    LegacyInvalid,
+    #[error("Could not migrate legacy settings from {path}: {error}")]
+    Migration {
+        path: PathBuf,
+        #[source]
+        error: Box<ConfigError>,
+    },
 }
 
 #[derive(Clone)]
@@ -152,31 +272,57 @@ impl ConfigStore {
 
     /// Read only: starting an unconfigured application does not create a file.
     pub fn load(&self) -> Result<Option<Configuration>, ConfigError> {
-        let file = match File::open(&self.path) {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error.into()),
+        read_bounded(&self.path)?
+            .map(|bytes| decode_config(&bytes))
+            .transpose()
+    }
+
+    /// Only default startup/target-less CLI discovery imports the legacy agent.
+    pub fn initialize(&self) -> Result<Option<Configuration>, ConfigError> {
+        if let Some(config) = self.load()? {
+            return Ok(Some(config));
+        }
+        let legacy_path = confy::get_configuration_file_path("ssh_clipboard", Some("agent"))
+            .map_err(|_| ConfigError::LegacyInvalid)?;
+        self.initialize_from_legacy(&legacy_path)
+    }
+
+    pub fn initialize_from_legacy(
+        &self,
+        legacy_path: &Path,
+    ) -> Result<Option<Configuration>, ConfigError> {
+        let legacy_path = if legacy_path.is_absolute() {
+            legacy_path.to_path_buf()
+        } else {
+            std::env::current_dir()?.join(legacy_path)
         };
-        let mut bytes = Vec::new();
-        file.take(MAX_CONFIG_BYTES + 1).read_to_end(&mut bytes)?;
-        if bytes.len() as u64 > MAX_CONFIG_BYTES {
-            return Err(ConfigError::Invalid);
+        self.import_legacy(&legacy_path)
+            .map_err(|error| ConfigError::Migration {
+                path: legacy_path,
+                error: Box::new(error),
+            })
+    }
+
+    fn import_legacy(&self, legacy_path: &Path) -> Result<Option<Configuration>, ConfigError> {
+        if let Some(config) = self.load()? {
+            return Ok(Some(config));
         }
-        // Check the schema before decoding fields, so future files get a useful error.
-        let value: serde_json::Value =
-            serde_json::from_slice(&bytes).map_err(|_| ConfigError::Invalid)?;
-        let version = value
-            .get("schema_version")
-            .and_then(serde_json::Value::as_u64)
-            .and_then(|v| u32::try_from(v).ok())
-            .ok_or(ConfigError::Invalid)?;
-        if version != SCHEMA_VERSION {
-            return Err(ConfigError::UnsupportedVersion(version));
+        let Some(bytes) = read_bounded(legacy_path)? else {
+            return Ok(None);
+        };
+        let mut next = migration::convert_agent(&bytes)?;
+        let backup = legacy_path.with_extension("pre-shared.bak");
+        next.legacy_import = Some(LegacyImport {
+            source: legacy_path.into(),
+            backup: backup.clone(),
+        });
+        let pending = self.prepare(None, next)?;
+        create_backup(&backup, &bytes)?;
+        if read_bounded(legacy_path)?.as_deref() != Some(bytes.as_slice()) {
+            return Err(ConfigError::Conflict);
         }
-        let config: Configuration =
-            serde_json::from_value(value).map_err(|_| ConfigError::Invalid)?;
-        config.validate()?;
-        Ok(Some(config))
+        // Keep the writer lock held while the backup and provenance are completed.
+        Ok(Some(pending.commit()?))
     }
 
     /// Keep the separate lock inode/handle stable across atomic replacement.
@@ -212,29 +358,89 @@ impl ConfigStore {
             std::fs::TryLockError::WouldBlock => ConfigError::Busy,
             std::fs::TryLockError::Error(error) => ConfigError::Io(error),
         })?;
-        if self.load()?.as_ref() != expected {
+        let original = read_bounded(&self.path)?;
+        let current = original.as_deref().map(decode_config).transpose()?;
+        if current.as_ref() != expected {
             return Err(ConfigError::Conflict);
         }
         next.revision = expected
             .map_or(0, |c| c.revision)
             .checked_add(1)
             .ok_or(ConfigError::Invalid)?;
-        let bytes = serde_json::to_vec_pretty(&next).map_err(|_| ConfigError::Invalid)?;
-        // Include the trailing newline so a successful save always fits the reader's budget.
-        if bytes.len() as u64 >= MAX_CONFIG_BYTES {
-            return Err(ConfigError::Invalid);
+        if next.device.id.is_none() {
+            next.device.id = Some(uuid::Uuid::new_v4().to_string());
         }
-        let mut temporary = NamedTempFile::new_in(parent)?;
-        temporary.write_all(&bytes)?;
-        temporary.write_all(b"\n")?;
-        temporary.as_file().sync_all()?;
-        Ok(PreparedSave {
+        if let Some(bytes) = &original {
+            let version = serde_json::from_slice::<serde_json::Value>(bytes)
+                .map_err(|_| ConfigError::Invalid)?;
+            if version["schema_version"] == 1 {
+                create_backup(&self.path.with_extension("schema-1.bak"), bytes)?;
+            }
+        }
+        let temporary = NamedTempFile::new_in(parent)?;
+        let mut pending = PreparedSave {
             path: self.path.clone(),
             temporary,
             config: next,
             _lock: lock,
-        })
+        };
+        pending.rewrite()?;
+        Ok(pending)
     }
+}
+
+fn read_bounded(path: &Path) -> Result<Option<Vec<u8>>, ConfigError> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let mut bytes = Vec::new();
+    file.take(MAX_CONFIG_BYTES + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_CONFIG_BYTES {
+        return Err(ConfigError::Invalid);
+    }
+    Ok(Some(bytes))
+}
+
+fn decode_config(bytes: &[u8]) -> Result<Configuration, ConfigError> {
+    // Check the schema before decoding fields, so future files get a useful error.
+    let mut value: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|_| ConfigError::Invalid)?;
+    let version = value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|v| u32::try_from(v).ok())
+        .ok_or(ConfigError::Invalid)?;
+    if version != 1 && version != SCHEMA_VERSION {
+        return Err(ConfigError::UnsupportedVersion(version));
+    }
+    if version == 1 {
+        migration::upgrade_schema_one(&mut value)?;
+    }
+    let config: Configuration = serde_json::from_value(value).map_err(|_| ConfigError::Invalid)?;
+    config.validate()?;
+    Ok(config)
+}
+
+fn create_backup(path: &Path, bytes: &[u8]) -> Result<(), ConfigError> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if !metadata.file_type().is_file() || read_bounded(path)?.as_deref() != Some(bytes) {
+                return Err(ConfigError::BackupConflict);
+            }
+            return Ok(());
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    let mut temporary = NamedTempFile::new_in(path.parent().ok_or(ConfigError::Invalid)?)?;
+    temporary.write_all(bytes)?;
+    temporary.as_file().sync_all()?;
+    temporary
+        .persist_noclobber(path)
+        .map_err(|error| ConfigError::Io(error.error))?;
+    Ok(())
 }
 
 pub struct PreparedSave {
@@ -245,6 +451,19 @@ pub struct PreparedSave {
 }
 
 impl PreparedSave {
+    fn rewrite(&mut self) -> Result<(), ConfigError> {
+        use std::io::{Seek, SeekFrom};
+        let bytes = serde_json::to_vec_pretty(&self.config).map_err(|_| ConfigError::Invalid)?;
+        if bytes.len() as u64 >= MAX_CONFIG_BYTES {
+            return Err(ConfigError::Invalid);
+        }
+        self.temporary.as_file_mut().set_len(0)?;
+        self.temporary.seek(SeekFrom::Start(0))?;
+        self.temporary.write_all(&bytes)?;
+        self.temporary.write_all(b"\n")?;
+        self.temporary.as_file().sync_all()?;
+        Ok(())
+    }
     pub fn commit(self) -> Result<Configuration, ConfigError> {
         self.temporary
             .persist(&self.path)

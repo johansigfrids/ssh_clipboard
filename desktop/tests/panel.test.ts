@@ -32,6 +32,19 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("an imported configuration explains preserved setup choices while remaining editable", async () => {
+    state.settings.target = "legacy-hub";
+    state.settingsSaved = true;
+    state.settingsRevision = "1";
+    state.migrationSummary = "Imported your existing connection and preferences and saved a backup.";
+    render(App);
+    await screen.findByText("legacy-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    expect(screen.getByText(state.migrationSummary)).toBeTruthy();
+    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "edited-hub" } });
+    expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(false);
+  });
+
   it("a failed subscription removes the listeners already installed and still loads the panel", async () => {
     const stop = vi.fn();
     bridge.listen.mockImplementation((name) => name === "settings-changed" ? Promise.reject("Unavailable") : Promise.resolve(stop));

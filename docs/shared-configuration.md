@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe the Phase 2 configuration foundation: a shared Rust schema/store, persistent desktop settings, CLI profile selection/edits, and live reload. Legacy migration and advanced profile controls remain unfinished. [Build variants](build-variants.md) cover the headless dependency boundary and platform evidence.
+Describe the Phase 2 configuration foundation: a shared Rust schema/store, persistent desktop settings, CLI profile selection/edits, and live reload. [Configuration migration](configuration-migration.md) covers legacy/schema 1 conversion and backups; [build variants](build-variants.md) cover the headless boundary. Advanced desktop controls and native/platform acceptance remain pending.
 
 ## Key Files
 
@@ -14,9 +14,9 @@ Describe the Phase 2 configuration foundation: a shared Rust schema/store, persi
 
 ## Current Behavior
 
-The prototype reads `ssh_clipboard/settings-v1.json` beneath the platform user configuration directory: `%APPDATA%` on Windows, `~/Library/Application Support` on macOS, and `$XDG_CONFIG_HOME` or `~/.config` on Linux. This file is separate from the old agent's configuration and from replaceable executable files. No legacy file is read, converted, or overwritten in this slice.
+The prototype reads `ssh_clipboard/settings-v1.json` beneath the platform user configuration directory: `%APPDATA%` on Windows, `~/Library/Application Support` on macOS, and `$XDG_CONFIG_HOME` or `~/.config` on Linux. The historical filename is stable; schema 2 is now written, with a backed-up schema 1 upgrade. The file is separate from old agent configuration and replaceable executables. Startup can initialize a missing shared file from a valid, backed-up legacy agent file; it never overwrites the original. See [migration source selection](configuration-migration.md#source-selection).
 
-Opening the app reads settings only. A missing file means setup is needed; it is created when Apply succeeds. The saved document includes schema version 1, a revision, a selected profile ID, named profiles, connection target/port/key reference, and panel shortcut/preview/dismissal preferences. The current desktop edits the selected profile and preserves other profiles and their stable IDs. The CLI can add/select profiles and edit the same connection and preview/dismissal preferences. Desktop profile controls, SSH advanced options, device identity, autostart/update policy, and backup-based migration still need implementation and schema evolution.
+Opening the app reads existing settings, or initializes from a legacy source when the shared file is missing. With neither source present it waits for setup/Apply. Schema 2 includes revisions, stable profile IDs, target/port/key reference, advanced transport settings, device identity, panel preferences, retained startup/direct-shortcut choices, and future update policy. The desktop edits basic fields without dropping other profiles or advanced settings. The CLI adds/selects profiles and edits connection/transport/preview/dismissal/device-name settings. Desktop profile/advanced controls and actual startup/updater activation remain later work.
 
 The file contains configuration only; clipboard payloads and SSH key contents are not persisted. Starting the app does not connect, download, share, or write the clipboard. Clipboard snapshots remain process-local.
 
@@ -26,7 +26,7 @@ Corrupt, unsupported-version, oversized, or unrecognized-field documents produce
 
 ### CLI Selection and Edits (Rework Branch)
 
-`ssh_clipboard settings path` prints the shared location. `settings show` prints JSON, or defaults without creating a file when absent. `settings set` updates supplied fields only; it supports `--target`, `--name`, `--port`, `--identity-file`, `--clear-port`, `--clear-identity-file`, `--show-preview true|false`, and `--close-after-copy true|false`.
+`ssh_clipboard settings path` prints the shared location. `settings show` prints effective JSON, or defaults without creating a file when absent. Schema 1 reads show their upgraded in-memory representation. `settings set` updates supplied fields only; see [CLI](cli.md) for basic/advanced flags. `settings migrate-agent` explicitly initializes from a backed-up legacy source only when shared settings do not already exist.
 
 ```powershell
 ssh_clipboard settings set --target clipboard-hub
@@ -35,9 +35,9 @@ ssh_clipboard settings select-profile second
 ssh_clipboard peek --profile second --ssh-option BatchMode=yes
 ```
 
-Push, pull, peek, and doctor select the saved default profile when no destination is supplied. `--profile <id>` makes a one-shot selection without changing the saved default. Within a selected profile, explicit `--target`/`--host`, `--port`, and `--identity-file` override saved fields. Transport flags still override the legacy built-in defaults; advanced transport settings are not in this schema yet.
+Push, pull, peek, and doctor select the saved default profile when no destination is supplied. `--profile <id>` makes a one-shot selection without changing the saved default. Within a selected profile, explicit target/host/port/key/binary/size/timeout/resync flags override saved fields, then built-in defaults. CLI SSH options precede saved options. `--resync-frames true|false` explicitly overrides a saved choice; `--strict-frames` forces strict mode. Doctor supports its existing subset of overrides and uses the selected policy for metadata probes.
 
-Without `--profile`, an explicit `--target` or `--host` is an independent connection: do not inherit the selected profile's port/key reference. That also provides a route around a damaged shared settings file without rewriting it. `doctor` falls back to the legacy agent config only when there is no shared document and no explicit destination/profile/file; a damaged shared document is an error, not permission to silently switch servers. Push resolves configuration before reading stdin or the OS clipboard.
+Without `--profile`, an explicit `--target` or `--host` is an independent connection: do not inherit the selected profile's port/key/options. This also bypasses a damaged shared settings file without rewriting it. Default discovery can migrate a valid legacy file if shared settings are absent; a damaged shared document is an error, not permission to switch servers. Doctor uses the same discovery rather than the old `confy::load` fallback, which could create an empty old-agent file. Push resolves configuration before reading stdin or the OS clipboard.
 
 All these commands accept `--settings-file <path>` for a separate file. Paths may be relative. With an explicit destination and no `--profile`, transfers bypass saved configuration even when a path was supplied. The old `config`, agent, and autostart commands still operate on the legacy agent file. Do not confuse those with the new shared `settings` namespace.
 
@@ -45,7 +45,7 @@ The desktop checks the shared file every two seconds and notifies the frontend o
 
 An edited frontend draft is preserved when external settings arrive, but Apply is blocked until the user discards the stale draft. Drafts and transfer/test actions carry the displayed settings revision as a string; the backend rejects an obsolete revision before any SSH/clipboard access. This closes the race between backend activation and frontend notification. A rejected action refreshes the panel state without retrying the transfer. Unchanged files do not repeatedly register shortcuts or generate preview work.
 
-If reload encounters a damaged file or rejected OS shortcut, previous active settings remain usable and a recovery notice blocks saves over the file. File repair is retried automatically; repeated identical failures generate one frontend notice. CLI preference edits themselves do not register shortcuts or change start-at-login. The desktop applies supported OS changes during activation.
+If reload encounters a damaged file or rejected OS shortcut, previous active settings remain usable and a recovery notice blocks saves over the file. File repair is retried automatically; repeated identical failures generate one frontend notice. CLI preference edits themselves do not register shortcuts or change start-at-login. The desktop applies supported OS changes during activation. Changing advanced connection policy also clears the previous snapshot; device/display-only changes retain it.
 
 ### Persistence
 
@@ -56,7 +56,7 @@ If reload encounters a damaged file or rejected OS shortcut, previous active set
 - Prepare the file/check conflicts before changing OS shortcut registration. A registration rejection abandons the preparation. If replacement fails after activation, attempt to restore the previous shortcut and report any restoration failure. The footer shows the actual registered shortcut rather than claiming an inactive saved binding works.
 - Preserve a saved shortcut preference on Wayland, report its unavailability, and allow other settings to be edited. Launcher/tray access remains available.
 
-Locking is advisory and coordinates cooperating writers. Manual editors do not take this lock; concurrent manual editing is outside this contract. Atomic replacement is supported by the underlying filesystem and `tempfile`; arbitrary network filesystems and power-loss durability are not proven here. Do not claim an installer/migration backup exists yet. Polling can observe a manually truncated file as invalid before a later valid replacement; preserve the last active state while reporting recovery.
+Locking is advisory and coordinates cooperating writers. Manual editors do not take this lock; concurrent manual editing is outside this contract. Atomic replacement is supported by the underlying filesystem and `tempfile`; arbitrary network filesystems and power-loss durability are not proven here. Migration backups exist; installer/OS rollback remains separate future work. Polling can observe a manually truncated file as invalid before a later valid replacement; preserve the last active state while reporting recovery.
 
 Implementation references: [Rust file locks](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock) (requires Rust 1.89 or later) and [temporary-file replacement](https://docs.rs/tempfile/latest/tempfile/struct.NamedTempFile.html#method.persist).
 

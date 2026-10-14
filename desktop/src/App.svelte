@@ -167,6 +167,7 @@
       <p class="quiet-note">Sharing and copying happen only when you ask.</p>
     {:else}
       <div class="settings-title"><h2>Settings</h2><span>{view.settingsSaved ? "Saved on this computer" : "Apply to save"}</span></div>
+      {#if view.migrationSummary}<p class="field-help">{view.migrationSummary}</p>{/if}
       <nav aria-label="Settings sections">
         {#each [["connection", "Connection"], ["shortcuts", "Shortcuts"], ["behavior", "Behavior"]] as [id, label]}
           <button class:active={section === id} aria-current={section === id ? "page" : undefined} onclick={() => selectSection(id)}>{label}</button>

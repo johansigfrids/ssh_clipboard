@@ -23,6 +23,10 @@ ssh_clipboard settings select-profile second
 
 `settings set` changes supplied fields only: `--target`, `--name`, `--port`, `--identity-file`, `--clear-port`, `--clear-identity-file`, `--show-preview true|false`, `--close-after-copy true|false`. `--settings-file <path>` selects a separate file for these commands. Corrupt or concurrently modified settings are preserved and reported; Show never creates a default file.
 
+Advanced Set flags are `--ssh-option` (repeatable, appended), `--clear-ssh-options`, `--ssh-bin`, `--clear-ssh-bin`, `--max-size`, `--timeout-ms`, `--resync-frames true|false`, `--resync-max-bytes`, and `--device-name`. Connection policy must remain valid; a settings-file size/timeout/resync budget of zero is rejected.
+
+`settings migrate-agent [--legacy-file <path>]` initializes only missing shared settings and saves an exact legacy backup. Existing shared settings win. Default desktop startup/target-less CLI discovery can do this automatically; custom files require the explicit command. Schema 1 prototype settings upgrade in memory and get an exact backup before schema 2 is saved. See [migration/recovery](configuration-migration.md) before returning to an older prototype binary.
+
 Rework push/pull/peek/doctor commands accept `--profile <id>` and `--settings-file <path>`. Without a destination, they use the selected saved profile. An explicit profile allows command-line target/host/port/key overrides. With an explicit destination and no profile flag, they use an independent connection and do not inherit another profile's port/key. The desktop reloads CLI edits approximately every two seconds, deferring them during a transfer. It preserves edited drafts and blocks stale saves/transfers. See [shared configuration](shared-configuration.md) for the complete precedence and recovery rules.
 
 ### `push`
@@ -45,6 +49,7 @@ Flags:
 - `--timeout-ms <ms>`
 - `--max-size <bytes>`
 - `--strict-frames`: disable framing resync (strict MAGIC at byte 0)
+- `--resync-frames true|false`: override a saved resync choice (conflicts with `--strict-frames`)
 - `--resync-max-bytes <bytes>`: max bytes to discard before MAGIC (default 8192)
 
 ### `pull`
@@ -103,7 +108,7 @@ Flags:
 - `--timeout-ms <ms>` (default 7000)
 
 Notes:
-- On the rework branch, `doctor` uses shared settings first. When there is no shared file or explicit destination/profile/file, it retains the legacy agent fallback (when the agent feature is enabled). Explicit destinations no longer inherit agent port/key/options. Corrupt shared settings produce an error rather than silently selecting a different target.
+- On the rework branch, `doctor` uses the same shared settings/migration discovery as transfers, including saved transport policy. It does not use the old default-creating agent loader. Explicit destinations do not inherit profile defaults. Corrupt settings produce an error rather than silently selecting another target. Probes force batch mode so diagnostics remain non-interactive even when an imported option requests prompts.
 
 ### `agent` (Windows/macOS/Linux)
 Run the background agent (tray icon + hotkeys).

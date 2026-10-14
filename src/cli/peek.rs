@@ -19,6 +19,7 @@ pub async fn run(args: PeekArgs) -> Result<()> {
             max_size: args.max_size,
             timeout_ms: args.timeout_ms,
             strict_frames: args.strict_frames,
+            resync_frames: args.resync_frames,
             resync_max_bytes: args.resync_max_bytes,
         })?,
         make_request(RequestKind::PeekMeta),

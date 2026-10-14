@@ -3,6 +3,12 @@ name = "ssh_clipboard_desktop_prototype"
 version = "0.0.0"
 edition = "2024"
 publish = false
+default-run = "ssh_clipboard_desktop_prototype"
+
+[[bin]]
+name = "verify_desktop_update"
+path = "src/bin/verify_desktop_update.rs"
+required-features = ["release-tools"]
 
 # Keep the prototype dependency graph and lockfile separate until Phase 2.
 [workspace]
@@ -11,6 +17,7 @@ publish = false
 custom-protocol = ["tauri/custom-protocol"]
 # Enabled by the future installer build, never by timestamped portable prototypes.
 installed-desktop = ["dep:tauri-plugin-updater", "dep:tauri-plugin-autostart"]
+release-tools = []
 
 [dependencies]
 ssh_clipboard = { path = "../..", default-features = false, features = ["external-resource-owner"] }
@@ -30,6 +37,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 minisign-verify = "0.3"
 semver = "1"
 url = "2"
+serde_json = "1"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

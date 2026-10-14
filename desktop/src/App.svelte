@@ -147,10 +147,10 @@
     operationEpoch++;
     inform("");
     try {
-      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history", "recover_share", "discard_share"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
+      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history", "recover_share", "discard_share", "set_start_at_login"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
       confirmingHistory = null;
       view = await command<PanelView>(name, guardedArgs);
-      if (name === "apply_settings" || name === "remove_profile") discardDraft();
+      if (name === "apply_settings" || name === "remove_profile" || name === "set_start_at_login") discardDraft();
       inform(name === "recover_share" && view.operationNotice ? view.operationNotice.message : name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success);
       if (name === "select_item" && content) content.scrollTop = 0;
     } catch (cause) {
@@ -437,7 +437,8 @@
           <p class="field-help">{view.notificationStatus.detail}</p>
           <button type="button" disabled={!ready || busy || !view.notificationStatus.available} onclick={() => perform("test_notification", "Test notification submitted to the system.")}>Test notification</button>
           <div class="capability"><strong>Tray menu</strong><span>{view.trayStatus}</span></div>
-          <p class="field-help">Start at login and updates will be added after the desktop foundation is verified.</p>
+          <label class="toggle"><input type="checkbox" checked={view.startupStatus.enabled === true} disabled={!ready || busy || dirty || !view.settingsWritable || !view.startupStatus.available || view.startupStatus.enabled === null} onchange={(event) => perform("set_start_at_login", "Startup choice saved.", { enabled: event.currentTarget.checked })} />Start at login</label>
+          <p class="field-help">{view.startupStatus.detail} {dirty ? "Apply or discard other changes first." : "Changes to this choice are saved immediately."}</p>
         {/if}
         {#if staleDraft}<p class="field-help">Saved settings changed. Discard your draft to load them.</p>{/if}
         <div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { discardDraft(); inform("Loaded current saved settings."); }}>Discard changes</button></div>

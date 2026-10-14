@@ -47,6 +47,42 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("startup shows actual state without activating an imported preference and saves only on an explicit click", async () => {
+    state.settingsRevision = "7";
+    state.startupStatus = { available: true, enabled: false, desired: true, detail: "Retained preference differs from this app's startup entry." };
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => {
+      if (name === "set_start_at_login") {
+        state.startupStatus.enabled = args.enabled;
+        state.settingsRevision = "8";
+      }
+      return normal(name, args);
+    });
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(await screen.findByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    const checkbox = screen.getByRole("checkbox", { name: "Start at login" }) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    expect(bridge.invoke.mock.calls.some(([name]) => name === "set_start_at_login")).toBe(false);
+    await fireEvent.click(checkbox);
+    await screen.findByText("Startup choice saved.");
+    expect(bridge.invoke.mock.calls.find(([name]) => name === "set_start_at_login")![1]).toEqual({ enabled: true, expectedRevision: "7" });
+    await fireEvent.click(screen.getByRole("checkbox", { name: "Show content previews" }));
+    expect(checkbox.disabled).toBe(true);
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    expect(bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1].expectedRevision).toBe("8");
+  });
+
+  it("portable builds cannot request startup registration", async () => {
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(await screen.findByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    expect((screen.getByRole("checkbox", { name: "Start at login" }) as HTMLInputElement).disabled).toBe(true);
+    expect(bridge.invoke.mock.calls.some(([name]) => name === "set_start_at_login")).toBe(false);
+  });
+
   it("uncertain share recovery checks status without recapturing and displays acceptance", async () => {
     state.settings.target="hub";
     state.settingsRevision="5";

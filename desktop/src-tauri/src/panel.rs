@@ -48,6 +48,7 @@ struct Session {
     history_status: Option<monitor::Status>,
     metadata_barrier: tokio::time::Instant,
     pending_share: Option<PendingShare>,
+    startup_status: ssh_clipboard_desktop_prototype::startup::Status,
 }
 
 #[derive(Clone, Serialize)]
@@ -94,6 +95,7 @@ struct PanelView {
     notification_status: notifications::Status,
     history_status: Option<monitor::Status>,
     pending_share: Option<crate::pending::View>,
+    startup_status: ssh_clipboard_desktop_prototype::startup::Status,
 }
 
 impl Session {
@@ -232,6 +234,7 @@ impl Session {
             connection_report: self.connection_report.clone(),
             operation_notice: self.operation_notice.clone(),
             notification_status: self.notification_status.clone(),
+            startup_status: self.startup_status.clone(),
             history_status: self.history_status.clone(),
             pending_share: self.pending_share.as_ref().map(|pending|{let mut view=pending.view();view.can_retry &= self.history.epoch.is_none_or(|epoch|epoch==pending.epoch);view}),
             profiles: self.saved_config.as_ref().map_or_else(
@@ -255,7 +258,7 @@ impl Session {
             active_shortcut: self.shortcuts.open_label(),
             settings_revision: self.saved_config.as_ref().map(|c| c.revision.to_string()),
             migration_summary: self.saved_config.as_ref().and_then(|c| c.legacy_import.as_ref())
-                .map(|_| "Imported your existing connection and preferences and saved a backup. Review retained direct shortcuts before enabling them. Start-at-login is retained for the later desktop setup."),
+                .map(|_| "Imported your existing connection and preferences and saved a backup. Review retained direct shortcuts and start-at-login before enabling them here."),
         })
     }
 
@@ -361,6 +364,17 @@ fn watch_settings(app: AppHandle) {
             let Ok(mut session) = state.session.try_lock() else {
                 continue;
             };
+            let startup = crate::startup_native::status(
+                &app,
+                session
+                    .saved_config
+                    .as_ref()
+                    .is_some_and(|config| config.preferences.start_at_login),
+            );
+            if startup != session.startup_status {
+                session.startup_status = startup;
+                let _ = app.emit("settings-changed", ());
+            }
             if session
                 .pending_share
                 .as_mut()
@@ -515,6 +529,55 @@ async fn apply_settings(
         configure_shortcut(&app, session, settings)
     })?;
     sync_monitor(&state, &mut session);
+    session.view()
+}
+
+#[tauri::command]
+async fn set_start_at_login(
+    app: AppHandle,
+    state: State<'_, Desktop>,
+    enabled: bool,
+    expected_revision: Option<String>,
+) -> Result<PanelView, String> {
+    let mut session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Wait for the current operation to finish.")?;
+    session.check_revision(expected_revision.as_deref())?;
+    if let Some(notice) = &session.settings_notice {
+        return Err(notice.clone());
+    }
+    if !crate::startup_native::available() {
+        return Err("Start at login is available in installed release builds.".into());
+    }
+    let store = state
+        .config_store
+        .as_ref()
+        .ok_or("The settings location is unavailable.")?;
+    let mut next = session.saved_config.clone().unwrap_or_default();
+    next.preferences.start_at_login = enabled;
+    // Prepare/check the config revision before touching the native entry.
+    let prepared = store
+        .prepare(session.saved_config.as_ref(), next)
+        .map_err(|e| e.to_string())?;
+    let result = ssh_clipboard_desktop_prototype::startup::change(
+        &crate::startup_native::NativeRegistry(&app),
+        enabled,
+        || prepared.commit().map_err(|e| e.to_string()),
+    );
+    if let Ok(saved) = &result {
+        // Only this preference changed: avoid re-registering shortcuts or clearing shelf state.
+        session.saved_config = Some(saved.clone());
+        sync_monitor(&state, &mut session);
+    }
+    session.startup_status = crate::startup_native::status(
+        &app,
+        session
+            .saved_config
+            .as_ref()
+            .is_some_and(|config| config.preferences.start_at_login),
+    );
+    result?;
     session.view()
 }
 
@@ -1396,8 +1459,10 @@ fn install_tray(app: &AppHandle) -> tauri::Result<()> {
 pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            show_panel(app, false)
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if !args.iter().any(|arg| arg == "--background") {
+                show_panel(app, false);
+            }
         }));
     if !is_wayland() {
         builder = builder.plugin(
@@ -1408,6 +1473,13 @@ pub fn run() {
     }
     let app = builder
         .setup(|app| {
+            #[cfg(feature = "installed-desktop")]
+            {
+                app.handle().plugin(tauri_plugin_autostart::Builder::new()
+                    .app_name(app.config().product_name.as_deref().unwrap_or("SSH Clipboard"))
+                    .arg("--background").build())?;
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
             let (config_store, loaded, settings_notice) = match ConfigStore::user() {
                 Ok(store) => match store.initialize() {
                     Ok(config) => (Some(store), config, None),
@@ -1420,6 +1492,7 @@ pub fn run() {
             };
             let settings = loaded.as_ref().map(SessionSettings::from_configuration)
                 .transpose().map_err(std::io::Error::other)?.unwrap_or_default();
+            let startup_status = crate::startup_native::status(app.handle(), loaded.as_ref().is_some_and(|config| config.preferences.start_at_login));
             let mut session = Session {
                 settings: settings.clone(),
                 item: None,
@@ -1439,6 +1512,7 @@ pub fn run() {
                 history_status: None,
                 metadata_barrier: tokio::time::Instant::now(),
                 pending_share: None,
+                startup_status,
             };
             session.shortcut_status = if is_wayland() {
                 "Wayland: use the launcher or tray menu. Portal support is pending.".into()
@@ -1461,6 +1535,10 @@ pub fn run() {
             if install_tray(app.handle()).is_err() {
                 app.state::<Desktop>().session.blocking_lock().tray_status =
                     "Unavailable: reopen through the app launcher.".into();
+            }
+            if crate::startup_native::available() && std::env::args().any(|arg| arg == "--background")
+                && let Some(window) = app.get_webview_window("main") {
+                let _ = window.hide();
             }
             watch_settings(app.handle().clone());
             let monitor_state = app.state::<Desktop>();
@@ -1509,6 +1587,7 @@ pub fn run() {
             set_shortcut_recording,
             test_notification,
             apply_settings,
+            set_start_at_login,
             remove_profile,
             test_connection,
             refresh_item,
@@ -2073,6 +2152,12 @@ mod tests {
             history_status: None,
             metadata_barrier: tokio::time::Instant::now(),
             pending_share: None,
+            startup_status: ssh_clipboard_desktop_prototype::startup::Status {
+                available: false,
+                enabled: None,
+                desired: false,
+                detail: "Test fixture",
+            },
             item: Some(ClipboardValue {
                 content_type: ssh_clipboard::protocol::CONTENT_TYPE_TEXT.into(),
                 data: b"retained snapshot".to_vec(),

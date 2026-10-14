@@ -10,6 +10,8 @@
     "build": "npm run check && vite build",
     "tauri": "tauri",
     "build:prototype": "node scripts/build-prototype.mjs",
+    "build:installed": "node scripts/build-installed.mjs",
+    "test:package": "node scripts/smoke-installed-build.mjs",
     "test": "node --test tests/*.test.mjs && vitest run"
   },
   "dependencies": {

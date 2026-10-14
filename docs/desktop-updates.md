@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Track Phase 6 implementation and distinguish package verification from installed update evidence. The current slice implements the strict artifact policy and cryptographic fault probes. Packaging, download/update UI, startup integration, protected release workflow, and installed upgrade acceptance remain open.
+Track Phase 6 implementation and distinguish package verification from installed update evidence. Strict artifact verification, installed-build staging, and explicit startup controls are implemented. Runtime download/update UI, protected release workflow, and installed upgrade acceptance remain open.
 
 ## Key Files
 
@@ -10,6 +10,27 @@ Track Phase 6 implementation and distinguish package verification from installed
 - `desktop/src-tauri/tests/fixtures/update-signing.json`: public synthetic signatures and payloads, with no private keys.
 - `desktop/scripts/generate-update-test-fixtures.mjs`: disposable synthetic fixture generation and checked cleanup.
 - `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/Cargo.lock`: separate desktop dependencies; updater/startup are opt-in installed-build features.
+- `desktop/scripts/build-installed.mjs`, `smoke-installed-build.mjs`: stage/sign/verify packages; isolated synthetic-key build smoke.
+- `desktop/src-tauri/tauri.installed.conf.json`, `build.rs`: installed identity, CLI sidecar, per-user NSIS, explicit release trust inputs.
+- `desktop/src-tauri/src/startup.rs`, `startup_native.rs`, `panel.rs`: actual native startup state, explicit changes, and coordinated-save rollback.
+
+## Package Staging
+
+`cd desktop; npm run build:installed -- --version <core-version> --public-key-file <public-key>` builds the matching native CLI and desktop installer. The helper requires protected `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` inputs. Production private key files must be outside the checkout. It never installs, tags, pushes, or publishes. Release builds require explicit public-key/feed inputs; ordinary portable prototypes have no updater or startup registration.
+
+Windows uses a per-user NSIS installer with stable desktop executable and bundled `ssh_clipboard.exe`. The CLI version must equal the chosen core version before packaging. Configuration remains in the existing separate shared-settings location. This does not add the CLI to the user's PATH. macOS/app and Linux/AppImage staging paths exist but have not been built or accepted on those platforms.
+
+After packaging, rename the exact updater asset to its canonical version/platform filename, then sign it with `--app-version`. Verify its exact bytes with `verify_desktop_update` before writing checksums and the keyed feed. Feed filenames contain a public-key fingerprint: an old-key feed can keep serving an old-key-signed transition containing the next key and next feed. The transition helper accepts `--transition-from-public-key-file`; real installed rotation remains an acceptance gate.
+
+`npm run test:package` generates a disposable synthetic key, builds a debug package under a separate **SSH Clipboard Update Test** application identity, signs/verifies it, and deletes the private key. It never executes the installer. On Windows x64 this passed with the generated NSIS script containing both GUI and CLI files, current-user install mode, and GUI ProductVersion/FileVersion matching core 0.3.0. The staged evidence records `testOnly: true`, `installed: false`, `published: false`. This is packaging evidence, not an installed upgrade or a production release.
+
+Guardrail: the installed overlay exercises Tauri's generated configuration macro and sidecar path, which plain tests can miss. `serde_json` must remain a normal dependency for that macro; dev-only availability masked the initial packaging failure. Keep the real package smoke alongside source checks.
+
+## Start at Login
+
+Installed release builds expose a Behavior checkbox reflecting the **actual** startup entry. Saved/imported preferences are shown as desired state and never activate registration on startup or reload. Explicit changes first prepare the shared settings write, change and verify native registration, then commit settings. Save failures restore and verify the actual previous entry, even when an imported preference said otherwise; failed restoration is reported for repair. Unsaved drafts must be applied/discarded first.
+
+The entry names the stable installed app and passes `--background`; startup/second-instance background launches do not reveal the panel or read the clipboard. The legacy agent's entry is untouched. Prototype/debug builds cannot modify startup. Tests use a fake registry, including registration/save/rollback faults; no actual OS startup entry or login has been exercised. Windows startup suppression outside the registration API still requires native login acceptance.
 
 ## Package Policy
 

@@ -149,7 +149,7 @@ Store SSH references, not passwords/private-key contents. Keep host verification
 
 ### Desktop
 
-Install at a stable platform-appropriate location, preserve configuration outside the application bundle, and register start-at-login against the stable installed entry point. Check the actual OS autostart state and surface registration failures.
+Installed-build staging now targets a stable per-user Windows NSIS location, bundles a version-matched CLI, and preserves configuration outside the application bundle. The isolated debug package build has passed without running the installer. Release-only startup controls read actual registration and apply explicit changes with coordinated settings/save rollback; retained/imported choices never register automatically. Native login and installed replacement remain acceptance gates; macOS/Linux packaging is unverified. See [packaging and startup evidence](docs/desktop-updates.md).
 
 Quietly check for stable updates, show release notes and download status, and allow installation when transfers are idle. Verify artifacts against an embedded trusted public key before any replacement. The private signing key is held only in protected release credentials, with a secure backup; never in source, normal build artifacts, or PR jobs. The updater's signing key is independent of SSH keys.
 

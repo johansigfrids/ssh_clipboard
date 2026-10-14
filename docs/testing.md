@@ -92,6 +92,8 @@ Pipe fixtures launch noninteractive PowerShell on Windows and `/bin/sh` on Unix;
 
 The optional V2 shelf adapter is tested with mixed stream clients and both real Linux proxy processes: unknown legacy origin, exact text/PNG bytes and capture timestamps, latest-item selection, shared clear/admission, size refusal with metadata access, malformed/trailing frames, incomplete-upload cleanup, and refusal to detach an occupied legacy endpoint. These checks use synthetic data in disposable local sockets; they do not replace the installed server or prove SSH cutover.
 
+The [new session client](shelf-client.md#evidence-and-gaps) adds hostile reply, pagination, cancellation, and bounded SSH subprocess probes. A native WSL command test runs `shelf` through the real session proxy using a synthetic SSH shim; it proves exact stdout/file exports, no clobbering, metadata-only list, and epoch mutation guards with tracing enabled. It does not contact a real SSH server or the OS clipboard.
+
 ## Platform `cfg` Hygiene
 
 - Keep function/item `#[cfg(...)]` aligned with where it is used.

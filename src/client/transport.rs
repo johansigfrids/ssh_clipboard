@@ -225,13 +225,13 @@ fn frame_failure(error: eyre::Report) -> TransportFailure {
 const STDERR_PART_BYTES: usize = 8192;
 
 #[derive(Default)]
-struct StderrCapture {
+pub(super) struct StderrCapture {
     head: Vec<u8>,
     tail: Vec<u8>,
 }
 
 impl StderrCapture {
-    fn observe(&mut self, bytes: &[u8]) {
+    pub(super) fn observe(&mut self, bytes: &[u8]) {
         let head_count = (STDERR_PART_BYTES - self.head.len()).min(bytes.len());
         self.head.extend_from_slice(&bytes[..head_count]);
         if bytes.len() >= STDERR_PART_BYTES {
@@ -244,7 +244,7 @@ impl StderrCapture {
             self.tail.extend_from_slice(bytes);
         }
     }
-    fn classification_bytes(&self) -> Vec<u8> {
+    pub(super) fn classification_bytes(&self) -> Vec<u8> {
         let mut bytes = self.head.clone();
         bytes.push(b'\n');
         bytes.extend_from_slice(&self.tail);

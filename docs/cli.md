@@ -11,6 +11,8 @@ Concise command/flag reference for the `ssh_clipboard` CLI.
 
 ### Experimental Linux Shelf
 
+The cross-platform `shelf` namespace provides `list`, `health`, `share --file|--stdin`, `fetch <id> --stdout|--output`, `delete <id> --epoch <epoch>`, and `clear --epoch <epoch>`. It explicitly selects the new endpoint, uses JSON metadata and exact byte exports, and never reads/writes the OS clipboard. See [client commands and safety contracts](shelf-client.md).
+
 `shelf-daemon [--socket-path <private-path>]` serves the new item-aware protocol. `session-proxy` bridges it over binary stdio. Add `--legacy-socket-path <private-path>` to the shelf daemon to serve the same store to V2 clients; `--legacy-max-frame-bytes` defaults to 10 MiB. Existing `proxy` clients use that compatibility socket, while new sessions use the separate shelf socket. Startup refuses an occupied socket. This does not install or replace the current server. See [endpoint policy and native evidence](shelf-server.md).
 
 ### `settings` (Rework Branch)

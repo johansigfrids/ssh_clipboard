@@ -26,6 +26,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/session-protocol.md](session-protocol.md): Separate shelf bootstrap, precision-safe metadata, negotiated limits, raw payload framing, and compatibility boundary.
 - [docs/shelf-service.md](shelf-service.md): Transport-independent shelf actions, connection admission, deadlines, and stream-based lifecycle evidence.
 - [docs/shelf-server.md](shelf-server.md): Experimental Linux endpoint commands, safe socket ownership, bounded stdio bridge, and native process evidence.
+- [docs/shelf-client.md](shelf-client.md): Item-aware session validation, explicit CLI inputs/exports, epoch guards, and bounded SSH lifecycle.
 - [docs/connection-diagnostics.md](connection-diagnostics.md): Desktop/CLI metadata health, safe per-step failures, one-shot SSH deadlines/drainage, and fault evidence.
 - `docs/dependency-decisions.md`: Rationale and guardrails for high-impact dependency choices.
 - [docs/build-variants.md](build-variants.md): Headless, clipboard-only, agent, and desktop dependency boundaries and validation evidence.

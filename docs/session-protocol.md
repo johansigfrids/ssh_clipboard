@@ -14,7 +14,7 @@ Freeze the new endpoint's bootstrap/framing and initial message contract before 
 
 ## Endpoint and Bootstrap
 
-`ssh_clipboard session-proxy` is the new experimental Linux SSH endpoint, backed by a separate owner-only session socket in the daemon's runtime directory. The existing `proxy` command/forced-command key continues to mean version 2. Never probe this endpoint by sending new serialized enums to `proxy`, silently change a forced command, or upload before negotiation. The [native endpoint](shelf-server.md) is implemented and tested in WSL; client/cutover work remains pending.
+`ssh_clipboard session-proxy` is the new experimental Linux SSH endpoint, backed by a separate owner-only session socket in the daemon's runtime directory. The existing `proxy` command/forced-command key continues to mean version 2. Never probe this endpoint by sending new serialized enums to `proxy`, silently change a forced command, or upload before negotiation. The [native endpoint](shelf-server.md) is implemented and tested in WSL; desktop history/cutover work remains pending.
 
 Every frame has a fixed 16-byte header, followed by bounded UTF-8 JSON metadata and then raw payload bytes:
 
@@ -72,7 +72,7 @@ New framing is strict initially; bounded noisy-shell resynchronization belongs t
 
 ## Evidence and Remaining Work
 
-The codec/negotiation fixtures are tested independently of OS sockets and SSH. Version 2 fixtures stay in their existing module. The [transport-independent service](shelf-service.md) now has duplex lifecycle/action tests, including pagination and deadlines. [Native Linux daemon/proxy/process checks](shelf-server.md) now pass in WSL. The optional V2 socket now exposes the same store to legacy clients, with frozen bytes and budgeted serialization. Forced-command cutover, item-aware client integration, and a new real SSH endpoint test remain pending.
+The codec/negotiation fixtures are tested independently of OS sockets and SSH. Version 2 fixtures stay in their existing module. The [transport-independent service](shelf-service.md) now has duplex lifecycle/action tests, including pagination and deadlines. [Native Linux daemon/proxy/process checks](shelf-server.md) now pass in WSL. The optional V2 socket now exposes the same store to legacy clients, with frozen bytes and budgeted serialization. The [shared client and explicit shelf CLI](shelf-client.md) now have reply/content validation and native command/process evidence. Forced-command cutover, desktop history integration, and a new real SSH endpoint test remain pending.
 
 ## Update Triggers
 

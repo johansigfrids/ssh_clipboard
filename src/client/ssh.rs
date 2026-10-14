@@ -58,6 +58,14 @@ pub fn resolve_target_and_port(config: &SshConfig) -> (String, Option<u16>) {
 }
 
 pub fn spawn_ssh_proxy(config: &SshConfig) -> Result<Child> {
+    spawn_proxy(config, "proxy")
+}
+
+pub fn spawn_ssh_session_proxy(config: &SshConfig) -> Result<Child> {
+    spawn_proxy(config, "session-proxy")
+}
+
+fn spawn_proxy(config: &SshConfig, endpoint: &'static str) -> Result<Child> {
     let (target, port) = resolve_target_and_port(config);
     if target.trim().is_empty() {
         return Err(eyre!("missing SSH target (use --target or --host)"));
@@ -86,7 +94,7 @@ pub fn spawn_ssh_proxy(config: &SshConfig) -> Result<Child> {
 
     command.arg(target);
     command.arg("ssh_clipboard");
-    command.arg("proxy");
+    command.arg(endpoint);
 
     command
         .stdin(std::process::Stdio::piped())

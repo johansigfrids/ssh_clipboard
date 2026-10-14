@@ -329,7 +329,10 @@ impl IncomingUpload {
     }
 }
 
-fn validate_png(data: &[u8], max_decoded_bytes: usize) -> Result<(u32, u32, usize), ShelfError> {
+pub(crate) fn validate_png(
+    data: &[u8],
+    max_decoded_bytes: usize,
+) -> Result<(u32, u32, usize), ShelfError> {
     let mut reader = ImageReader::with_format(Cursor::new(data), ImageFormat::Png);
     let mut limits = Limits::default();
     limits.max_alloc = Some(max_decoded_bytes as u64);

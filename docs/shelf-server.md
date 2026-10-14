@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Document the new Linux listener/stdio bridge and native evidence. This branch now has runnable endpoint commands, but no installer/cutover or desktop/item-aware CLI client yet. The installed server has not been changed.
+Document the new Linux listener/stdio bridge and native evidence. This branch now has runnable endpoint commands, and an item-aware CLI, but no installer/cutover or desktop history yet. The installed server has not been changed.
 
 ## Key Files
 
@@ -47,9 +47,9 @@ Linux parallel process tests exposed intermittent Busy results after completed/a
 
 ## Evidence and Remaining Work
 
-The existing Ubuntu WSL environment already had Rust 1.97.1 and a C compiler; no toolchain/system packages were installed. Native Linux headless tests now run locally in `target/linux-wsl`, separate from Windows output. Unit probes cover ownership, stale recovery, files/symlinks, parent permission preservation, native listener negotiation, and the shared codec/service. Six real-process probes cover exact text bytes through daemon/proxy, duplicate startup, fresh restart epochs, held-open-stdin cleanup, missing daemon, invalid policy before filesystem mutation, and preservation of a legacy daemon's value. Mixed-proxy probes additionally verify legacy text into the new shelf, exact PNG return through the old proxy, clear visibility, and refusal of an occupied compatibility socket.
+The existing Ubuntu WSL environment already had Rust 1.97.1 and a C compiler; no toolchain/system packages were installed. Native Linux headless tests now run locally in `target/linux-wsl`, separate from Windows output. Unit probes cover ownership, stale recovery, files/symlinks, parent permission preservation, native listener negotiation, and the shared codec/service. Seven real-process probes cover exact text bytes through daemon/proxy, duplicate startup, fresh restart epochs, held-open-stdin cleanup, missing daemon, invalid policy before filesystem mutation, and preservation of a legacy daemon's value. Mixed-proxy probes additionally verify legacy text into the new shelf, exact PNG return through the old proxy, clear visibility, and refusal of an occupied compatibility socket.
 
-This is native Linux process/socket evidence in WSL, not a new remote SSH endpoint test, GUI desktop acceptance, installation, systemd migration, or live rollout. No existing Ubuntu service/clipboard was replaced/restarted. Still required: item-aware clients/UI, persistent client recovery/subscriptions, signed installation/update, and supported-platform acceptance.
+This is native Linux process/socket evidence in WSL, not a new remote SSH endpoint test, GUI desktop acceptance, installation, systemd migration, or live rollout. No existing Ubuntu service/clipboard was replaced/restarted. The [shared client/CLI](shelf-client.md) now has stream/process evidence. Still required: desktop history UI, persistent client recovery/subscriptions, signed installation/update, and supported-platform acceptance.
 
 ## Update Triggers
 

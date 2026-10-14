@@ -266,6 +266,137 @@ async fn occupied_legacy_endpoint_refuses_cutover_and_releases_the_new_socket() 
     ));
 }
 
+#[tokio::test]
+async fn item_aware_cli_lists_exports_and_guards_mutations_through_the_real_proxy() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let socket = dir.path().join("runtime/shelf.sock");
+    let _server = daemon(&socket).await;
+    let shim = dir.path().join("synthetic-ssh");
+    let quote = |text: &str| format!("'{}'", text.replace('\'', "'\\''"));
+    let script = format!(
+        "#!/bin/sh\nexec {} session-proxy --socket-path {}\n",
+        quote(env!("CARGO_BIN_EXE_ssh_clipboard")),
+        quote(socket.to_str().unwrap())
+    );
+    std::fs::write(&shim, script).unwrap();
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let invoke = |args: Vec<String>| {
+        let mut command = AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"));
+        command
+            .args(["shelf", "--target", "synthetic-only", "--ssh-bin"])
+            .arg(&shim)
+            .env("RUST_LOG", "trace")
+            .args(args)
+            .stdin(Stdio::null())
+            .kill_on_drop(true);
+        async move {
+            tokio::time::timeout(Duration::from_secs(5), command.output())
+                .await
+                .unwrap()
+                .unwrap()
+        }
+    };
+    let text = "  synthetic α\n \n";
+    let source = dir.path().join("input.txt");
+    std::fs::write(&source, text).unwrap();
+    let shared = invoke(vec![
+        "share".into(),
+        "--file".into(),
+        source.to_str().unwrap().into(),
+        "--device-id".into(),
+        Uuid::from_u128(10).to_string(),
+    ])
+    .await;
+    assert!(
+        shared.status.success(),
+        "{}",
+        String::from_utf8_lossy(&shared.stderr)
+    );
+    let listed = invoke(vec!["list".into()]).await;
+    assert!(
+        listed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&listed.stderr)
+    );
+    let snapshot: serde_json::Value = serde_json::from_slice(&listed.stdout).unwrap();
+    let epoch = snapshot["epoch"].as_str().unwrap().to_owned();
+    let item = snapshot["items"][0]["id"].as_str().unwrap().to_owned();
+    assert!(!String::from_utf8_lossy(&listed.stdout).contains(text.trim()));
+    let fetched = invoke(vec!["fetch".into(), item.clone(), "--stdout".into()]).await;
+    assert!(
+        fetched.status.success(),
+        "{}",
+        String::from_utf8_lossy(&fetched.stderr)
+    );
+    assert_eq!(fetched.stdout, text.as_bytes());
+    let destination = dir.path().join("export.txt");
+    std::fs::write(&destination, b"preserved").unwrap();
+    let rejected = invoke(vec![
+        "fetch".into(),
+        item.clone(),
+        "--output".into(),
+        destination.to_str().unwrap().into(),
+    ])
+    .await;
+    assert!(!rejected.status.success());
+    assert_eq!(std::fs::read(&destination).unwrap(), b"preserved");
+    let wrong = invoke(vec![
+        "clear".into(),
+        "--epoch".into(),
+        Uuid::from_u128(123).to_string(),
+    ])
+    .await;
+    assert!(!wrong.status.success());
+    let fetched = invoke(vec![
+        "fetch".into(),
+        item.clone(),
+        "--stdout".into(),
+        "--epoch".into(),
+        epoch.clone(),
+    ])
+    .await;
+    assert_eq!(fetched.stdout, text.as_bytes());
+    let fresh = dir.path().join("fresh.txt");
+    let exported = invoke(vec![
+        "fetch".into(),
+        item.clone(),
+        "--output".into(),
+        fresh.to_str().unwrap().into(),
+    ])
+    .await;
+    assert!(
+        exported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&exported.stderr)
+    );
+    assert!(exported.stdout.is_empty());
+    assert_eq!(std::fs::read(&fresh).unwrap(), text.as_bytes());
+    let deleted = invoke(vec![
+        "delete".into(),
+        item.clone(),
+        "--epoch".into(),
+        epoch.clone(),
+    ])
+    .await;
+    assert!(
+        deleted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&deleted.stderr)
+    );
+    let missing = invoke(vec![
+        "fetch".into(),
+        item,
+        "--output".into(),
+        dir.path().join("missing.txt").to_str().unwrap().into(),
+    ])
+    .await;
+    assert!(!missing.status.success());
+    assert!(!dir.path().join("missing.txt").exists());
+    let cleared = invoke(vec!["clear".into(), "--epoch".into(), epoch]).await;
+    assert!(cleared.status.success());
+}
+
 fn proxy(path: &Path) -> tokio::process::Child {
     AsyncCommand::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
         .arg("session-proxy")

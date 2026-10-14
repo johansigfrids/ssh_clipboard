@@ -3,5 +3,7 @@ pub mod clipboard;
 pub mod diagnostics;
 pub mod failure;
 pub mod image;
+pub mod session;
+pub mod session_transport;
 pub mod ssh;
 pub mod transport;

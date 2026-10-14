@@ -28,6 +28,7 @@ mod settings;
     any(target_os = "windows", target_os = "macos", target_os = "linux")
 ))]
 mod setup_agent;
+mod shelf;
 
 #[cfg(all(
     feature = "agent",
@@ -46,6 +47,8 @@ struct Cli {
 enum Commands {
     /// Inspect and edit the desktop/CLI shared settings.
     Settings(settings::SettingsArgs),
+    /// Use the experimental item-aware endpoint explicitly.
+    Shelf(shelf::ShelfArgs),
     Push(PushArgs),
     Pull(PullArgs),
     Peek(PeekArgs),
@@ -506,6 +509,7 @@ pub async fn run() -> Result<()> {
 
     match cli.command {
         Commands::Settings(args) => settings::run(args),
+        Commands::Shelf(args) => shelf::run(args).await,
         Commands::Push(args) => push::run(args).await,
         Commands::Pull(args) => pull::run(args).await,
         Commands::Peek(args) => peek::run(args).await,
@@ -847,6 +851,7 @@ fn init_tracing(agent_mode: bool) -> Result<()> {
 
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
+        .with_writer(std::io::stderr)
         .init();
     Ok(())
 }

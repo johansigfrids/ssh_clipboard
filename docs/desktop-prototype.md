@@ -86,6 +86,8 @@ Evidence recorded on 2026-10-13:
 | macOS/Linux | CI jobs defined for source/build checks. The existing Ubuntu WSL toolchain now passes headless unit/executable and real daemon/proxy socket/process checks. | No native X11/Wayland/macOS desktop validation; WSL headless evidence is separate from GUI framework acceptance. |
 | Installation/update | No installer or updater enabled. | Stable installation, signatures, upgrade/recovery, and key rotation remain later phases. |
 
+Latest portable Windows artifact: `SSHClipboardPrototype-20261014T143621109Z.exe`, built from `778c255` on 2026-10-14. Current frontend type/build checks, Windows executable compilation and the real standalone embedded-frontend check pass. It includes the persistent shelf transport, metadata recovery, Cancel and captured-share reconciliation implemented since earlier native builds. This artifact has not received a new native GUI/paste acceptance pass. It does not configure a production updater key or install/register startup; signed installed-package evidence is tracked separately in [desktop updates](desktop-updates.md).
+
 Phase 1 is **not complete** until native checks pass on the supported platforms. Framework selection is still provisional.
 
 The 10 MiB limit is inherited from the installed version 2 client/proxy/daemon, not an SSH limitation. [The rework plan](implementation-plan.md#decisions-to-prove-before-committing) now proposes larger configurable limits with capability negotiation and separate shelf/decoded-pixel budgets. Raising the desktop limit alone cannot fix rejection by an unchanged server. The current prototype remains compatible with the installed server; it does not change its service or restart its in-memory clipboard.
@@ -143,7 +145,7 @@ The 2026-10-13 run passed against the existing Linux 0.3.0 binary. The temporary
 
 ## Shelf Integration
 
-The rework panel now also supports an explicit new-server endpoint with [temporary history](desktop-history.md): profile-isolated rows, private labels/source/expiry, preview selection, selected-ID copy validation, and confirmed delete/clear. Existing profiles stay on the legacy server. The new integration has automated/browser evidence; its new-server SSH/native paste acceptance remains open. Shelf actions now reuse [owned SSH sessions](persistent-sessions.md); bounded metadata Watch/recovery and explicit Cancel are now implemented with automated evidence; native recovery acceptance and signed packaging remain open.
+The rework panel now also supports an explicit new-server endpoint with [temporary history](desktop-history.md): profile-isolated rows, private labels/source/expiry, preview selection, selected-ID copy validation, and confirmed delete/clear. Existing profiles stay on the legacy server. The new integration has automated/browser and disposable real SSH evidence; its new-server native UI/paste acceptance remains open. Shelf actions reuse [owned SSH sessions](persistent-sessions.md), with bounded metadata Watch/recovery, explicit Cancel and [captured-share reconciliation](share-recovery.md). Signed installed-package staging is implemented; native recovery and installed replacement acceptance remain open. See the [combined migration gates](compatibility-and-cutover.md).
 
 ## Windows Resource Guardrail
 

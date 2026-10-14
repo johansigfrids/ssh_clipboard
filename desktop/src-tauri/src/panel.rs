@@ -2,6 +2,7 @@ use crate::clipboard::ClipboardWorker;
 use crate::model::{
     ConnectionProfile, ItemPreview, SessionSettings, is_wayland, validate_transfer_size,
 };
+use crate::notifications;
 use crate::shortcuts::{Action, Bindings, Registry};
 use serde::Serialize;
 use ssh_clipboard::client::diagnostics::{ConnectionReport, diagnose, server_problem};
@@ -26,6 +27,17 @@ struct Session {
     saved_config: Option<Configuration>,
     settings_notice: Option<String>,
     connection_report: Option<ConnectionReport>,
+    operation_notice: Option<OperationNotice>,
+    operation_counter: u64,
+    notification_status: notifications::Status,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OperationNotice {
+    id: String,
+    message: String,
+    failed: bool,
 }
 
 struct Desktop {
@@ -55,9 +67,26 @@ struct PanelView {
     settings_revision: Option<String>,
     migration_summary: Option<&'static str>,
     connection_report: Option<ConnectionReport>,
+    operation_notice: Option<OperationNotice>,
+    notification_status: notifications::Status,
 }
 
 impl Session {
+    fn record_operation(&mut self, result: Result<(), String>, sharing: bool) {
+        self.operation_counter = self.operation_counter.wrapping_add(1);
+        self.operation_notice = Some(OperationNotice {
+            id: self.operation_counter.to_string(),
+            failed: result.is_err(),
+            message: result.err().unwrap_or_else(|| {
+                if sharing {
+                    "Current clipboard shared.".into()
+                } else {
+                    "Shared clipboard copied to this computer.".into()
+                }
+            }),
+        });
+    }
+
     fn client_config(&self) -> Result<ssh_clipboard::client::transport::ClientConfig, String> {
         let mut config = if let Some(saved) = &self.saved_config {
             saved
@@ -87,6 +116,8 @@ impl Session {
         Ok(PanelView {
             settings: self.settings.clone(),
             connection_report: self.connection_report.clone(),
+            operation_notice: self.operation_notice.clone(),
+            notification_status: self.notification_status.clone(),
             profiles: self.saved_config.as_ref().map_or_else(
                 || Configuration::default().profiles.iter().map(ConnectionProfile::from).collect(),
                 |c| c.profiles.iter().map(ConnectionProfile::from).collect(),
@@ -139,6 +170,7 @@ impl Session {
             self.clipboard_checked = false;
             self.connected = false;
             self.connection_report = None;
+            self.operation_notice = None;
         }
         self.settings = next;
         self.saved_config = loaded;
@@ -227,6 +259,16 @@ async fn get_panel(state: State<'_, Desktop>) -> Result<PanelView, String> {
 fn set_shortcut_recording(state: State<'_, Desktop>, active: bool) {
     // Independent of the transfer lock: losing focus while recording must not start a share.
     state.recording_shortcut.store(active, Ordering::SeqCst);
+}
+
+#[tauri::command]
+async fn test_notification(app: AppHandle, state: State<'_, Desktop>) -> Result<PanelView, String> {
+    let mut session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Wait for the current operation to finish.".to_string())?;
+    session.notification_status = notifications::test(&app)?;
+    session.view()
 }
 
 fn configure_shortcut(
@@ -558,24 +600,15 @@ fn handle_shortcut(
                 Action::Open => unreachable!(),
             }
         };
+        let failed = result.is_err();
+        let preference = session.settings.notifications;
+        session.record_operation(result, action == Action::Share);
         drop(session);
         let _ = app.emit("settings-changed", ());
-        // Until native notification controls land, show an explicit result in the panel.
-        show_panel(&app, false);
-        match result {
-            Ok(()) => {
-                let _ = app.emit(
-                    "operation-complete",
-                    if action == Action::Share {
-                        "Current clipboard shared."
-                    } else {
-                        "Shared clipboard copied to this computer."
-                    },
-                );
-            }
-            Err(error) => {
-                let _ = app.emit("operation-notice", error);
-            }
+        if !panel_focused(&app)
+            && notifications::present(&app, preference, failed, action == Action::Share)
+        {
+            show_panel(&app, false);
         }
     });
 }
@@ -682,8 +715,9 @@ fn install_tray(app: &AppHandle) -> tauri::Result<()> {
 }
 
 pub fn run() {
-    let mut builder =
-        tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, _, _| {
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             show_panel(app, false)
         }));
     if !is_wayland() {
@@ -718,6 +752,9 @@ pub fn run() {
                 saved_config: loaded,
                 settings_notice,
                 connection_report: None,
+                operation_notice: None,
+                operation_counter: 0,
+                notification_status: notifications::status(app.handle()),
             };
             session.shortcut_status = if is_wayland() {
                 "Wayland: use the launcher or tray menu. Portal support is pending.".into()
@@ -749,6 +786,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_panel,
             set_shortcut_recording,
+            test_notification,
             apply_settings,
             remove_profile,
             test_connection,
@@ -1114,6 +1152,12 @@ mod tests {
             saved_config: Some(config),
             settings_notice: None,
             connection_report: None,
+            operation_notice: None,
+            operation_counter: 0,
+            notification_status: notifications::Status {
+                available: false,
+                detail: "Test fixture",
+            },
             item: Some(ClipboardValue {
                 content_type: ssh_clipboard::protocol::CONTENT_TYPE_TEXT.into(),
                 data: b"retained snapshot".to_vec(),
@@ -1176,6 +1220,27 @@ mod tests {
             Ok(Some(next)),
             |_, _| panic!("unchanged settings must not register shortcuts")
         ));
+    }
+
+    #[test]
+    fn direct_results_are_retained_but_cannot_cross_profiles() {
+        let mut session = session();
+        session.record_operation(Ok(()), true);
+        let first = session.view().unwrap().operation_notice.unwrap();
+        assert!(!first.failed);
+        assert_eq!(first.message, "Current clipboard shared.");
+        session.record_operation(Err("Synthetic failure".into()), false);
+        let failed = session.view().unwrap().operation_notice.unwrap();
+        assert!(failed.failed);
+        assert_ne!(first.id, failed.id);
+        let mut next = session.saved_config.clone().unwrap();
+        next.preferences.notifications = ssh_clipboard::configuration::NotificationPreference::Off;
+        synchronize_settings(&mut session, Ok(Some(next)), |_, _| Ok("Registered".into()));
+        assert!(session.operation_notice.is_some());
+        let mut next = session.saved_config.clone().unwrap();
+        next.profiles[0].target = "other-hub".into();
+        synchronize_settings(&mut session, Ok(Some(next)), |_, _| Ok("Registered".into()));
+        assert!(session.operation_notice.is_none());
     }
 
     #[test]

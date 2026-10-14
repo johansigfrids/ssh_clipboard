@@ -98,6 +98,7 @@
       const next = await command<PanelView>("get_panel");
       if (disposed || epoch !== operationEpoch) return;
       const retainDraft = dirty && JSON.stringify(draft) !== JSON.stringify(next.settings);
+      if (JSON.stringify(next.operationNotice) !== JSON.stringify(view.operationNotice)) inform("");
       view = next;
       removingProfile = false;
       if (retainDraft && draftRevision !== next.settingsRevision) inform("Saved settings changed. Discard your draft to load them before editing again.", true);
@@ -311,7 +312,7 @@
           <p class="field-help">{recording ? "Use Ctrl/Cmd or Alt with a key." : view.shortcutStatus}</p>
           <button type="button" class="text-button" disabled={!ready || busy} onclick={() => draft.openShortcut = "CommandOrControl+Shift+V"}>Restore default shortcut</button>
           <h3>Optional direct shortcuts</h3>
-          <p class="field-help">Share or copy immediately while the app is in the background. While this window has focus, use the panel buttons. Each action opens the panel with its result.</p>
+          <p class="field-help">Share or copy immediately while the app is in the background. While this window has focus, use the panel buttons. Choose how results appear in Behavior settings.</p>
           <label class="toggle"><input type="checkbox" bind:checked={draft.directShortcutsEnabled} disabled={!ready || busy || !view.shortcutAvailable} />Enable direct shortcuts</label>
           {#each [["directShareShortcut", "Share current clipboard"], ["directCopyShortcut", "Copy shared clipboard"]] as [field, label]}
             <label for={field}>{label}</label>
@@ -324,6 +325,16 @@
           <p class="field-help">Hide text and image previews when sharing your screen.</p>
           <label class="toggle"><input type="checkbox" bind:checked={draft.closeAfterCopy} disabled={!ready || busy} />Hide panel after copying</label>
           <p class="field-help">The app keeps running so the copied content stays available.</p>
+          <label for="notifications">Direct action feedback</label>
+          <select id="notifications" bind:value={draft.notifications} disabled={!ready || busy}>
+            <option value="panel">Open panel with result</option>
+            <option value="all">Notify for success and errors</option>
+            <option value="errors">Notify for errors only</option>
+            <option value="off">Keep quiet</option>
+          </select>
+          <p class="field-help">Notifications never include clipboard content, previews, connection details, or raw errors. The latest result is kept in the panel.</p>
+          <p class="field-help">{view.notificationStatus.detail}</p>
+          <button type="button" disabled={!ready || busy || !view.notificationStatus.available} onclick={() => perform("test_notification", "Test notification submitted to the system.")}>Test notification</button>
           <div class="capability"><strong>Tray menu</strong><span>{view.trayStatus}</span></div>
           <p class="field-help">Start at login and updates will be added after the desktop foundation is verified.</p>
         {/if}
@@ -332,7 +343,8 @@
       </form>
     {/if}
 
-    {#if message}<div class:error class="feedback" role={error ? "alert" : "status"}>{message}</div>{/if}
+    {#if message}<div class:error class="feedback" role={error ? "alert" : "status"}>{message}</div>
+    {:else if view.operationNotice}<div class:error={view.operationNotice.failed} class="feedback" role={view.operationNotice.failed ? "alert" : "status"}>{view.operationNotice.message}</div>{/if}
   </main>
 
   <footer><span>{view.activeShortcut ? displayShortcut(view.activeShortcut) : "Open from the launcher or tray"}</span><span>Prototype</span><button class="quit-button" disabled={!ready || busy} onclick={() => command("quit_app").catch((cause) => inform(String(cause), true))}>Quit</button></footer>

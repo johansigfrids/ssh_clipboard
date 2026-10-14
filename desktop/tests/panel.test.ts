@@ -46,6 +46,55 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("notification feedback is a saved draft and never sends a notification while editing", async () => {
+    state.notificationStatus = { available: false, detail: "This build shows results in the panel." };
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    expect(screen.getByRole("button", { name: "Test notification" }).hasAttribute("disabled")).toBe(true);
+    await fireEvent.change(screen.getByLabelText("Direct action feedback"), { target: { value: "off" } });
+    expect(state.settings.notifications).toBe("panel");
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("Settings applied.");
+    expect(state.settings.notifications).toBe("off");
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "apply_settings"]);
+  });
+
+  it("testing notifications is explicit, has no clipboard commands, and retains the feedback draft", async () => {
+    state.notificationStatus = { available: true, detail: "System settings control notification delivery." };
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => {
+      if (name === "test_notification") state.notificationStatus.detail = "Test submitted; delivery is not verified.";
+      return normal(name, args);
+    });
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.change(screen.getByLabelText("Direct action feedback"), { target: { value: "errors" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Test notification" }));
+    await screen.findByText("Test notification submitted to the system.");
+    expect((screen.getByLabelText("Direct action feedback") as HTMLSelectElement).value).toBe("errors");
+    expect(state.settings.notifications).toBe("panel");
+    expect(screen.getByText("Test submitted; delivery is not verified.")).toBeTruthy();
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "test_notification"]);
+  });
+
+  it("quiet-mode results survive reopening and repeated outcomes replace older UI feedback", async () => {
+    state.operationNotice = { id: "1", message: "Shared clipboard copied to this computer.", failed: false };
+    render(App);
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Shared clipboard copied to this computer.");
+    bridge.listen.mock.calls.find(([name]) => name === "operation-notice")![1]({ payload: "Older UI feedback" });
+    await screen.findByText("Older UI feedback");
+    state.operationNotice = { id: "2", message: "Shared clipboard copied to this computer.", failed: false };
+    bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveProperty("textContent", "Shared clipboard copied to this computer."));
+    expect(screen.queryByText("Older UI feedback")).toBeNull();
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
+  });
+
   it("direct shortcuts are opt-in, independently recorded drafts with no clipboard commands", async () => {
     state.settings.target = "hub";
     state.settings.directShareShortcut = "Control+Alt+KeyS";
@@ -121,10 +170,11 @@ describe("quick panel contracts", () => {
     const press = bridge.listen.mock.calls.find(([name]) => name === "shortcut-pressed")![1];
     press({ payload: { binding: "Control+Alt+KeyC", openPanel: false } });
     expect(await screen.findByRole("status")).toHaveProperty("textContent", "Direct shortcuts work while this app is in the background. Use the panel buttons here.");
-    bridge.listen.mock.calls.find(([name]) => name === "operation-complete")![1]({ payload: "Current clipboard shared." });
-    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Current clipboard shared.");
+    state.operationNotice = { id: "1", message: "Current clipboard shared.", failed: false };
+    bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveProperty("textContent", "Current clipboard shared."));
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
   });
 
   it("connection diagnostics distinguish verified SSH/proxy from a missing daemon", async () => {
@@ -400,7 +450,7 @@ describe("quick panel contracts", () => {
     render(App);
     await screen.findByText("Could not listen for tray or settings changes. Reopen through the launcher.");
     await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
-    expect(stop).toHaveBeenCalledTimes(4);
+    expect(stop).toHaveBeenCalledTimes(3);
     expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
   });
 

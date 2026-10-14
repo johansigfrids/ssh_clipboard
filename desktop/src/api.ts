@@ -15,6 +15,7 @@ export interface Settings {
   directCopyShortcut: string | null;
   showPreview: boolean;
   closeAfterCopy: boolean;
+  notifications: "panel" | "all" | "errors" | "off";
 }
 
 export interface TransportSettings {
@@ -71,6 +72,8 @@ export interface PanelView {
   settingsRevision: string | null;
   migrationSummary: string | null;
   connectionReport: ConnectionReport | null;
+  operationNotice: { id: string; message: string; failed: boolean } | null;
+  notificationStatus: { available: boolean; detail: string };
 }
 
 export interface ConnectionReport {
@@ -81,7 +84,7 @@ export interface ConnectionReport {
 }
 
 export const initialView: PanelView = {
-  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, directShortcutsEnabled: false, directShareShortcut: null, directCopyShortcut: null, showPreview: true, closeAfterCopy: false },
+  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, directShortcutsEnabled: false, directShareShortcut: null, directCopyShortcut: null, showPreview: true, closeAfterCopy: false, notifications: "panel" },
   profiles: [{ id: "default", name: "Default", target: "", port: null, identityFile: "", transport: defaultTransport() }],
   item: null,
   connected: false,
@@ -97,6 +100,8 @@ export const initialView: PanelView = {
   settingsRevision: null,
   migrationSummary: null,
   connectionReport: null,
+  operationNotice: null,
+  notificationStatus: { available: false, detail: "Waiting for the desktop app" },
 };
 
 export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
@@ -109,7 +114,6 @@ export async function subscribe(navigate: (page: string) => void, notice: (messa
   const results = await Promise.allSettled([
     listen<string>("navigate", (event) => navigate(event.payload)),
     listen<string>("operation-notice", (event) => notice(event.payload, true)),
-    listen<string>("operation-complete", (event) => notice(event.payload, false)),
     listen<{ binding: string; openPanel: boolean }>("shortcut-pressed", (event) => shortcutPressed(event.payload.binding, event.payload.openPanel)),
     listen("settings-changed", settingsChanged),
   ]);

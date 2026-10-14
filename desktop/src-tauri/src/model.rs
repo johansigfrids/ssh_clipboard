@@ -48,6 +48,7 @@ pub struct SessionSettings {
     pub direct_copy_shortcut: Option<String>,
     pub show_preview: bool,
     pub close_after_copy: bool,
+    pub notifications: ssh_clipboard::configuration::NotificationPreference,
 }
 
 impl Default for SessionSettings {
@@ -66,6 +67,7 @@ impl Default for SessionSettings {
             direct_copy_shortcut: None,
             show_preview: true,
             close_after_copy: false,
+            notifications: Default::default(),
         }
     }
 }
@@ -89,6 +91,7 @@ impl SessionSettings {
             direct_copy_shortcut: config.preferences.direct_copy_shortcut.clone(),
             show_preview: config.preferences.show_preview,
             close_after_copy: config.preferences.close_after_copy,
+            notifications: config.preferences.notifications,
         })
     }
 
@@ -127,6 +130,7 @@ impl SessionSettings {
         config.preferences.direct_copy_shortcut = self.direct_copy_shortcut.clone();
         config.preferences.show_preview = self.show_preview;
         config.preferences.close_after_copy = self.close_after_copy;
+        config.preferences.notifications = self.notifications;
         Ok(())
     }
 
@@ -324,6 +328,7 @@ mod tests {
             show_preview: false,
             close_after_copy: true,
             direct_shortcuts_enabled: true,
+            notifications: ssh_clipboard::configuration::NotificationPreference::Off,
             ..SessionSettings::from_configuration(&config).unwrap()
         };
         settings.update_configuration(&mut config).unwrap();
@@ -334,6 +339,10 @@ mod tests {
         assert!(!restored.show_preview);
         assert!(restored.close_after_copy);
         assert!(restored.direct_shortcuts_enabled);
+        assert_eq!(
+            restored.notifications,
+            ssh_clipboard::configuration::NotificationPreference::Off
+        );
         assert_eq!(
             restored.direct_copy_shortcut.as_deref(),
             Some("Ctrl+Alt+KeyV")

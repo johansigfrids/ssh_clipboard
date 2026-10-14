@@ -45,6 +45,18 @@ pub struct Preferences {
     pub direct_copy_shortcut: Option<String>,
     pub direct_shortcuts_enabled: bool,
     pub check_updates_automatically: bool,
+    #[serde(default)]
+    pub notifications: NotificationPreference,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationPreference {
+    #[default]
+    Panel,
+    All,
+    Errors,
+    Off,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -173,6 +185,7 @@ impl Default for Configuration {
                 direct_copy_shortcut: None,
                 direct_shortcuts_enabled: false,
                 check_updates_automatically: false,
+                notifications: NotificationPreference::default(),
             },
             device: Device::default(),
             legacy_import: None,
@@ -610,6 +623,34 @@ mod tests {
             ..Default::default()
         };
         assert!(store.prepare(None, config).is_err());
+    }
+
+    #[test]
+    fn notification_preferences_extend_existing_settings_without_rewriting_them() {
+        let (_directory, store) = store();
+        fs::create_dir_all(store.path().parent().unwrap()).unwrap();
+        let mut json = serde_json::to_value(Configuration::default()).unwrap();
+        json["preferences"]
+            .as_object_mut()
+            .unwrap()
+            .remove("notifications");
+        let bytes = serde_json::to_vec(&json).unwrap();
+        fs::write(store.path(), &bytes).unwrap();
+        let old = store.load().unwrap().unwrap();
+        assert_eq!(old.preferences.notifications, NotificationPreference::Panel);
+        assert_eq!(fs::read(store.path()).unwrap(), bytes);
+        let mut next = old.clone();
+        next.preferences.notifications = NotificationPreference::Errors;
+        store.prepare(Some(&old), next).unwrap().commit().unwrap();
+        assert_eq!(
+            store.load().unwrap().unwrap().preferences.notifications,
+            NotificationPreference::Errors
+        );
+        json["preferences"]["notifications"] = "unrecognized-mode".into();
+        let bytes = serde_json::to_vec(&json).unwrap();
+        fs::write(store.path(), &bytes).unwrap();
+        assert!(store.load().is_err());
+        assert_eq!(fs::read(store.path()).unwrap(), bytes);
     }
 
     #[test]

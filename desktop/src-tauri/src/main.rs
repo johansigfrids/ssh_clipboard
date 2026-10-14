@@ -3,6 +3,7 @@
 mod clipboard;
 mod connection;
 mod model;
+mod notifications;
 mod panel;
 mod shortcuts;
 

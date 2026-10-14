@@ -39,6 +39,8 @@ Both Apply and Remove take the displayed revision, compare the full saved docume
 
 Optional direct Share/Copy preferences now have desktop recorders and an explicit enable control. They remain global across profiles and preserve imported disabled bindings. Activation uses a grouped OS registration transaction; see [shortcuts](desktop-shortcuts.md) for background-only transfers, recording suppression, alias conflicts, and rollback behavior.
 
+Behavior settings also save a global `notifications` preference (`panel`, `all`, `errors`, `off`). Missing values in existing schema 2 files read as `panel` without a write. Native capability and delivery are separate from the preference; see [feedback controls](desktop-notifications.md). Changing the preference itself never sends notifications or alters OS notification settings.
+
 ### Advanced Connection Policy
 
 Connection settings have a collapsed Advanced section. Its draft belongs to the chosen profile and follows the same Apply/Discard, revision, reload, and snapshot-clearing rules as basic connection fields. Opening/typing/resetting settings never runs SSH or samples the clipboard.

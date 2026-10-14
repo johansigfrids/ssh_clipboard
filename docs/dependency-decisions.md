@@ -64,6 +64,10 @@ The shared configuration store uses `dirs` for a common per-user path and `tempf
 
 Shared PNG/image actions use a library-owned RGBA type. OS clipboard access is optional through `system-clipboard`; the old `agent` feature includes it, while the new desktop owns a retained adapter. Disable default image codecs and select PNG explicitly, since no other image representation is supported by the protocol. See [build variants](build-variants.md) for the dependency guard and checks.
 
+## Desktop Notification Adapter
+
+Use Tauri's notification plugin behind Rust-only application commands, pinned in the separate desktop lockfile. Keep notification bodies static and private. Windows portable/debug builds must retain panel fallback until stable installed identity exists; the plugin's desktop permission stub does not verify OS settings or delivery. See [feedback contracts and native gaps](desktop-notifications.md).
+
 ## Update Triggers
 
 - Desktop prototype/framework selection and native platform results.

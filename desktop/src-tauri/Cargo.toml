@@ -9,12 +9,15 @@ publish = false
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
+# Enabled by the future installer build, never by timestamped portable prototypes.
+installed-desktop = []
 
 [dependencies]
 ssh_clipboard = { path = "../..", default-features = false, features = ["external-resource-owner"] }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["sync", "time"] }
 arboard = { version = "3", features = ["wayland-data-control"] }

@@ -127,6 +127,30 @@ fn policy() -> SessionPolicy {
 static PROCESSES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
 
 #[tokio::test]
+async fn managed_health_rejects_a_healthy_protocol_from_the_wrong_release() {
+    let _slot = PROCESSES.acquire().await.unwrap();
+    let reply = frame(&Response::Health {
+        request_id: 2.into(),
+        epoch: Uuid::from_u128(1),
+        sequence: 0.into(),
+        items: 0,
+        stored_bytes: 0,
+    });
+    let result = run_child_version(
+        fixture(&reply, true),
+        policy(),
+        Operation::Action(Action::Health),
+        &[],
+        Some("999.0.0"),
+    )
+    .await;
+    assert!(matches!(
+        result,
+        Err(RunError::Session(SessionError::Protocol))
+    ));
+}
+
+#[tokio::test]
 async fn stderr_flood_and_nonzero_exit_do_not_erase_a_validated_reply() {
     let _slot = PROCESSES.acquire().await.unwrap();
     let reply = frame(&Response::Health {

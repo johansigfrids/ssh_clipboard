@@ -263,7 +263,8 @@ pub struct ProxyArgs {
 }
 
 #[cfg(target_os = "linux")]
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ShelfDaemonArgs {
     #[arg(long)]
     pub socket_path: Option<PathBuf>,
@@ -516,7 +517,7 @@ pub async fn run() -> Result<()> {
         Commands::Settings(args) => settings::run(args),
         Commands::Shelf(args) => shelf::run(args).await,
         #[cfg(target_os = "linux")]
-        Commands::ServerMaintenance(args) => server_maintenance::run(args),
+        Commands::ServerMaintenance(args) => server_maintenance::run(args).await,
         Commands::Push(args) => push::run(args).await,
         Commands::Pull(args) => pull::run(args).await,
         Commands::Peek(args) => peek::run(args).await,

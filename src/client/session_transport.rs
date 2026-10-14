@@ -66,10 +66,20 @@ pub async fn run(
 }
 
 async fn run_child(
+    child: Child,
+    policy: SessionPolicy,
+    operation: Operation,
+    payload: &[u8],
+) -> Result<Outcome, RunError> {
+    run_child_version(child, policy, operation, payload, None).await
+}
+
+pub(crate) async fn run_child_version(
     mut child: Child,
     policy: SessionPolicy,
     operation: Operation,
     payload: &[u8],
+    expected_version: Option<&str>,
 ) -> Result<Outcome, RunError> {
     let input = child
         .stdin
@@ -115,6 +125,12 @@ async fn run_child(
             }
         };
         epoch = session.epoch();
+        if expected_version.is_some_and(|expected| !matches!(session.welcome(), crate::session_protocol::Response::Welcome {server_version,..} if server_version==expected)) {
+            finished = Some(Err(SessionError::Protocol));
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+            return;
+        }
         executing_mutation = matches!(
             operation,
             Operation::Action(

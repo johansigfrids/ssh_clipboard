@@ -159,7 +159,7 @@ The Updates page checks quietly, shows notes/version/status, and installs only a
 
 ## Phase 7: Make Server Installation and Maintenance Reliable
 
-**Implemented foundation:** private immutable release copies, atomic selection, writer ownership, durable transition/outcome records, downgrade refusal, and restart/health rollback with crash recovery. A concrete signature policy binds exact server bytes to version/platform/channel and checks the signed ELF architecture. Disposable WSL filesystem/fake-service and real synthetic cryptographic probes pass. CLI/download/trust initialization, stable launcher/unit, real systemd/proxy health, migration and installed acceptance remain open; no live service was changed. See [maintenance foundation](server-maintenance.md).
+**Implemented source slices:** private immutable releases, atomic selection, writer ownership, durable recovery, downgrade refusal, and restart/health rollback. Concrete signatures bind server bytes to version/platform/channel/ELF architecture. Explicit Linux install/update/status/recover commands pin trust/UID/socket/limits, bound download/process lifecycles, and create a stable launcher/actual unit. Disposable signed executable tests with fake systemctl, real proxy health and systemd unit parsing pass. Production artifact packaging, actual systemd/login acceptance and reviewed legacy migration remain open; no live service was changed. See [maintenance evidence](server-maintenance.md).
 
 Replace symlinks into extracted archives with user-owned versioned releases, a stable launcher, and a stable user service file. Migrate the existing user service carefully, preserving target UID and socket/configuration. Do not rewrite shared global installations automatically.
 

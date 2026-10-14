@@ -1,5 +1,5 @@
 //! User-owned, immutable server releases and recoverable executable selection.
-//! No CLI or live systemd integration yet. Callers must supply signature policy.
+//! The management adapter supplies pinned signature policy and bounded service/proxy operations.
 use crate::file_lock::ExclusiveLock;
 use eyre::{Result, WrapErr, bail};
 use serde::{Deserialize, Serialize};
@@ -50,6 +50,9 @@ pub struct Store {
     _lock: ExclusiveLock,
 }
 impl Store {
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
     /// The parent must already be user-owned and not writable by another user.
     pub fn open(root: &Path) -> Result<Self> {
         if !root.is_absolute() {
@@ -221,7 +224,7 @@ impl Store {
         sync(&self.root)?;
         Ok(outcome)
     }
-    fn read_release(&self, version: &str, verifier: &impl Verifier) -> Result<Vec<u8>> {
+    pub(crate) fn read_release(&self, version: &str, verifier: &impl Verifier) -> Result<Vec<u8>> {
         validate_version(version)?;
         let directory = self.root.join("releases").join(version);
         owned_directory(&directory, true)?;
@@ -300,7 +303,7 @@ fn owned_directory(path: &Path, private: bool) -> Result<()> {
 fn read_owned(path: &Path, limit: usize) -> Result<Vec<u8>> {
     let file = OpenOptions::new()
         .read(true)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK)
         .open(path)?;
     let meta = file.metadata()?;
     if !meta.is_file()
@@ -310,10 +313,19 @@ fn read_owned(path: &Path, limit: usize) -> Result<Vec<u8>> {
     {
         bail!("unsafe or oversized server release file");
     }
+    let mut file = file;
     let mut bytes = Vec::new();
-    file.take(limit as u64 + 1).read_to_end(&mut bytes)?;
-    if bytes.len() > limit {
-        bail!("server release file exceeded its bound");
+    let mut chunk = [0; 16384];
+    loop {
+        let count = file.read(&mut chunk)?;
+        if count == 0 {
+            break;
+        }
+        if count > limit.saturating_sub(bytes.len()) {
+            bail!("server release file exceeded its bound");
+        }
+        bytes.try_reserve_exact(count)?;
+        bytes.extend_from_slice(&chunk[..count]);
     }
     Ok(bytes)
 }
@@ -344,7 +356,7 @@ pub(crate) fn validate_version(value: &str) -> Result<()> {
     Ok(())
 }
 
-fn version_numbers(value: &str) -> Result<[u64; 3]> {
+pub(crate) fn version_numbers(value: &str) -> Result<[u64; 3]> {
     validate_version(value)?;
     let numbers = value
         .split('.')

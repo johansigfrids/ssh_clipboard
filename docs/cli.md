@@ -15,6 +15,14 @@ The cross-platform `shelf` namespace provides `list`, `health`, `share --file|--
 
 `shelf-daemon [--socket-path <private-path>]` serves the new item-aware protocol. `session-proxy` bridges it over binary stdio. Add `--legacy-socket-path <private-path>` to the shelf daemon to serve the same store to V2 clients; `--legacy-max-frame-bytes` defaults to 10 MiB. Existing `proxy` clients use that compatibility socket, while new sessions use the separate shelf socket. Startup refuses an occupied socket. This does not install or replace the current server. See [endpoint policy and native evidence](shelf-server.md).
 
+### `server-maintenance` (Linux Rework Branch)
+
+`verify --version <version> --public-key <trusted.pub> --package <binary> --signature <binary.sig>` authenticates bounded files without executing/installing them.
+
+`install --version <version> --public-key <trusted.pub> --acknowledge-clipboard-loss` creates a separate per-user signed shelf installation and accepts the `shelf-daemon` socket/limit options. `update --version <newer-version> --acknowledge-clipboard-loss` retains pinned trust/options and restores the previous executable after failed service/protocol health. Both accept paired `--package` / `--signature` local inputs; omit both to download the exact GitHub `server-v<version>` asset. Production server assets are not published yet.
+
+`status` prints saved selection/recovery metadata, without asserting live health. `recover --acknowledge-clipboard-loss` resolves an unfinished transition by restoring the retained predecessor or disabling a failed first installation. These four commands accept `--root <absolute-path>`; default storage is the user's data directory under `ssh_clipboard/server`. Restart/rollback loses in-memory items. Existing global/legacy installs are not adopted. See [maintenance and migration gates](server-maintenance.md).
+
 ### `settings` (Rework Branch)
 
 Edit the versioned configuration shared with the desktop prototype. This command is available without the old agent feature; the existing `config` command still edits the legacy agent file.

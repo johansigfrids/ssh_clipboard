@@ -2,14 +2,16 @@
 
 ## Purpose
 
-Track Phase 7's signed server package policy and user-owned release/recovery engine. Only read-only package verification is exposed through the CLI; activation remains a library foundation. Bounded download, stable launcher/unit generation, systemd/proxy health adapters, and reviewed legacy migration remain to be integrated.
+Track Phase 7's signed package policy, per-user installation/update commands, and release recovery. The commands integrate bounded downloads, pinned trust, a stable launcher/unit, and user-systemd/proxy health. Production signing, real service acceptance, and reviewed legacy migration remain open.
 
 ## Key Files
 
 - `src/server_releases.rs`: immutable staging, owned paths/lock, atomic selection, journal, and recovery.
 - `src/server_package.rs`: bounded Minisign verification, authenticated version/platform/channel, and matching Linux ELF admission.
 - `tests/fixtures/server-signing.json`: public synthetic signatures and nonexecutable ELF-header fixtures.
-- `src/cli/server_maintenance.rs`, `tests/server_package_cli.rs`: read-only verification command and process evidence.
+- `src/cli/server_maintenance.rs`, `tests/server_package_cli.rs`: explicit maintenance/verification commands and read-only process evidence.
+- `src/server_management.rs`, `src/server_management/`: pinned installation configuration, bounded subprocesses/downloads, generated unit and proxy health.
+- `desktop/scripts/smoke-server-maintenance.mjs`, `scripts/test-managed-server.py`: disposable signed binaries, fake systemctl, and real daemon/proxy lifecycle evidence.
 - `src/cli/install_daemon.rs`: existing installer; its shared global link and extracted-directory unit remain unchanged.
 - [Implementation plan](implementation-plan.md), [server setup](server-setup.md), and [release operations](releasing.md).
 
@@ -29,9 +31,37 @@ The concrete package policy now verifies exact bytes and the authenticated trust
 
 Three additional WSL probes use real synthetic Minisign signatures to reject tampering, wrong keys, missing/unversioned signatures, forged versions, another channel/platform, and a signed invalid ELF header. One joins this policy to staging/activation and a failed-health rollback, without executing fixture bytes. Regenerate only server fixtures with `node desktop/scripts/generate-update-test-fixtures.mjs --server`; private synthetic keys are removed and desktop fixtures remain unchanged. The shared core uses the same locked verifier version as the desktop; existing dependency pins are preserved.
 
-Linux now exposes `ssh_clipboard server-maintenance verify --version <version> --public-key <independently-trusted.pub> --signature <package.sig> --package <package>`. It reads bounded regular files, selects the native architecture, verifies without executing bytes, and never changes a service/install. A real CLI process probe accepts the synthetic signed fixture and rejects forged versions, wrong keys, and altered bytes without changing any input file. This command is not yet a downloader, installer, or maintenance activation path.
+Linux exposes `ssh_clipboard server-maintenance verify --version <version> --public-key <independently-trusted.pub> --signature <package.sig> --package <package>`. It reads bounded regular files, selects the native architecture, verifies without executing bytes, and never changes a service/install. A real CLI process probe accepts the synthetic signed fixture and rejects forged versions, wrong keys, and altered bytes without changing any input file.
 
-Next integration must supply bounded downloads, pinned trust-file initialization, a stable per-user launcher and actual unit file, bounded user-systemd commands, and health through the correct proxy/socket. Preserve target UID and all reviewed socket/limit options. Adoption of the old global link/service needs an explicit migration review; never replace a shared installation automatically. Validate on a disposable Linux installation before any live-host rollout. The user's current Ubuntu service has not been changed.
+## Managed Commands
+
+These commands require a user systemd manager and run as the target user. No sudo, global installation change, SSH-key change, or linger configuration is performed. The first key must be obtained independently; package-supplied keys cannot establish trust.
+
+```sh
+ssh_clipboard server-maintenance install --version <version> \
+  --public-key <trusted.pub> --package <signed-binary> --signature <signed-binary.sig> \
+  --acknowledge-clipboard-loss
+ssh_clipboard server-maintenance status
+ssh_clipboard server-maintenance update --version <newer-version> \
+  --package <signed-binary> --signature <signed-binary.sig> --acknowledge-clipboard-loss
+ssh_clipboard server-maintenance recover --acknowledge-clipboard-loss
+```
+
+Default storage is `$XDG_DATA_HOME/ssh_clipboard/server` (normally `~/.local/share/ssh_clipboard/server`); `--root <absolute-path>` selects another private installation. `installation.json` pins public trust, UID, exact socket paths and every daemon limit. Updates reuse those values; they do not accept a replacement key or options. `status` reports saved metadata/selection and recovery state, not live service health. Missing-installation status fails without creating it. Owned records reject symlinks/unsafe permissions; all local inputs reject nonregular/oversized files without blocking on FIFOs.
+
+Install accepts all `shelf-daemon` options. It retains an immutable executable, links `~/.local/bin/ssh_clipboard` to `<root>/current/ssh_clipboard`, and writes an actual `ssh_clipboard-shelf.service` file under the user's systemd configuration directory. Existing conflicting launcher/unit files are refused. No unit points into a download folder. Literal paths are quoted with systemd environment substitution disabled and percent specifiers escaped; see [systemd execution rules](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html). The selected signed binary must report the expected version before any service switch.
+
+Omit **both** local package/signature flags to download the exact requested `server-v<version>` asset and `.sig` from this repository's GitHub Releases. No production server assets are available yet. Downloads use the existing `curl` command with default TLS validation, HTTPS-only redirects (maximum five), connect/total deadlines and byte limits. User curl configuration is disabled; an independent bounded pipe reader also caps streamed output. Signature reads cap at 16 KiB/20 seconds; packages at 256 MiB/300 seconds. No latest-version discovery or unattended restart is performed. See [curl options](https://curl.se/docs/manpage.html).
+
+Every mutating command requires `--acknowledge-clipboard-loss` and discloses that restart/rollback loses the in-memory shelf. Initial service enablement occurs only after a durable transition journal and executable selection. Failed enable/start/health stops and disables a failed first installation; later update failure restores/restarts the retained predecessor. A failed requested update returns a failure exit even when rollback succeeds. Interrupted recovery can be retried while the journal remains. Protocol health runs the stable `session-proxy` against the saved socket and requires the selected server version, rather than accepting another healthy server or only checking systemd active state. Direct subprocesses have bounded output/deadlines and are killed/reaped on failure; no shell command strings are constructed.
+
+The SSH command resolution must select this launcher: verify the noninteractive user's PATH, or use an explicitly reviewed absolute forced command. A custom socket also needs matching `session-proxy --socket-path` / compatibility `proxy --socket-path` arguments in that setup. Managed local health does not prove the SSH PATH/key route. A running legacy service or an occupied compatibility socket is never displaced automatically. Review [server setup](server-setup.md) before migration.
+
+## Integrated Evidence and Remaining Gates
+
+`node desktop/scripts/smoke-server-maintenance.mjs` uses the existing Windows Tauri signer and Ubuntu WSL Rust/Python/systemd tools. It builds isolated 0.3.0/0.3.1/0.3.2 headless source snapshots, signs actual binaries with a disposable key, then deletes the private key. All installations live under an owned temporary Linux HOME with a **fake systemctl**. Real daemon/proxy processes validate signed install/update, custom socket/limit preservation, executable survival after download removal, failed initial enable/restart cleanup, tampered/forged/replayed-package rejection before service calls, failed-restart rollback, and recovery from a modeled interrupted journal. The real `systemd-analyze --user verify` parses the generated unit. Temporary daemons, installations and signing files are cleaned up.
+
+The complete WSL headless suite and all-target clippy pass; Windows agent clippy also passes. Independent tests fault child output/deadlines, unsafe/nonregular files and wrong-version protocol health. These results do **not** prove actual systemd enable/restart behavior, boot/login lifetime, real HTTPS asset downloads, native desktop use, or legacy migration. Test those on a disposable real user service before the existing Ubuntu service is changed. Server artifact production/draft packaging remains to be integrated. No production key was created and the user's current service has not been changed.
 
 ## Update Triggers
 

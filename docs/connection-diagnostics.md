@@ -11,6 +11,7 @@ Explain the shared metadata-only health check, safe failure reporting, and the l
 - `src/client/failure.rs`: typed failures and bounded-output classification.
 - `src/client/diagnostics.rs`: metadata-only check and per-step evidence.
 - `src/cli/doctor.rs`, `tests/connection_doctor.rs`: CLI report and executable failure probe.
+- `desktop/src-tauri/src/panel.rs`, `desktop/src/App.svelte`: saved connection report, operation hints, and per-step presentation.
 
 ## Shared Health Check
 
@@ -19,6 +20,12 @@ Explain the shared metadata-only health check, safe failure reporting, and the l
 The report separates the SSH executable, SSH connection, proxy, daemon, framing/protocol, and metadata request. Each is verified, failed, or unverified. A correlated error from the proxy can prove SSH/proxy/protocol while reporting an unavailable daemon; it must not turn the server green. An early failure leaves later layers unverified. A valid reply of the wrong kind is not a successful health check.
 
 `doctor` uses this service, including selected-profile defaults and explicit override rules. It no longer probes `true`, `proxy --help`, or `ssh -V`. Those extra commands could produce false failures with proxy-only forced-command keys and were unnecessary for an actual clipboard round trip. A failed daemon/metadata check now returns doctor exit status 2; previously a missing daemon could be only a warning and return success. Local Linux hotkey capability notes remain separate.
+
+## Desktop Report
+
+Test saved connection uses the same health service and revision/operation guard as transfers. It stores a report but never creates a clipboard snapshot or enables Copy by itself. Failure updates the last connection state, returns a safe next-step message, and makes the per-step report available in Connection settings. Transfer errors use typed hints; server error messages are selected from static error-code mappings.
+
+The report describes the last check, not a persistent/live connection. Hide it while a settings draft is dirty: a verified report for the saved target must not appear to certify another target being edited. Profile/connection/policy activation clears it with the cached item; a name-only or preference-only change can retain it. Opening settings and reloading configuration do not initiate a health check.
 
 ## Safe Failures
 
@@ -44,6 +51,8 @@ Do not disable host verification or invent an authentication prompt to make a te
 On 2026-10-14, Windows pipe-process probes pass for a 1 MiB stderr flood, EOF-dependent completion, nonzero proxy exits with valid framed errors, early authentication failure, noisy/strict/over-budget stdout, invalid versions/lengths/encodings/types/IDs, stalled processes, and child reaping. Capture-bound and sentinel tests verify retained-output limits and safe error strings. Metadata-only service probes verify empty health, missing-daemon evidence, batch-mode precedence, and rejection of unexpected values/IDs. An executable doctor probe verifies failure status/hints without creating settings or exposing raw paths.
 
 A real `doctor --target <authorized-server> --timeout-ms 12000` passed all seven checks against the existing Linux 0.3.0 service, using ordinary SSH credentials. It fetched no clipboard payload and changed no settings or services. A live forced-command key and native macOS/Linux builds were not exercised here. Unix pipe fixtures are included for CI; a simulated sender proves the shared health path issues only `PeekMeta`, not a live restricted-key deployment.
+
+Rendered desktop probes verify missing-daemon versus verified SSH/proxy rows, unverified status, safe recovery presentation, report hiding/clearing during a connection edit, and successful health without enabling Copy or fetching an item. The native diagnostic/advanced-settings UI check is deferred to the combined daily-use milestone.
 
 ## Update Triggers
 

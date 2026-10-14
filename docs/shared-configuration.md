@@ -75,6 +75,8 @@ An edited frontend draft is preserved when external settings arrive, but Apply i
 
 If reload encounters a damaged file or rejected OS shortcut, previous active settings remain usable and a recovery notice blocks saves over the file. File repair is retried automatically; repeated identical failures generate one frontend notice. CLI preference edits themselves do not register shortcuts or change start-at-login. The desktop applies supported OS changes during activation. Changing advanced connection policy also clears the previous snapshot; device/display-only changes retain it.
 
+The saved connection's diagnostic report follows the same profile/policy isolation as its snapshot. It is hidden while the UI draft is edited, retained for display-only/preference changes, and cleared by a connection change. Test uses the shared metadata-only service, never a clipboard read/write or general remote shell probe; see [connection diagnostics](connection-diagnostics.md).
+
 ### Persistence
 
 - Read at most 1 MiB plus one detection byte; validate schema, profile IDs/selection, and connection fields. Include the newline in the save budget.

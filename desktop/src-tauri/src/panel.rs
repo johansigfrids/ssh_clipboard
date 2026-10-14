@@ -3,6 +3,7 @@ use crate::model::{
     ConnectionProfile, ItemPreview, SessionSettings, is_wayland, validate_transfer_size,
 };
 use serde::Serialize;
+use ssh_clipboard::client::diagnostics::{ConnectionReport, diagnose, server_problem};
 use ssh_clipboard::client::transport::{make_request, send_request};
 use ssh_clipboard::configuration::{ConfigStore, Configuration};
 use ssh_clipboard::protocol::{ClipboardValue, ErrorCode, RequestKind, ResponseKind};
@@ -20,6 +21,7 @@ struct Session {
     connected: bool,
     saved_config: Option<Configuration>,
     settings_notice: Option<String>,
+    connection_report: Option<ConnectionReport>,
 }
 
 struct Desktop {
@@ -46,6 +48,7 @@ struct PanelView {
     active_shortcut: Option<String>,
     settings_revision: Option<String>,
     migration_summary: Option<&'static str>,
+    connection_report: Option<ConnectionReport>,
 }
 
 impl Session {
@@ -77,6 +80,7 @@ impl Session {
     fn view(&self) -> Result<PanelView, String> {
         Ok(PanelView {
             settings: self.settings.clone(),
+            connection_report: self.connection_report.clone(),
             profiles: self.saved_config.as_ref().map_or_else(
                 || Configuration::default().profiles.iter().map(ConnectionProfile::from).collect(),
                 |c| c.profiles.iter().map(ConnectionProfile::from).collect(),
@@ -128,6 +132,7 @@ impl Session {
             self.item = None;
             self.clipboard_checked = false;
             self.connected = false;
+            self.connection_report = None;
         }
         self.settings = next;
         self.saved_config = loaded;
@@ -349,6 +354,7 @@ async fn remove_profile(
 
 async fn request(session: &mut Session, kind: RequestKind) -> Result<ResponseKind, String> {
     session.settings.validate_connection()?;
+    let sharing = matches!(kind, RequestKind::Set { .. });
     let request = make_request(kind);
     let config = session.client_config()?;
     validate_transfer_size(&request, config.max_size)?;
@@ -359,18 +365,31 @@ async fn request(session: &mut Session, kind: RequestKind) -> Result<ResponseKin
                 session.connected = false;
                 return Err("The server reply did not match this request.".into());
             }
+            session.connection_report = None;
             session.connected = true;
             match response.kind {
-                ResponseKind::Error { code: ErrorCode::PayloadTooLarge, .. } => Err(
-                    "The server rejected this item because it exceeds its transfer limit. Copy a smaller image or less text and try again.".into()),
-                ResponseKind::Error { message, .. } => Err(message),
+                ResponseKind::Error { code, .. } => {
+                    session.connected = !matches!(
+                        code,
+                        ErrorCode::DaemonNotRunning
+                            | ErrorCode::VersionMismatch
+                            | ErrorCode::Internal
+                    );
+                    let (summary, hint) = server_problem(&code);
+                    let uncertain = if sharing && matches!(code, ErrorCode::Internal) {
+                        " The share may have reached the server. Refresh before sharing it again."
+                    } else {
+                        ""
+                    };
+                    Err(format!("{summary} {hint}{uncertain}"))
+                }
                 kind => Ok(kind),
             }
         }
-        Err(_) => {
+        Err(failure) => {
             session.connected = false;
-            // Do not leak clipboard bytes via an unexpected response/debug report.
-            Err("Could not reach the clipboard server. Check the SSH alias, unlocked key, trusted host, and running daemon. Use the CLI doctor for detailed diagnostics.".into())
+            session.connection_report = Some(ConnectionReport::from_failure(&failure));
+            Err(failure.to_string())
         }
     }
 }
@@ -385,10 +404,15 @@ async fn test_connection(
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
-    match request(&mut session, RequestKind::PeekMeta).await? {
-        ResponseKind::Meta { .. } | ResponseKind::Empty => session.view(),
-        _ => Err("Unexpected server response to connection test.".into()),
+    session.settings.validate_connection()?;
+    let report = diagnose(&session.client_config()?).await;
+    session.connected = report.healthy;
+    let failure = (!report.healthy).then(|| report.message());
+    session.connection_report = Some(report);
+    if let Some(failure) = failure {
+        return Err(failure);
     }
+    session.view()
 }
 
 #[tauri::command]
@@ -585,6 +609,7 @@ pub fn run() {
                 connected: false,
                 saved_config: loaded,
                 settings_notice,
+                connection_report: None,
             };
             session.shortcut_status = if is_wayland() {
                 "Wayland: use the launcher or tray menu. Portal support is pending.".into()
@@ -944,6 +969,7 @@ mod tests {
             settings: SessionSettings::from_configuration(&config).unwrap(),
             saved_config: Some(config),
             settings_notice: None,
+            connection_report: None,
             item: Some(ClipboardValue {
                 content_type: ssh_clipboard::protocol::CONTENT_TYPE_TEXT.into(),
                 data: b"retained snapshot".to_vec(),
@@ -960,6 +986,12 @@ mod tests {
     #[test]
     fn profile_reload_clears_snapshots_even_when_the_destination_is_identical() {
         let mut session = session();
+        session.connection_report = Some(ConnectionReport::from_failure(
+            &ssh_clipboard::client::failure::TransportFailure {
+                kind: ssh_clipboard::client::failure::FailureKind::Authentication,
+                outcome_uncertain: false,
+            },
+        ));
         let mut next = session.saved_config.clone().unwrap();
         let mut second = next.profiles[0].clone();
         second.id = "second".into();
@@ -974,6 +1006,7 @@ mod tests {
         assert!(session.item.is_none());
         assert!(!session.clipboard_checked);
         assert!(!session.connected);
+        assert!(session.connection_report.is_none());
         assert!(session.check_revision(Some("1")).is_err());
         assert!(session.check_revision(Some("2")).is_ok());
     }

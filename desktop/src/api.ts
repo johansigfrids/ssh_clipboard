@@ -67,6 +67,14 @@ export interface PanelView {
   activeShortcut: string | null;
   settingsRevision: string | null;
   migrationSummary: string | null;
+  connectionReport: ConnectionReport | null;
+}
+
+export interface ConnectionReport {
+  healthy: boolean;
+  summary: string;
+  hint: string | null;
+  checks: Array<{ stage: string; label: string; status: "passed" | "failed" | "not_checked"; detail: string }>;
 }
 
 export const initialView: PanelView = {
@@ -85,6 +93,7 @@ export const initialView: PanelView = {
   activeShortcut: null,
   settingsRevision: null,
   migrationSummary: null,
+  connectionReport: null,
 };
 
 export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {

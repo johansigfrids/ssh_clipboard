@@ -50,6 +50,13 @@ input:not([type=checkbox]), select, textarea { width: 100%; min-width: 0; paddin
 textarea { resize: vertical; overflow-wrap: anywhere; }
 .advanced-connection { margin: 20px 0 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
 summary { cursor: pointer; font-size: 12px; font-weight: 600; }
+.connection-report { border: 1px solid var(--border); border-radius: 8px; margin-top: 16px; padding: 12px; overflow-wrap: anywhere; }
+.connection-report h3 { margin: 0 0 12px; font-size: 13px; }
+.connection-report ul { list-style: none; padding: 0; margin: 0; }
+.connection-report li { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+.connection-report li span { display: block; margin-top: 4px; color: var(--muted); line-height: 1.5; }
+.connection-report li.failed strong { color: #a44723; }
+.connection-report p { font-size: 11px; margin-bottom: 0; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .profile-actions button { min-width: 0; font-size: 12px; }
 .remove-confirmation { margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; overflow-wrap: anywhere; }
@@ -78,4 +85,5 @@ footer > span:first-child { min-width: 0; overflow-wrap: anywhere; }
   button:hover:not(:disabled) { background: #31445f; }
   .feedback { background: #243f35; color: #b2dec7; }
   .feedback.error { background: #4a3028; color: #f5c1a3; }
+  .connection-report li.failed strong { color: #f5c1a3; }
 }

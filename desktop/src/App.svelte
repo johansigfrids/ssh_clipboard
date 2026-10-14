@@ -250,6 +250,17 @@
           </details>
           <button type="button" class="test-button" disabled={!ready || !configured || dirty || busy} onclick={() => perform("test_connection", "SSH proxy and clipboard daemon responded.")}>Test saved connection</button>
           {#if dirty}<p class="field-help">Apply your changes before testing the connection.</p>{/if}
+          {#if view.connectionReport && !dirty}
+            <section class="connection-report" aria-label="Saved connection diagnostics">
+              <h3>{view.connectionReport.healthy ? "Connection verified" : "Connection needs attention"}</h3>
+              <ul>
+                {#each view.connectionReport.checks as check (check.stage)}
+                  <li class:failed={check.status === "failed"}><strong>{check.label} · {check.status === "passed" ? "Verified" : check.status === "failed" ? "Failed" : "Not verified"}</strong><span>{check.detail}</span></li>
+                {/each}
+              </ul>
+              {#if view.connectionReport.hint}<p>{view.connectionReport.hint}</p>{/if}
+            </section>
+          {/if}
         {:else if section === "shortcuts"}
           <p class="section-intro">One shortcut opens the clipboard panel. You can also use the tray menu or launch the app.</p>
           <label class="toggle"><input type="checkbox" bind:checked={draft.shortcutEnabled} disabled={!ready || busy} />Enable Open panel shortcut</label>

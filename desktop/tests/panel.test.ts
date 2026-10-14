@@ -28,6 +28,7 @@ beforeEach(() => {
       state.item = null;
       state.clipboardChecked = false;
       state.connected = false;
+      state.connectionReport = null;
     }
     if (name === "remove_profile") {
       state.profiles = state.profiles.filter(({ id }) => id !== args!.profileId);
@@ -37,6 +38,7 @@ beforeEach(() => {
       state.item = null;
       state.connected = false;
       state.clipboardChecked = false;
+      state.connectionReport = null;
     }
     return structuredClone(state);
   });
@@ -44,6 +46,66 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("connection diagnostics distinguish verified SSH/proxy from a missing daemon", async () => {
+    state.settings.target = "hub";
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => {
+      if (name === "test_connection") {
+        state.connectionReport = {
+          healthy: false, summary: "The clipboard daemon is unavailable.", hint: "Check the daemon service on the server.",
+          checks: [
+            { stage: "ssh_connection", label: "SSH connection", status: "passed", detail: "A clipboard reply arrived over SSH." },
+            { stage: "proxy", label: "Remote clipboard proxy", status: "passed", detail: "A clipboard frame was received." },
+            { stage: "daemon", label: "Clipboard daemon", status: "failed", detail: "The proxy could not reach the daemon." },
+            { stage: "request", label: "Metadata check", status: "not_checked", detail: "Not verified by this check." },
+          ],
+        };
+        return Promise.reject("The clipboard daemon is unavailable.");
+      }
+      return normal(name, args);
+    });
+    render(App);
+    await screen.findByText("hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Test saved connection" }));
+    await screen.findByRole("alert");
+    expect(await screen.findByRole("region", { name: "Saved connection diagnostics" })).toBeTruthy();
+    expect(screen.getByText("SSH connection · Verified")).toBeTruthy();
+    expect(screen.getByText("Clipboard daemon · Failed")).toBeTruthy();
+    expect(screen.getByText("Metadata check · Not verified")).toBeTruthy();
+    expect(screen.getByText("Check the daemon service on the server.")).toBeTruthy();
+    expect(screen.queryByText("SSH proxy and clipboard daemon responded.")).toBeNull();
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "test_connection", "get_panel"]);
+    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "other-hub" } });
+    expect(screen.queryByRole("region", { name: "Saved connection diagnostics" })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("Settings applied.");
+    expect(screen.queryByRole("region", { name: "Saved connection diagnostics" })).toBeNull();
+  });
+
+  it("a successful diagnostic remains metadata-only and never enables Copy", async () => {
+    state.settings.target = "hub";
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => {
+      if (name === "test_connection") {
+        state.connected = true;
+        state.connectionReport = { healthy: true, summary: "Verified", hint: null, checks: [
+          { stage: "protocol", label: "Clipboard protocol", status: "passed", detail: "A correlated reply was received." },
+        ] };
+      }
+      return normal(name, args);
+    });
+    render(App);
+    await screen.findByText("hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Test saved connection" }));
+    await screen.findByText("Connection verified");
+    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByRole("button", { name: "Copy to this computer" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByText("No shared item loaded")).toBeTruthy();
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "test_connection"]);
+  });
+
   function savedProfiles() {
     state.settings.target = "shared-hub";
     state.settings.identityFile = "first/key";

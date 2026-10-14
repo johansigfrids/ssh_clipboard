@@ -23,6 +23,104 @@ fn service(limits: ServiceLimits) -> Arc<ShelfService> {
         .unwrap(),
     )
 }
+
+#[tokio::test]
+async fn watch_wakes_on_mutation_coalesces_gaps_and_retains_request_association() {
+    let service = service(ServiceLimits::default());
+    let (mut observer, observer_task) = Peer::open(service.clone(), 1024).await;
+    let (mut writer, writer_task) = Peer::open(service.clone(), 1024).await;
+    let request = Request::Watch {
+        request_id: observer.id(),
+        epoch: observer.epoch,
+        after_sequence: 0.into(),
+        wait_ms: 5000,
+    };
+    let watching = tokio::spawn(async move {
+        let response = observer.exchange(request, &[]).await;
+        (observer, response)
+    });
+    // A writer must remain available while the watcher waits. Multiple updates may
+    // coalesce; the subsequent complete snapshot is the convergence boundary.
+    for value in [b"one", b"two", b"end"] {
+        let request = writer.share(Uuid::new_v4(), value);
+        writer.exchange(request, value).await;
+    }
+    let (mut observer, (response, bytes)) = timeout(Duration::from_secs(2), watching)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(bytes.is_empty());
+    assert!(
+        matches!(response,Response::Changed{request_id,sequence,..} if request_id.get()==2 && sequence.get()>=1)
+    );
+    let request = Request::Watch {
+        request_id: observer.id(),
+        epoch: observer.epoch,
+        after_sequence: 0.into(),
+        wait_ms: 5000,
+    };
+    let (response, _) = timeout(Duration::from_secs(1), observer.exchange(request, &[]))
+        .await
+        .unwrap();
+    assert!(matches!(response,Response::Changed{sequence,..} if sequence.get()==3));
+    let request = Request::Watch {
+        request_id: observer.id(),
+        epoch: observer.epoch,
+        after_sequence: 99.into(),
+        wait_ms: 0,
+    };
+    assert!(matches!(
+        observer.exchange(request, &[]).await.0,
+        Response::Error {
+            code: ErrorCode::ResyncRequired,
+            ..
+        }
+    ));
+    drop(observer);
+    drop(writer);
+    observer_task.await.unwrap().unwrap();
+    writer_task.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn watch_heartbeat_is_bounded_and_expiry_notifies_without_payload_access() {
+    let service = Arc::new(
+        ShelfService::new(
+            ShelfLimits {
+                retention: Duration::from_millis(30),
+                ..ShelfLimits::default()
+            },
+            ServiceLimits::default(),
+        )
+        .unwrap(),
+    );
+    let (mut writer, writer_task) = Peer::open(service.clone(), 1024).await;
+    let request = writer.share(Uuid::new_v4(), b"expires");
+    writer.exchange(request, b"expires").await;
+    let (mut observer, observer_task) = Peer::open(service.clone(), 1024).await;
+    let request = Request::Watch {
+        request_id: observer.id(),
+        epoch: observer.epoch,
+        after_sequence: 1.into(),
+        wait_ms: 50,
+    };
+    let (response, bytes) = observer.exchange(request, &[]).await;
+    assert!(bytes.is_empty());
+    assert!(matches!(response,Response::Changed{sequence,..} if sequence.get()==2));
+    let request = Request::Watch {
+        request_id: observer.id(),
+        epoch: observer.epoch,
+        after_sequence: 2.into(),
+        wait_ms: 5,
+    };
+    assert!(
+        matches!(timeout(Duration::from_secs(1),observer.exchange(request,&[])).await.unwrap().0,Response::Changed{sequence,..} if sequence.get()==2)
+    );
+    drop(writer);
+    drop(observer);
+    writer_task.await.unwrap().unwrap();
+    observer_task.await.unwrap().unwrap();
+}
 struct Peer {
     stream: DuplexStream,
     epoch: Uuid,

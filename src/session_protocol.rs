@@ -245,6 +245,12 @@ pub enum Request {
         request_id: Number,
         epoch: Uuid,
     },
+    Watch {
+        request_id: Number,
+        epoch: Uuid,
+        after_sequence: Number,
+        wait_ms: u16,
+    },
 }
 
 impl Request {
@@ -256,7 +262,8 @@ impl Request {
             | Self::Fetch { request_id, .. }
             | Self::Delete { request_id, .. }
             | Self::Clear { request_id, .. }
-            | Self::Health { request_id, .. } => *request_id,
+            | Self::Health { request_id, .. }
+            | Self::Watch { request_id, .. } => *request_id,
         }
     }
     pub fn validate(&self, payload_bytes: usize) -> Result<(), WireError> {
@@ -318,6 +325,9 @@ impl Request {
             Self::Delete { item_id, .. } if item_id.is_nil() => {
                 return Err(WireError::InvalidMetadata);
             }
+            Self::Watch { wait_ms, .. } if *wait_ms > 10_000 => {
+                return Err(WireError::InvalidMetadata);
+            }
             _ => {}
         }
         let epoch = match self {
@@ -327,7 +337,8 @@ impl Request {
             | Self::Fetch { epoch, .. }
             | Self::Delete { epoch, .. }
             | Self::Clear { epoch, .. }
-            | Self::Health { epoch, .. } => epoch,
+            | Self::Health { epoch, .. }
+            | Self::Watch { epoch, .. } => epoch,
         };
         if epoch.is_nil() {
             return Err(WireError::InvalidMetadata);
@@ -453,6 +464,11 @@ pub enum Response {
         items: u16,
         stored_bytes: u32,
     },
+    Changed {
+        request_id: Number,
+        epoch: Uuid,
+        sequence: Number,
+    },
     Error {
         request_id: Number,
         code: ErrorCode,
@@ -470,6 +486,7 @@ impl Response {
             | Self::Deleted { request_id, .. }
             | Self::Cleared { request_id, .. }
             | Self::Health { request_id, .. }
+            | Self::Changed { request_id, .. }
             | Self::Error { request_id, .. } => *request_id,
         }
     }
@@ -503,7 +520,8 @@ impl Response {
             | Self::Value { epoch, .. }
             | Self::Deleted { epoch, .. }
             | Self::Cleared { epoch, .. }
-            | Self::Health { epoch, .. } => Some(*epoch),
+            | Self::Health { epoch, .. }
+            | Self::Changed { epoch, .. } => Some(*epoch),
             Self::Error { epoch, .. } => *epoch,
         };
         if epoch.is_some_and(|epoch| epoch.is_nil()) {
@@ -605,9 +623,16 @@ pub fn negotiate(
         server_version: env!("CARGO_PKG_VERSION").into(),
         epoch,
         sequence: sequence.into(),
-        capabilities: ["list", "fetch", "delete", "clear", "deduplicated_share"]
-            .map(String::from)
-            .to_vec(),
+        capabilities: [
+            "list",
+            "fetch",
+            "delete",
+            "clear",
+            "deduplicated_share",
+            "watch",
+        ]
+        .map(String::from)
+        .to_vec(),
         limits: EffectiveLimits {
             max_item_bytes: (*max_item_bytes).min(server.max_item_bytes as u32),
             max_decoded_bytes: (*max_decoded_bytes).min(server.max_decoded_bytes as u32),

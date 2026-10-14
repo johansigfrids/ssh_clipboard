@@ -11,6 +11,45 @@ fn policy() -> SessionPolicy {
         ..Default::default()
     }
 }
+
+#[tokio::test]
+async fn metadata_watch_uses_correlated_bounded_replies_without_fetching_bytes() {
+    let (mut session, task) = connected().await;
+    let snapshot = session.snapshot().await.unwrap();
+    let reply = session
+        .execute(
+            Action::Watch {
+                after_sequence: snapshot.sequence,
+                wait_ms: 2,
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(reply.payload.is_empty());
+    assert!(
+        matches!(reply.response,Response::Changed{epoch,sequence,..} if epoch==snapshot.epoch && sequence==snapshot.sequence)
+    );
+    session
+        .execute(share(b"new item", 111), b"new item")
+        .await
+        .unwrap();
+    let reply = session
+        .execute(
+            Action::Watch {
+                after_sequence: snapshot.sequence,
+                wait_ms: 1000,
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(
+        matches!(reply.response,Response::Changed{sequence,..} if sequence.get()>snapshot.sequence.get())
+    );
+    session.close().await.unwrap();
+    task.await.unwrap().unwrap();
+}
 fn share(data: &[u8], operation: u128) -> Action {
     Action::Share {
         operation_id: Uuid::from_u128(operation),

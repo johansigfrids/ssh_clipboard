@@ -6,7 +6,7 @@ use crate::shelf::{FetchedItem, Now, Origin, Shelf, ShelfError, ShelfLimits, Upl
 use std::sync::Mutex;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tokio::sync::Semaphore;
+use tokio::sync::{Semaphore, watch};
 use tokio::time::{Instant, timeout, timeout_at};
 use uuid::Uuid;
 
@@ -33,6 +33,7 @@ pub struct ShelfService {
     budget: UploadBudget,
     slots: Semaphore,
     limits: ServiceLimits,
+    changes: watch::Sender<u64>,
 }
 struct Outgoing {
     response: Response,
@@ -67,6 +68,7 @@ impl ShelfService {
             budget,
             slots: Semaphore::new(limits.max_connections),
             limits,
+            changes: watch::channel(0).0,
         })
     }
 
@@ -79,7 +81,17 @@ impl ShelfService {
             .lock()
             .map_err(|_| WireError::Rejected(ErrorCode::Internal))?;
         let now = Now::system()?;
-        action(&mut shelf, now)
+        let result = action(&mut shelf, now);
+        let sequence = shelf.sequence();
+        self.changes.send_if_modified(|current| {
+            if *current == sequence {
+                false
+            } else {
+                *current = sequence;
+                true
+            }
+        });
+        result
     }
 
     /// The listener must call this periodically even when no requests arrive.
@@ -207,6 +219,37 @@ impl ShelfService {
     ) -> Result<Outgoing, WireError> {
         let IncomingRequest { request, upload } = incoming;
         let request_id = request.request_id();
+        if let Request::Watch {
+            epoch,
+            after_sequence,
+            wait_ms,
+            ..
+        } = request
+        {
+            // Subscribe BEFORE inspecting the shelf. A mutation between inspection and
+            // waiting is retained by watch; slow readers retain one sequence, not a queue.
+            let mut changes = self.changes.subscribe();
+            let current = self.maintenance()?;
+            if current.0 != epoch {
+                return Ok(error(request_id, ErrorCode::EpochChanged, current.0));
+            }
+            if after_sequence.get() > current.1 {
+                return Ok(error(request_id, ErrorCode::ResyncRequired, epoch));
+            }
+            if current.1 == after_sequence.get() && wait_ms > 0 {
+                let wait =
+                    Duration::from_millis(wait_ms.into()).min(self.limits.operation_timeout / 2);
+                let _ = timeout(wait, changes.changed()).await;
+            }
+            return self.with_shelf(|shelf, now| {
+                shelf.expire(now)?;
+                Ok(Outgoing::control(Response::Changed {
+                    request_id,
+                    epoch: shelf.epoch(),
+                    sequence: shelf.sequence().into(),
+                }))
+            });
+        }
         if let Request::Share {
             epoch,
             operation_id,

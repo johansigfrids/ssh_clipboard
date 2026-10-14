@@ -129,6 +129,12 @@ impl Connection {
         self.session.as_ref().map(Session::limits)
     }
 
+    pub fn supports(&self, capability: &str) -> bool {
+        self.session.as_ref().is_some_and(|session| {
+            matches!(session.welcome(), crate::session_protocol::Response::Welcome {capabilities,..} if capabilities.iter().any(|value|value==capability))
+        })
+    }
+
     /// No action is automatically repeated. The caller owns its captured operation.
     pub async fn execute(&mut self, action: Action, payload: &[u8]) -> Result<Reply, RunError> {
         if !self.is_ready() {

@@ -126,7 +126,14 @@ fn negotiation_intersects_policy_and_never_advertises_pending_capabilities() {
     assert_eq!(limits.max_list_items, 16);
     assert_eq!(
         capabilities,
-        ["list", "fetch", "delete", "clear", "deduplicated_share"]
+        [
+            "list",
+            "fetch",
+            "delete",
+            "clear",
+            "deduplicated_share",
+            "watch"
+        ]
     );
     let unsupported = Request::Hello {
         request_id: 1.into(),

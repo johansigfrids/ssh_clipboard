@@ -79,6 +79,10 @@ pub enum Action {
     },
     Clear,
     Health,
+    Watch {
+        after_sequence: Number,
+        wait_ms: u16,
+    },
 }
 impl Action {
     fn request(self, request_id: Number, epoch: Uuid) -> Request {
@@ -120,6 +124,15 @@ impl Action {
             },
             Self::Clear => Request::Clear { request_id, epoch },
             Self::Health => Request::Health { request_id, epoch },
+            Self::Watch {
+                after_sequence,
+                wait_ms,
+            } => Request::Watch {
+                request_id,
+                epoch,
+                after_sequence,
+                wait_ms,
+            },
         }
     }
 }
@@ -128,6 +141,7 @@ pub struct Reply {
     pub response: Response,
     pub payload: Vec<u8>,
 }
+#[derive(Clone)]
 pub struct Snapshot {
     pub epoch: Uuid,
     pub sequence: Number,
@@ -249,6 +263,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Session<T> {
             Request::Fetch { .. } => Some("fetch"),
             Request::Delete { .. } => Some("delete"),
             Request::Clear { .. } => Some("clear"),
+            Request::Watch { .. } => Some("watch"),
             _ => None,
         };
         if let (Some(capability), Response::Welcome { capabilities, .. }) =
@@ -427,7 +442,8 @@ fn response_sequence(response: &Response) -> Option<Number> {
         | Response::Value { sequence, .. }
         | Response::Deleted { sequence, .. }
         | Response::Cleared { sequence, .. }
-        | Response::Health { sequence, .. } => Some(*sequence),
+        | Response::Health { sequence, .. }
+        | Response::Changed { sequence, .. } => Some(*sequence),
         Response::Error { .. } => None,
     }
 }
@@ -455,6 +471,14 @@ fn check_reply(
         return Ok(());
     }
     let matches = match (request, response) {
+        (
+            Request::Watch { after_sequence, .. },
+            Response::Changed {
+                epoch: returned,
+                sequence: current,
+                ..
+            },
+        ) => *returned == epoch && current.get() >= after_sequence.get(),
         (
             Request::Share {
                 origin,

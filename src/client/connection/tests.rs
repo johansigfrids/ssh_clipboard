@@ -4,6 +4,133 @@ use crate::shelf::ShelfLimits;
 use std::process::Stdio;
 use tokio::process::Command;
 
+#[tokio::test]
+#[ignore = "requires an explicitly started disposable SSH_CLIPBOARD_TEST_TARGET/BINARY/SOCKET fixture"]
+async fn live_shelf_over_ssh_reuses_one_child_for_protected_share_watch_and_reconciliation() {
+    let target = std::env::var("SSH_CLIPBOARD_TEST_TARGET").expect("explicit test target required");
+    let binary =
+        std::env::var("SSH_CLIPBOARD_TEST_BINARY").expect("temporary test binary required");
+    let socket =
+        std::env::var("SSH_CLIPBOARD_TEST_SOCKET").expect("temporary test socket required");
+    assert!(
+        !target.is_empty()
+            && !target.starts_with('-')
+            && !target.chars().any(|c| c.is_whitespace() || c.is_control())
+    );
+    for path in [&binary, &socket] {
+        assert!(
+            path.starts_with("/tmp/ssh-clipboard-integration-")
+                && path
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"/._-".contains(&byte)),
+            "only disposable shell-safe fixture paths are accepted"
+        );
+    }
+    let child = Command::new("ssh")
+        .args([
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            &target,
+            &format!("{binary} session-proxy --socket-path {socket}"),
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let pid = child.id();
+    let mut config = config();
+    config.target = target;
+    let mut policy = policy();
+    policy.operation_timeout = Duration::from_secs(10);
+    let mut connection = Connection::from_child(child, config, policy).await.unwrap();
+    assert!(
+        connection.snapshot().await.unwrap().items.is_empty(),
+        "fixture must start empty"
+    );
+    let operation_id = Uuid::new_v4();
+    let device_id = Uuid::new_v4();
+    let status = connection
+        .execute(
+            Action::OperationStatus {
+                device_id,
+                operation_id,
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    let Response::Operation { epoch_time_ms, .. } = status.response else {
+        panic!("no operation clock");
+    };
+    let deadline =
+        (epoch_time_ms.get() + u64::from(connection.limits().unwrap().retry_retention_ms)).into();
+    let data = "  synthetic SSH α\n  ".as_bytes();
+    let share = || Action::RetryShare {
+        share: Box::new(Action::Share {
+            operation_id,
+            origin: wire::Origin {
+                device_id,
+                name: "Disposable SSH test".into(),
+            },
+            representation: wire::Representation {
+                id: 0,
+                content_type: wire::ContentType::Text,
+                encoded_bytes: data.len() as u32,
+                dimensions: None,
+                decoded_bytes: None,
+            },
+            created_at_ms: Some(123.into()),
+        }),
+        not_after_ms: deadline,
+    };
+    connection.execute(share(), data).await.unwrap();
+    let snapshot = connection.snapshot().await.unwrap();
+    assert_eq!(snapshot.items.len(), 1);
+    let item_id = snapshot.items[0].id;
+    let retry = connection.execute(share(), data).await.unwrap();
+    assert!(matches!(retry.response,Response::Shared {item,duplicate:true,..} if item.id==item_id));
+    let fetched = connection
+        .execute(Action::Fetch { item_id }, &[])
+        .await
+        .unwrap();
+    assert_eq!(fetched.payload, data);
+    let changed = connection
+        .execute(
+            Action::Watch {
+                after_sequence: 0.into(),
+                wait_ms: 1000,
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(matches!(changed.response,Response::Changed {sequence,..} if sequence.get()>=1));
+    connection
+        .execute(Action::Delete { item_id }, &[])
+        .await
+        .unwrap();
+    let status = connection
+        .execute(
+            Action::OperationStatus {
+                device_id,
+                operation_id,
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(
+        matches!(status.response,Response::Operation {item:Some(item),available:false,..} if item.id==item_id)
+    );
+    assert!(connection.snapshot().await.unwrap().items.is_empty());
+    assert_eq!(connection.child.as_ref().unwrap().id(), pid);
+    connection.close().await;
+}
+
 fn policy() -> SessionPolicy {
     SessionPolicy {
         max_item_bytes: 1024,

@@ -102,6 +102,8 @@ Desktop cancellation checks add a gated native-owner admission probe, controller
 
 Metadata monitor probes add transient reconnect and authentication-pause checks, blocked old-profile cancellation, bounded backoff, and current-generation delivery. Service/client/native proxy tests cover Watch mutation gaps, bounded unchanged heartbeats, future anchors, and expiry. Desktop metadata updates must preserve a surviving selected preview, reject old sequences and snapshots started before a completed user action, and issue no Fetch/Share/Copy command from background UI reload. Network/SSH/native evidence remain distinct.
 
+The new shelf also has an explicitly ignored real SSH probe, run with `./scripts/Test-LiveShelf.ps1 -Target user@host -Binary target/linux-wsl/debug/ssh_clipboard`. The runner builds the test first, creates an owned `/tmp/ssh-clipboard-integration-*` fixture, copies the selected Linux test binary, starts a private temporary daemon/socket, and verifies protected share/retry, exact Unicode bytes, snapshot, Watch, operation acknowledgment, and deletion on one owned SSH child. The Python fixture stops and removes itself on EOF/stop or a 120-second lifetime bound; the runner verifies directory removal after success. It does not install/replace/restart a configured service or access an OS clipboard. On 2026-10-14 this passed from Windows against the authorized Ubuntu host, including cleanup. Native desktop UI/paste and installed-artifact evidence remain separate.
+
 ## Platform `cfg` Hygiene
 
 

@@ -159,6 +159,8 @@ The Updates page checks quietly, shows notes/version/status, and installs only a
 
 ## Phase 7: Make Server Installation and Maintenance Reliable
 
+**First source slice implemented:** private immutable release copies, atomic current-version selection, persistent writer ownership, durable transition/outcome records, downgrade refusal, and restart/health rollback with crash recovery. Eight disposable WSL adapter probes and the full headless suite pass. No CLI/systemd or artifact-signature adapter is wired yet, and no live service was changed; see [maintenance foundation](server-maintenance.md).
+
 Replace symlinks into extracted archives with user-owned versioned releases, a stable launcher, and a stable user service file. Migrate the existing user service carefully, preserving target UID and socket/configuration. Do not rewrite shared global installations automatically.
 
 Add a maintenance command that downloads/stages a platform-correct signed package, verifies it, switches the active version, restarts the user service, checks protocol health through the proxy, and switches back if health fails. Keep the previous executable and record the update outcome. Failed updates must not strand the stable launcher.

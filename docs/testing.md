@@ -108,6 +108,10 @@ The new shelf also has an explicitly ignored real SSH probe, run with `./scripts
 
 Desktop update checks run with `cargo test --manifest-path desktop/src-tauri/Cargo.toml --all-features` and frontend `npm test` from `desktop`. They include synthetic cryptographic faults, bounded declared/chunked/interrupted bodies, one-use local handoff ownership, real framework selection in a mock runtime, inert notes, and explicit install/transfer/recovery guards. `npm run test:package` stages an isolated synthetic-key Windows installer and verifies it without execution; private test keys are removed. These passed on Windows on 2026-10-14. Actual clean install, startup login, old-to-new installed replacement/interruption, OS publisher identity, and macOS/Linux packages remain native acceptance gaps.
 
+## Server Maintenance Evidence
+
+The Linux server release-store tests use disposable directories and fake admission/service adapters. They fault new restart/health, durable outcome writes, rollback health, and journal recovery, while checking immutable retained bytes and path/ownership rejection. The complete WSL headless suite passes with this engine. No real signature, systemd service, stable launcher migration, or live installation is claimed by these tests; see [server maintenance gaps](server-maintenance.md).
+
 ## Platform `cfg` Hygiene
 
 

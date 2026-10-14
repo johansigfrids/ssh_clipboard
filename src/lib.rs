@@ -14,6 +14,8 @@ pub mod daemon;
 #[cfg(target_os = "linux")]
 pub mod proxy;
 #[cfg(target_os = "linux")]
+pub mod server_releases;
+#[cfg(target_os = "linux")]
 mod server_socket;
 #[cfg(target_os = "linux")]
 pub mod session_proxy;

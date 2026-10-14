@@ -161,6 +161,8 @@ Document trusted key rotation before first release: old clients need a transitio
 
 Use user-owned versioned release directories and a stable launcher/service path instead of symlinks into an extracted download or a shared global binary. A maintenance command stages and verifies a signed server package, switches the active executable, restarts the service, checks health, and rolls back the executable if health fails.
 
+The first maintenance engine now copies immutable admitted releases and journals atomic executable selection. Restart/protocol-health failure restores and checks the previous executable; interrupted/failed outcome writes retain recovery state and block new updates. Disposable WSL filesystem/fake-adapter probes pass. Signature/download and CLI/systemd adapters remain open; no current installer/service was changed. See [maintenance evidence](docs/server-maintenance.md).
+
 Transfer-only keys remain transfer-only. Remote maintenance uses a separately authorized management connection, or the user runs the maintenance command on the server. Notify clients that restart clears the in-memory shelf; rollback restores the executable, not lost clipboard items. Client and server updates are independent within the supported compatibility window.
 
 ## Validation Boundaries

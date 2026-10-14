@@ -78,6 +78,8 @@ sudo apt-get install -y \
 
 ## Native Test Scheduling
 
+Headless Linux automation now also runs in the existing Ubuntu WSL environment: `cargo test --no-default-features --target-dir target/linux-wsl` and matching all-target clippy checks. The [native endpoint probes](shelf-server.md#evidence-and-remaining-work) use disposable processes/sockets and synthetic data, including held-open stdin and duplicate-startup preservation. This is not a GUI/native-paste acceptance pass or a remote deployment.
+
 The standalone shelf core has synthetic [resource/behavior probes](shelf-core.md#evidence-and-integration-work). These do not establish daemon integration or Linux socket/ownership behavior.
 
 Manual Windows testing is grouped at larger milestones: daily clipboard/settings/reconnect use, OS integration/installation, and signed updates/recovery. Continue automated implementation and commit usable slices between these passes. Individual advanced-settings and diagnostic UI checks are deferred into the next daily-use pass; do not ask for a new manual check after every small commit. Focused repeats are appropriate when a native failure needs confirmation. Other platforms still need their own supported-platform evidence.

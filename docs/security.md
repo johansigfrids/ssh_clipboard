@@ -30,6 +30,8 @@ Out of scope (for now):
 ### 1. Per-user daemon (default)
 Run the daemon as the intended user so the socket is owned by that user and has strict permissions (`0600`).
 
+Current-source daemons use a stable ownership lock, preserve active sockets, reject unsafe parent/replacement paths, and verify peer UID. The experimental shelf proxy also checks the daemon peer's UID. See [socket and process guardrails](shelf-server.md#socket-ownership-and-permissions). These source changes have not been deployed to an installed host.
+
 ### 2. Forced command in `authorized_keys` (optional but recommended)
 Restrict a dedicated key so it can only run the proxy:
 ```

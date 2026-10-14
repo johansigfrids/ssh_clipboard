@@ -52,6 +52,12 @@ enum Commands {
     Doctor(DoctorArgs),
     #[cfg(target_os = "linux")]
     Daemon(DaemonArgs),
+    /// Run the experimental item-aware shelf on a separate private socket.
+    #[cfg(target_os = "linux")]
+    ShelfDaemon(ShelfDaemonArgs),
+    /// Bridge the experimental shelf endpoint over SSH stdio.
+    #[cfg(target_os = "linux")]
+    SessionProxy(SessionProxyArgs),
     #[cfg(target_os = "linux")]
     Proxy(ProxyArgs),
     #[cfg(target_os = "linux")]
@@ -246,6 +252,42 @@ pub struct ProxyArgs {
     pub io_timeout_ms: u64,
     #[arg(long)]
     pub autostart_daemon: bool,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Args, Clone)]
+pub struct ShelfDaemonArgs {
+    #[arg(long)]
+    pub socket_path: Option<PathBuf>,
+    #[arg(long, default_value_t = 20)]
+    pub max_items: usize,
+    #[arg(long, default_value_t = 3600)]
+    pub retention_secs: u64,
+    #[arg(long, default_value_t = 64 * 1024 * 1024)]
+    pub max_item_bytes: usize,
+    #[arg(long, default_value_t = 256 * 1024 * 1024)]
+    pub max_stored_bytes: usize,
+    #[arg(long, default_value_t = 384 * 1024 * 1024)]
+    pub max_resident_bytes: usize,
+    #[arg(long, default_value_t = 256 * 1024 * 1024)]
+    pub max_decoded_bytes: usize,
+    #[arg(long, default_value_t = 16)]
+    pub max_connections: usize,
+    #[arg(long, default_value_t = 30000)]
+    pub io_timeout_ms: u64,
+    #[arg(long, default_value_t = 300000)]
+    pub idle_timeout_ms: u64,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Args, Clone)]
+pub struct SessionProxyArgs {
+    #[arg(long)]
+    pub socket_path: Option<PathBuf>,
+    #[arg(long, default_value_t = 30000)]
+    pub io_timeout_ms: u64,
+    #[arg(long, default_value_t = 300000)]
+    pub idle_timeout_ms: u64,
 }
 
 #[cfg(target_os = "linux")]
@@ -472,6 +514,51 @@ pub async fn run() -> Result<()> {
                 .await
                 .wrap_err("daemon failed")?;
             Ok(())
+        }
+        #[cfg(target_os = "linux")]
+        Commands::ShelfDaemon(args) => {
+            let path = args
+                .socket_path
+                .unwrap_or(crate::shelf_daemon::default_socket_path()?);
+            let limits = crate::shelf::ShelfLimits {
+                max_items: args.max_items,
+                retention: std::time::Duration::from_secs(args.retention_secs),
+                max_item_bytes: args.max_item_bytes,
+                max_stored_bytes: args.max_stored_bytes,
+                max_resident_bytes: args.max_resident_bytes,
+                max_decoded_bytes: args.max_decoded_bytes,
+                ..Default::default()
+            };
+            let policy = crate::shelf_service::ServiceLimits {
+                max_connections: args.max_connections,
+                operation_timeout: std::time::Duration::from_millis(args.io_timeout_ms),
+                idle_timeout: std::time::Duration::from_millis(args.idle_timeout_ms),
+                ..Default::default()
+            };
+            crate::shelf_daemon::run(path, limits, policy).await
+        }
+        #[cfg(target_os = "linux")]
+        Commands::SessionProxy(args) => {
+            let path = args
+                .socket_path
+                .unwrap_or(crate::shelf_daemon::default_socket_path()?);
+            let limits = crate::session_bridge::BridgeLimits {
+                read_timeout: std::time::Duration::from_millis(args.idle_timeout_ms),
+                write_timeout: std::time::Duration::from_millis(args.io_timeout_ms),
+                ..Default::default()
+            };
+            let code = match crate::session_proxy::run(path, limits).await {
+                Ok(code) => code,
+                Err(_) => {
+                    eprintln!(
+                        "Shelf session proxy failed. Check the configured endpoint and daemon."
+                    );
+                    5
+                }
+            };
+            // Tokio's stdio reads are blocking underneath. Exit on both paths so a
+            // held-open SSH stdin cannot keep the finished proxy process alive.
+            std::process::exit(code);
         }
         #[cfg(target_os = "linux")]
         Commands::Proxy(args) => {

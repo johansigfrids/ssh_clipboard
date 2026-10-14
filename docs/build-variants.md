@@ -34,6 +34,8 @@ CI checks the headless runtime tree for clipboard, tray, hotkey, X11/Wayland, GT
 
 At the initial dependency-split checkpoint on 2026-10-14, Windows headless (42 unit + 5 executable checks), legacy agent (56 + 4), and desktop backend (18) tests passed, with required lint/format checks. Subsequent migration adds its own probes; see [migration evidence](configuration-migration.md#evidence). The Linux-target normal dependency tree remains free of OS clipboard/desktop libraries after those additions. This is dependency evidence, not a native Linux build: the authorized test server has no Cargo available in its SSH environment, and no toolchain was installed. CI's Linux compilation/native platform checks remain required. No running server was replaced or restarted.
 
+Subsequent 2026-10-14 evidence closes the headless Linux compilation gap: the existing Ubuntu WSL Rust 1.97.1 toolchain runs native unit, migration, settings/doctor, and real shelf/legacy daemon-proxy process probes without GUI libraries. Output uses `target/linux-wsl` to avoid mixing Windows artifacts. See [native evidence and limits](shelf-server.md#evidence-and-remaining-work). This does not establish a Linux desktop GUI session or a remote-host rollout.
+
 ## Update Triggers
 
 - A shared type/module gains an OS dependency.

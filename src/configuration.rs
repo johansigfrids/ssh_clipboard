@@ -410,8 +410,10 @@ impl ConfigStore {
             use std::os::unix::fs::OpenOptionsExt;
             options.mode(0o600);
         }
-        let lock = options.open(self.path.with_extension("json.lock"))?;
-        lock.try_lock().map_err(|error| match error {
+        let lock = crate::file_lock::ExclusiveLock::acquire(
+            options.open(self.path.with_extension("json.lock"))?,
+        )
+        .map_err(|error| match error {
             std::fs::TryLockError::WouldBlock => ConfigError::Busy,
             std::fs::TryLockError::Error(error) => ConfigError::Io(error),
         })?;
@@ -504,7 +506,7 @@ pub struct PreparedSave {
     path: PathBuf,
     temporary: NamedTempFile,
     config: Configuration,
-    _lock: File,
+    _lock: crate::file_lock::ExclusiveLock,
 }
 
 impl PreparedSave {

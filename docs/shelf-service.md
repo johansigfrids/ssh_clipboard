@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe the transport-independent service connecting the session codec to the shelf. It is tested over local byte streams, with no SSH/clipboard/server installation. Native listeners, the proxy command, compatibility adapter, and clients remain separate integration work.
+Describe the transport-independent service connecting the session codec to the shelf. It is tested over local byte streams, with no SSH/clipboard/server installation. The [native Linux listener/proxy](shelf-server.md) now exists with separate process evidence; compatibility and clients remain separate integration work.
 
 ## Key Files
 
@@ -27,9 +27,9 @@ The shelf mutex is never held over stream I/O or image validation. Reply metadat
 
 ## Expiry and Adapter Responsibilities
 
-`maintenance()` expires items/retry records and returns epoch/sequence. The future daemon must call it on a bounded timer even with no traffic. Authentication is outside this generic stream layer: a native listener must enforce private socket/directory permissions, same-UID peers, exclusive daemon ownership, bounded accepted tasks, and safe stale-socket recovery before calling `serve`.
+`maintenance()` expires items/retry records and returns epoch/sequence. The native shelf daemon calls it every second even with no traffic. Authentication is outside this generic stream layer: a native listener must enforce private socket/directory permissions, same-UID peers, exclusive daemon ownership, bounded accepted tasks, and safe stale-socket recovery before calling `serve`.
 
-The service currently has no subscriptions, cancellation request, reconnection driver, or OS clipboard access. New endpoint command wiring, legacy compatibility, item-aware CLI, and desktop history are pending. The installed legacy daemon still holds one value and retains its existing limits.
+The service currently has no subscriptions, cancellation request, reconnection driver, or OS clipboard access. New endpoint command wiring now has native WSL evidence. Legacy compatibility, item-aware CLI, and desktop history are pending. The installed legacy daemon still holds one value and retains its existing limits.
 
 ## Evidence
 

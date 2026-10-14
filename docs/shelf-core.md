@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the new in-memory shelf's state/resource contracts before wiring it into the daemon and new session protocol. This module is implemented and tested but is not used by the installed server, version 2 endpoint, or desktop yet.
+Define the new in-memory shelf's state/resource contracts before wiring it into the daemon and new session protocol. This module now powers the separate experimental shelf endpoint. It is not used by the installed server, legacy version 2 endpoint, or desktop yet.
 
 ## Key Files
 
@@ -43,7 +43,7 @@ Ordering uses the server sequence, never client timestamps or list position. Ret
 
 Calls expire due items first; a batch expiry is one sequence change. A new commit evicts oldest items until both count and stored-byte policies fit, then commits the new item with one sequence change. Oversized/malformed uploads fail during preparation and cannot evict existing content. Delete/clear change the sequence only when content is removed. Snapshots contain metadata newest first; fetch-by-ID and latest return immutable leases. Sequence/timestamp overflow fails without removing content for the requested mutation.
 
-Expiry is lazy at the core boundary. The future daemon must also call `expire` on a bounded timer, so abandoned shelf contents are released even without subsequent requests. No disk persistence is added.
+Expiry is lazy at the core boundary. The native shelf daemon also calls `expire` on a one-second timer, so abandoned shelf contents are released without subsequent requests. No disk persistence is added.
 
 ## Retry Guarantees
 
@@ -57,7 +57,7 @@ Retry records have separate fixed count and monotonic retention limits. When the
 
 Fifteen tests cover exact Unicode/whitespace bytes, server ordering despite clock skew, count/byte eviction and exact limits, expiry boundaries, deduplication/conflicts/window saturation, deletion/clear without retry resurrection, epochs/foreign reservations, pinned leases, concurrent atomic admission, PNG validation/limits, malformed content, origins, overflow, and empty versus unset. They use synthetic content and no SSH, OS clipboard, or server process.
 
-The separate [bootstrap/wire contract and codec fixtures](session-protocol.md) and a tested [generic stream service](shelf-service.md) now exist. Still required: new proxy/daemon endpoint; native accepted-task bounds/timer/ownership; version 2 compatibility adapter and serialization reservations; item-aware CLI and desktop shelf controls; process/native Linux evidence. The installed 10 MiB legacy policy has not changed.
+The separate [bootstrap/wire contract and codec fixtures](session-protocol.md) and a tested [generic stream service](shelf-service.md) now exist. The [native endpoint](shelf-server.md) now supplies bounded listener tasks, timer/ownership, stdio forwarding, and WSL process evidence. Still required: version 2 compatibility adapter/serialization reservations, item-aware CLI and desktop controls, and new endpoint SSH/platform acceptance. The installed 10 MiB legacy policy has not changed.
 
 ## Update Triggers
 

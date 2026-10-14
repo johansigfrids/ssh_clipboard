@@ -33,6 +33,12 @@ pub enum WireError {
     Rejected(ErrorCode),
     #[error(transparent)]
     Resource(#[from] ShelfError),
+    #[error("upload rejected: {source}")]
+    UploadRejected {
+        request_id: super::Number,
+        payload_bytes: usize,
+        source: ShelfError,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -147,6 +153,20 @@ pub async fn read_request(
         return Err(WireError::InvalidState);
     }
     let header = read_header(reader, limits).await?;
+    read_request_body(reader, header, limits, budget).await
+}
+
+/// The service can apply a separate idle/header deadline before the operation deadline.
+pub async fn read_request_body(
+    reader: &mut (impl AsyncRead + Unpin),
+    header: Header,
+    limits: FrameLimits,
+    budget: &UploadBudget,
+) -> Result<IncomingRequest, WireError> {
+    if limits.payload == 0 {
+        return Err(WireError::InvalidState);
+    }
+    limits.check(header.metadata, header.payload)?;
     let request: Request = read_metadata(reader, &header).await?;
     request.validate(header.payload)?;
     if matches!(request, Request::Hello { .. }) {
@@ -155,7 +175,12 @@ pub async fn read_request(
     let upload = if matches!(request, Request::Share { .. }) {
         let mut input = budget
             .restricted(limits.payload, limits.decoded)?
-            .allocate(header.payload)?;
+            .allocate(header.payload)
+            .map_err(|source| WireError::UploadRejected {
+                request_id: request.request_id(),
+                payload_bytes: header.payload,
+                source,
+            })?;
         reader.read_exact(input.bytes_mut()).await?;
         Some(input)
     } else {

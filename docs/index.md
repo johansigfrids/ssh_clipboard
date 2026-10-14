@@ -24,6 +24,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
 - [docs/shelf-core.md](shelf-core.md): New bounded shelf state, upload reservations, expiry, retry contracts, and pending server integration.
 - [docs/session-protocol.md](session-protocol.md): Separate shelf bootstrap, precision-safe metadata, negotiated limits, raw payload framing, and compatibility boundary.
+- [docs/shelf-service.md](shelf-service.md): Transport-independent shelf actions, connection admission, deadlines, and stream-based lifecycle evidence.
 - [docs/connection-diagnostics.md](connection-diagnostics.md): Desktop/CLI metadata health, safe per-step failures, one-shot SSH deadlines/drainage, and fault evidence.
 - `docs/dependency-decisions.md`: Rationale and guardrails for high-impact dependency choices.
 - [docs/build-variants.md](build-variants.md): Headless, clipboard-only, agent, and desktop dependency boundaries and validation evidence.

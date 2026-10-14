@@ -57,7 +57,7 @@ Retry records have separate fixed count and monotonic retention limits. When the
 
 Fifteen tests cover exact Unicode/whitespace bytes, server ordering despite clock skew, count/byte eviction and exact limits, expiry boundaries, deduplication/conflicts/window saturation, deletion/clear without retry resurrection, epochs/foreign reservations, pinned leases, concurrent atomic admission, PNG validation/limits, malformed content, origins, overflow, and empty versus unset. They use synthetic content and no SSH, OS clipboard, or server process.
 
-The separate [bootstrap/wire contract and codec fixtures](session-protocol.md) now exist. Still required: new proxy/daemon endpoint; bounded connections/timer/serialization; duplicate-daemon ownership; version 2 compatibility adapter; item-aware CLI and desktop shelf controls; process/native Linux evidence. The installed 10 MiB legacy policy has not changed.
+The separate [bootstrap/wire contract and codec fixtures](session-protocol.md) and a tested [generic stream service](shelf-service.md) now exist. Still required: new proxy/daemon endpoint; native accepted-task bounds/timer/ownership; version 2 compatibility adapter and serialization reservations; item-aware CLI and desktop shelf controls; process/native Linux evidence. The installed 10 MiB legacy policy has not changed.
 
 ## Update Triggers
 

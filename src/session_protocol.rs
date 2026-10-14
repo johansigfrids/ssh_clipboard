@@ -95,12 +95,17 @@ pub struct Representation {
     pub content_type: ContentType,
     pub encoded_bytes: u32,
     pub dimensions: Option<Dimensions>,
+    pub decoded_bytes: Option<u32>,
 }
 impl Representation {
     fn validate(&self) -> Result<(), WireError> {
         if self.id != 0
             || self.encoded_bytes as usize > MAX_PAYLOAD_BYTES
-            || (self.content_type == ContentType::Text && self.dimensions.is_some())
+            || (self.content_type == ContentType::Text
+                && (self.dimensions.is_some() || self.decoded_bytes.is_some()))
+            || self
+                .decoded_bytes
+                .is_some_and(|size| size == 0 || size as usize > MAX_PAYLOAD_BYTES)
             || self
                 .dimensions
                 .is_some_and(|size| size.width == 0 || size.height == 0)
@@ -130,6 +135,22 @@ impl Item {
         }
         if let Some(origin) = &self.origin {
             origin.validate()?;
+        }
+        let representation = &self.representations[0];
+        if representation.content_type == ContentType::Png {
+            let dimensions = representation
+                .dimensions
+                .ok_or(WireError::InvalidMetadata)?;
+            let decoded = representation
+                .decoded_bytes
+                .ok_or(WireError::InvalidMetadata)?;
+            let rgba = u64::from(dimensions.width)
+                .checked_mul(u64::from(dimensions.height))
+                .and_then(|bytes| bytes.checked_mul(4))
+                .ok_or(WireError::InvalidMetadata)?;
+            if rgba > u64::from(decoded) {
+                return Err(WireError::InvalidMetadata);
+            }
         }
         self.representations[0].validate()
     }
@@ -161,6 +182,11 @@ impl TryFrom<&shelf::ItemMetadata> for Item {
                 dimensions: item
                     .dimensions
                     .map(|(width, height)| Dimensions { width, height }),
+                decoded_bytes: item
+                    .decoded_bytes
+                    .map(u32::try_from)
+                    .transpose()
+                    .map_err(|_| WireError::InvalidMetadata)?,
             }],
         };
         item.validate()?;

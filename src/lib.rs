@@ -5,6 +5,7 @@ pub mod framing;
 pub mod protocol;
 pub mod session_protocol;
 pub mod shelf;
+pub mod shelf_service;
 
 #[cfg(target_os = "linux")]
 pub mod daemon;

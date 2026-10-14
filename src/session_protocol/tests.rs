@@ -26,6 +26,7 @@ fn share(bytes: usize) -> Request {
             content_type: ContentType::Text,
             encoded_bytes: bytes as u32,
             dimensions: None,
+            decoded_bytes: None,
         },
         created_at_ms: Some(i64::MIN.into()),
     }
@@ -382,6 +383,7 @@ async fn a_full_page_with_maximum_names_and_integers_fits_the_metadata_budget() 
                     width: 8192,
                     height: 8192,
                 }),
+                decoded_bytes: Some(MAX_PAYLOAD_BYTES as u32),
             }],
         })
         .collect();

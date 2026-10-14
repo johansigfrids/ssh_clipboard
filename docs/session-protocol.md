@@ -60,6 +60,8 @@ Shared replies return item metadata, `duplicate`, and `available`. Identical ret
 
 Stable errors: `invalid_request`, `unsupported_version`, `invalid_state`, `payload_too_large`, `invalid_content`, `busy`, `retry_window_full`, `operation_conflict`, `epoch_changed`, `not_found`, `resync_required`, `daemon_unavailable`, and `internal`.
 
+Stored PNG descriptors also include `decoded_bytes`, the larger of native decoder output and RGBA pixel bytes. This prevents sending a 16-bit image to a peer whose budget fits its dimensions as RGBA but cannot hold its native decode buffer. Text uses null. A Share may omit the field when unknown; supplied dimensions/decoded counts must agree with validation. This completes the unreleased initial descriptor before endpoint activation; it does not change Hello or legacy fixtures.
+
 ## Resource and Session Rules
 
 The frame reader separates header, metadata, and payload stages. Decode/validate the control object and body association before reserving raw upload bytes. Read directly into the shelf's bounded upload buffer. Framing/decode/resource failure closes that stream; never continue from an undrained body. Send payloads from immutable leases without duplicating their bytes into JSON or a combined frame buffer.
@@ -70,7 +72,7 @@ New framing is strict initially; bounded noisy-shell resynchronization belongs t
 
 ## Evidence and Remaining Work
 
-The codec/negotiation fixtures are tested independently of OS sockets and SSH. Version 2 fixtures stay in their existing module. Daemon/proxy/session lifecycle, paginated service behavior, forced-command compatibility, client integration, and real Linux evidence remain pending.
+The codec/negotiation fixtures are tested independently of OS sockets and SSH. Version 2 fixtures stay in their existing module. The [transport-independent service](shelf-service.md) now has duplex lifecycle/action tests, including pagination and deadlines. Native daemon/proxy/process wiring, forced-command compatibility, client integration, and real Linux evidence remain pending.
 
 ## Update Triggers
 

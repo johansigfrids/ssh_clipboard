@@ -278,12 +278,13 @@ impl IncomingUpload {
             created_at_ms,
             operation_id,
             fingerprint,
-            dimensions,
+            dimensions: dimensions.map(|info| (info.0, info.1)),
+            decoded_bytes: dimensions.map(|info| info.2),
         })
     }
 }
 
-fn validate_png(data: &[u8], max_decoded_bytes: usize) -> Result<(u32, u32), ShelfError> {
+fn validate_png(data: &[u8], max_decoded_bytes: usize) -> Result<(u32, u32, usize), ShelfError> {
     let mut reader = ImageReader::with_format(Cursor::new(data), ImageFormat::Png);
     let mut limits = Limits::default();
     limits.max_alloc = Some(max_decoded_bytes as u64);
@@ -313,7 +314,11 @@ fn validate_png(data: &[u8], max_decoded_bytes: usize) -> Result<(u32, u32), She
     decoder
         .read_image(&mut decoded)
         .map_err(|_| ShelfError::InvalidImage)?;
-    Ok((width, height))
+    Ok((
+        width,
+        height,
+        usize::try_from(native.max(rgba)).map_err(|_| ShelfError::InvalidImage)?,
+    ))
 }
 
 fn fingerprint(
@@ -367,6 +372,16 @@ pub struct ValidatedUpload {
     operation_id: Option<Uuid>,
     fingerprint: Option<[u8; 32]>,
     dimensions: Option<(u32, u32)>,
+    decoded_bytes: Option<usize>,
+}
+
+impl ValidatedUpload {
+    pub fn dimensions(&self) -> Option<(u32, u32)> {
+        self.dimensions
+    }
+    pub fn decoded_bytes(&self) -> Option<usize> {
+        self.decoded_bytes
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -380,6 +395,7 @@ pub struct ItemMetadata {
     pub received_at_ms: i64,
     pub expires_at_ms: i64,
     pub dimensions: Option<(u32, u32)>,
+    pub decoded_bytes: Option<usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -455,6 +471,9 @@ impl Shelf {
 
     pub fn epoch(&self) -> Uuid {
         self.epoch
+    }
+    pub fn sequence(&self) -> u64 {
+        self.sequence
     }
     pub fn limits(&self) -> &ShelfLimits {
         &self.budget.limits
@@ -556,6 +575,7 @@ impl Shelf {
             received_at_ms: now.unix_ms,
             expires_at_ms,
             dimensions: upload.dimensions,
+            decoded_bytes: upload.decoded_bytes,
         };
         while self.items.len() >= self.limits().max_items
             || self.stored_bytes + metadata.encoded_bytes > self.limits().max_stored_bytes

@@ -489,7 +489,7 @@ async fn install_update(
     {
         use tauri_plugin_updater::UpdaterExt;
         let (mut progress, candidate, bytes) = state.updates.take_verified(&app, &version).await?;
-        let result = async {
+        let result: Result<(), String> = async {
             let bridge = ssh_clipboard_desktop_prototype::update_handoff::Bridge::new(&candidate).await?;
             let cleanup_app = app.clone();
             let builder = app.updater_builder()

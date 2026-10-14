@@ -1,11 +1,9 @@
 use crate::cli::DoctorArgs;
+use crate::client::diagnostics::{CheckStatus as DiagnosticStatus, diagnose};
 use crate::client::ssh::{SshConfig, resolve_target_and_port};
-use crate::client::transport::{ClientConfig, make_request, send_request};
-use crate::protocol::{DEFAULT_MAX_SIZE, ErrorCode, RequestKind, ResponseKind};
+use crate::client::transport::ClientConfig;
+use crate::protocol::DEFAULT_MAX_SIZE;
 use eyre::Result;
-use std::path::PathBuf;
-use tokio::process::Command;
-use tokio::time::{Duration, timeout};
 
 const DEFAULT_RESYNC_MAX_BYTES: usize = 8192;
 
@@ -81,154 +79,67 @@ pub async fn run(args: DoctorArgs) -> Result<()> {
         ssh_options: args.ssh_option,
         ssh_bin: args.ssh_bin,
     };
-    let shared_defaults = crate::cli::settings::apply_connection_defaults(
+    let defaults = crate::cli::settings::apply_connection_defaults(
         &mut ssh,
         args.settings_file.as_deref(),
         args.profile.as_deref(),
     )?;
     let timeout_ms = args
         .timeout_ms
-        .unwrap_or_else(|| {
-            shared_defaults
-                .as_ref()
-                .map_or(7000, |settings| settings.timeout_ms)
-        })
+        .unwrap_or_else(|| defaults.as_ref().map_or(7000, |s| s.timeout_ms))
         .max(1);
-    // Diagnostics must not create a default old-agent file or wait for GUI prompts.
-    ssh.ssh_options.insert(0, "BatchMode=yes".into());
-
     let (target, port) = resolve_target_and_port(&ssh);
     let mut checks = Vec::new();
-
-    match run_local_ssh_version(&ssh, timeout_ms).await {
-        Ok(_) => checks.push(CheckOutcome::ok("ssh binary", "found and executable")),
-        Err(err) => checks.push(CheckOutcome::fail(
-            "ssh binary",
-            err.to_string(),
-            "install OpenSSH client or pass `--ssh-bin <path>`",
-        )),
-    }
     if let Some(check) = maybe_linux_hotkey_check() {
         checks.push(check);
     }
-
     if target.trim().is_empty() {
         checks.push(CheckOutcome::fail(
             "target",
             "missing SSH target",
-            "pass `--target user@server` (or `--host`/`--user`), or run `ssh_clipboard settings set --target ...`",
+            "pass --target user@server or run ssh_clipboard settings set --target ...",
         ));
     } else {
-        let source = if shared_defaults.is_some() && !explicit_destination {
+        let source = if defaults.is_some() && !explicit_destination {
             "shared profile"
         } else {
             "CLI args"
         };
         let detail = match port {
-            Some(port) => format!("using `{target}` on port {port} ({source})"),
-            None => format!("using `{target}` ({source})"),
+            Some(port) => format!("using {target} on port {port} ({source})"),
+            None => format!("using {target} ({source})"),
         };
         checks.push(CheckOutcome::ok("target", detail));
-    }
-
-    let mut auth_ok = false;
-    let mut proxy_ok = false;
-    let has_hard_fail = checks.iter().any(|c| c.status == CheckStatus::Fail);
-
-    if !has_hard_fail {
-        match run_ssh_probe(&ssh, timeout_ms, &["true"]).await {
-            Ok(_) => {
-                auth_ok = true;
-                checks.push(CheckOutcome::ok(
-                    "ssh auth",
-                    "non-interactive SSH command succeeded",
-                ));
-            }
-            Err(err) => checks.push(CheckOutcome::fail(
-                "ssh auth",
-                err.to_string(),
-                format!("try `ssh -T {target} true` and fix keys/known_hosts/auth"),
-            )),
-        }
-    }
-
-    if auth_ok {
-        match run_ssh_probe(&ssh, timeout_ms, &["ssh_clipboard", "proxy", "--help"]).await {
-            Ok(_) => {
-                proxy_ok = true;
-                checks.push(CheckOutcome::ok(
-                    "remote proxy command",
-                    "`ssh_clipboard proxy` is runnable on the server",
-                ));
-            }
-            Err(err) => checks.push(CheckOutcome::fail(
-                "remote proxy command",
-                err.to_string(),
-                format!("ensure `{}` is on PATH for SSH sessions", "ssh_clipboard"),
-            )),
-        }
-    }
-
-    if proxy_ok {
-        let client_config = ClientConfig {
-            ssh: ssh.clone(),
-            max_size: shared_defaults
-                .as_ref()
-                .map_or(DEFAULT_MAX_SIZE, |settings| settings.max_size),
+        let config = ClientConfig {
+            ssh,
             timeout_ms,
-            resync_frames: shared_defaults
+            max_size: defaults.as_ref().map_or(DEFAULT_MAX_SIZE, |s| s.max_size),
+            resync_frames: defaults.as_ref().is_none_or(|s| s.resync_frames),
+            resync_max_bytes: defaults
                 .as_ref()
-                .is_none_or(|settings| settings.resync_frames),
-            resync_max_bytes: shared_defaults
-                .as_ref()
-                .map_or(DEFAULT_RESYNC_MAX_BYTES, |settings| {
-                    settings.resync_max_bytes
-                }),
+                .map_or(DEFAULT_RESYNC_MAX_BYTES, |s| s.resync_max_bytes),
         };
-        match send_request(&client_config, make_request(RequestKind::PeekMeta)).await {
-            Ok(response) => match response.kind {
-                ResponseKind::Meta { .. } | ResponseKind::Empty => {
-                    checks.push(CheckOutcome::ok(
-                        "protocol roundtrip",
-                        "framing/protocol exchange with proxy succeeded",
-                    ));
-                }
-                ResponseKind::Error {
-                    code: ErrorCode::DaemonNotRunning,
-                    message,
-                } => {
-                    checks.push(CheckOutcome::warn(
-                        "protocol roundtrip",
-                        format!("proxy reachable but daemon is not running: {message}"),
-                        "start the server daemon (`./ssh_clipboard install-daemon` on the server) and retry",
-                    ));
-                }
-                ResponseKind::Error { message, .. } => {
-                    checks.push(CheckOutcome::fail(
-                        "protocol roundtrip",
-                        format!("proxy returned protocol error: {message}"),
-                        "verify client/server versions and server setup",
-                    ));
-                }
-                other => checks.push(CheckOutcome::fail(
-                    "protocol roundtrip",
-                    format!("unexpected response: {other:?}"),
-                    "verify server/proxy binaries are up to date",
-                )),
-            },
-            Err(err) => checks.push(CheckOutcome::fail(
-                "protocol roundtrip",
-                err.to_string(),
-                "verify SSH, proxy, and daemon setup; then retry",
-            )),
+        let report = diagnose(&config).await;
+        for check in report.checks {
+            checks.push(match check.status {
+                DiagnosticStatus::Passed => CheckOutcome::ok(check.label, check.detail),
+                DiagnosticStatus::Failed => CheckOutcome::fail(
+                    check.label,
+                    check.detail,
+                    report.hint.unwrap_or("Check the server setup and retry."),
+                ),
+                DiagnosticStatus::NotChecked => CheckOutcome::warn(
+                    check.label,
+                    check.detail,
+                    "Resolve the failed check and retry.",
+                ),
+            });
         }
     }
-
     print_report(&checks);
-
     let fail_count = checks
         .iter()
-        .filter(|check| check.status == CheckStatus::Fail)
+        .filter(|c| c.status == CheckStatus::Fail)
         .count();
     if fail_count > 0 {
         return crate::cli::exit::exit_with_code(
@@ -238,7 +149,6 @@ pub async fn run(args: DoctorArgs) -> Result<()> {
     }
     Ok(())
 }
-
 #[cfg(target_os = "linux")]
 fn maybe_linux_hotkey_check() -> Option<CheckOutcome> {
     match detect_linux_session() {
@@ -293,90 +203,6 @@ where
     }
 
     LinuxSession::Unknown
-}
-
-async fn run_local_ssh_version(config: &SshConfig, timeout_ms: u64) -> Result<()> {
-    let ssh_bin = config
-        .ssh_bin
-        .clone()
-        .unwrap_or_else(|| PathBuf::from("ssh"));
-    let mut cmd = Command::new(ssh_bin);
-    cmd.arg("-V");
-    let output = timeout(Duration::from_millis(timeout_ms), cmd.output())
-        .await
-        .map_err(|_| eyre::eyre!("timed out after {timeout_ms}ms while running `ssh -V`"))?
-        .map_err(|err| eyre::eyre!("failed to run ssh: {err}"))?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(eyre::eyre!(
-            "`ssh -V` exited with {}: {}",
-            output.status,
-            summarize_output(&output.stdout, &output.stderr)
-        ))
-    }
-}
-
-async fn run_ssh_probe(config: &SshConfig, timeout_ms: u64, remote_args: &[&str]) -> Result<()> {
-    let (target, port) = resolve_target_and_port(config);
-    if target.trim().is_empty() {
-        return Err(eyre::eyre!("missing target"));
-    }
-
-    let ssh_bin = config
-        .ssh_bin
-        .clone()
-        .unwrap_or_else(|| PathBuf::from("ssh"));
-    let mut cmd = Command::new(ssh_bin);
-    cmd.arg("-T");
-    if let Some(port) = port {
-        cmd.arg("-p").arg(port.to_string());
-    }
-    if let Some(identity_file) = &config.identity_file {
-        cmd.arg("-i").arg(identity_file);
-    }
-    for opt in &config.ssh_options {
-        cmd.arg("-o").arg(opt);
-    }
-    cmd.arg(target);
-    for arg in remote_args {
-        cmd.arg(arg);
-    }
-
-    let output = timeout(Duration::from_millis(timeout_ms), cmd.output())
-        .await
-        .map_err(|_| eyre::eyre!("timed out after {timeout_ms}ms"))?
-        .map_err(|err| eyre::eyre!("failed to run ssh: {err}"))?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(eyre::eyre!(
-            "ssh exited with {}: {}",
-            output.status,
-            summarize_output(&output.stdout, &output.stderr)
-        ))
-    }
-}
-
-fn summarize_output(stdout: &[u8], stderr: &[u8]) -> String {
-    let stdout = String::from_utf8_lossy(stdout);
-    let stderr = String::from_utf8_lossy(stderr);
-    let mut combined = if stderr.trim().is_empty() {
-        stdout.trim().to_string()
-    } else if stdout.trim().is_empty() {
-        stderr.trim().to_string()
-    } else {
-        format!("{} | {}", stderr.trim(), stdout.trim())
-    };
-    if combined.is_empty() {
-        combined = "no output".to_string();
-    }
-    let max = 240usize;
-    if combined.len() > max {
-        combined.truncate(max);
-        combined.push_str("...");
-    }
-    combined
 }
 
 fn print_report(checks: &[CheckOutcome]) {

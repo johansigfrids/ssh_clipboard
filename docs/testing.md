@@ -7,6 +7,7 @@ Describe how to run tests locally and what kinds of tests exist in this repo.
 - `src/framing.rs` (framing unit tests + proptest)
 - `src/protocol.rs` (protocol round-trip tests)
 - `src/client_actions.rs` (clipboard contract tests)
+- `src/client/transport/tests.rs`, `src/client/diagnostics.rs`, `src/client/failure.rs`, `tests/connection_doctor.rs` (real pipe-process faults, safe reports, and metadata-only health)
 - `src/configuration.rs` (temporary-directory save, conflict, corruption, and recovery probes)
 - `src/configuration/migration.rs`, `tests/configuration_migration.rs` (legacy/schema upgrades, backups, preserved policy and identity)
 - `src/cli/settings.rs`, `tests/shared_settings_cli.rs` (profile resolution and executable-level shared settings checks)
@@ -74,6 +75,14 @@ sudo apt-get install -y \
 - Property tests use `proptest`; keep bounds small to avoid long test runs.
 - The legacy CI job runs four variants: Windows agent, macOS agent, Linux agent, and Linux server (`--no-default-features`). Separate desktop prototype jobs check Windows/macOS/Linux without proving native paste or shortcut behavior.
 - CI installs Linux GUI deps so the agent feature can build.
+
+## Native Test Scheduling
+
+Manual Windows testing is grouped at larger milestones: daily clipboard/settings/reconnect use, OS integration/installation, and signed updates/recovery. Continue automated implementation and commit usable slices between these passes. Individual advanced-settings and diagnostic UI checks are deferred into the next daily-use pass; do not ask for a new manual check after every small commit. Focused repeats are appropriate when a native failure needs confirmation. Other platforms still need their own supported-platform evidence.
+
+## Transport and Diagnostic Faults
+
+Pipe fixtures launch noninteractive PowerShell on Windows and `/bin/sh` on Unix; they never run SSH or access a clipboard. They cover flood/EOF/deadline/reaping and invalid-reply cases with at most two fixture processes at once. Core probes verify that reports expose no sentinel/private output and distinguish unverified layers from passed checks. The real authorized-server probe is metadata-only and separate from these fixtures. See [diagnostic evidence](connection-diagnostics.md#evidence).
 
 ## Platform `cfg` Hygiene
 - Keep function/item `#[cfg(...)]` aligned with where it is used.

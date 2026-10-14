@@ -1,4 +1,4 @@
-use eyre::{Result, eyre};
+use eyre::{Result, WrapErr, eyre};
 use std::path::PathBuf;
 use tokio::process::{Child, Command};
 
@@ -93,7 +93,7 @@ pub fn spawn_ssh_proxy(config: &SshConfig) -> Result<Child> {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .map_err(|err| eyre!("failed to spawn ssh: {err}"))
+        .wrap_err("failed to spawn ssh")
 }
 
 #[cfg(test)]

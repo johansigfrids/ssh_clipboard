@@ -111,6 +111,7 @@ Flags:
 
 Notes:
 - On the rework branch, `doctor` uses the same shared settings/migration discovery as transfers, including saved transport policy. It does not use the old default-creating agent loader. Explicit destinations do not inherit profile defaults. Corrupt settings produce an error rather than silently selecting another target. Probes force batch mode so diagnostics remain non-interactive even when an imported option requests prompts.
+- Doctor sends only `PeekMeta` through the clipboard proxy, so proxy-only forced-command keys do not need permission for `true` or `--help`. Empty clipboard is healthy. Failed checks return exit status 2, including a missing daemon; later unverified steps are shown as warnings. Reports include static next steps and exclude raw SSH/server output. See [connection diagnostics](connection-diagnostics.md).
 
 ### `agent` (Windows/macOS/Linux)
 Run the background agent (tray icon + hotkeys).

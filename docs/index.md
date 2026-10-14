@@ -20,6 +20,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/shared-configuration.md](shared-configuration.md): Shared store, desktop profiles/advanced policy, CLI overrides, live reload, and save/recovery contracts.
 - [docs/configuration-migration.md](configuration-migration.md): Legacy/prototype migration, exact backups, schema 2 settings, preserved preferences, and recovery.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
+- [docs/connection-diagnostics.md](connection-diagnostics.md): Shared metadata health, safe failures, one-shot SSH deadlines/drainage, and fault evidence.
 - `docs/dependency-decisions.md`: Rationale and guardrails for high-impact dependency choices.
 - [docs/build-variants.md](build-variants.md): Headless, clipboard-only, agent, and desktop dependency boundaries and validation evidence.
 - `docs/server-setup.md`: Linux daemon setup and proxy usage.

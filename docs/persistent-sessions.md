@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Document the first Phase 5 slice: an owned SSH child reused by desktop shelf actions. Cancellation UI, automatic recovery/backoff, pending-upload reconciliation, and subscriptions remain subsequent work.
+Document the Phase 5 SSH owner and explicit operation cancellation. Automatic recovery/backoff, pending-upload reconciliation, and subscriptions remain subsequent work.
 
 ## Key Files
 
@@ -10,6 +10,7 @@ Document the first Phase 5 slice: an owned SSH child reused by desktop shelf act
 - `src/client/session.rs`: negotiated sequential framing and reply validation.
 - `src/client/session_transport.rs`: one-invocation CLI adapter and shared safe errors.
 - `desktop/src-tauri/src/panel.rs`, `desktop/src-tauri/src/history.rs`: active-profile cache and operations.
+- `desktop/src-tauri/src/operation.rs`: lock-independent cancellation, identities, and finishing boundaries.
 - `tests/native_shelf_server.rs`: real disposable process/socket evidence.
 
 ## Ownership and Reuse
@@ -18,7 +19,7 @@ Document the first Phase 5 slice: an owned SSH child reused by desktop shelf act
 
 The desktop caches one connection for the active shelf profile. List/pages, preview selection, copy checks, share, delete, and clear reuse it. Saved-connection diagnostics remain a separate explicit check. Profile/endpoint/transport changes discard the cache and history; preference-only changes can retain them. Full SSH configuration and session policy must match before reuse. A child known to have exited is closed before an explicitly requested action opens another session.
 
-Operations take the connection out of the cache before awaiting and return it only while usable. Dropping that owned operation scope drops its child/reader instead of caching partial framing. The stream driver also poisons itself before an exchange. The initial UI still waits for bounded deadlines; Cancel is not exposed yet.
+Operations take the connection out of the cache before awaiting and return it only while usable. Dropping that owned operation scope drops its child/reader instead of caching partial framing. The stream driver also poisons itself before an exchange.
 
 Share freezes exactly one capture before waiting for SSH. A later clipboard change must not replace it after a slow connection. Local policy bounds capture; negotiated limits then check the frozen bytes and native RGBA8 PNG descriptor before upload. A narrower limit/failure never triggers another sample, resizing, or replay. Preparation dimensions stay out of preview IPC.
 
@@ -30,13 +31,25 @@ Typed rejections can retain a healthy stream. Partial/malformed replies, timeout
 
 The diagnostic reader has its own abort-on-drop owner. Cancellation while cleanup temporarily holds its handle must still abort it: dropping a raw JoinHandle would detach the task. An unacknowledged mutation retains its original epoch and operation UUID where applicable in a typed uncertainty result after session cleanup. Validated acknowledgments remain authoritative. No action is automatically repeated or sent into a replacement epoch. Selected fetch/mutation checks compare loaded and negotiated epochs before sending anything.
 
-Pending payload retention/reconciliation, background state/backoff, subscriptions, and Cancel remain open; this is not complete Phase 5 recovery.
+Pending payload retention/reconciliation, background state/backoff, and subscriptions remain open; this is not complete Phase 5 recovery.
+
+## Explicit Cancellation
+
+The desktop publishes the active operation through a separate controller. `get_operation` and `cancel_operation` never acquire the transfer/session mutex. Decimal-string IDs target one operation; monotonically increasing decimal-string generations reject stale frontend events, including values beyond JavaScript's safe integer range. Startup subscribes before reading the operation snapshot, so Cancel can appear while the panel snapshot waits behind a background transfer. Only static operation labels cross this channel.
+
+Connection tests, refreshes, previews, shares, copies, and history mutations expose Cancel while waiting. Cancelling drops the awaited operation future, closes an owned in-flight shelf connection, clears cached content/connection evidence, and does not queue a replacement. Native clipboard work already running finishes on its owner thread under the admission guard above. No cancellation path posts a clipboard write or retries a server action.
+
+Copy atomically enters a non-cancellable finishing stage before posting its native write. Cancel wins first and prevents that write, or the write wins first and Cancel reports that it is already finishing. A validated shelf mutation acknowledgment similarly enters finishing before any later metadata refresh; a concurrent late Cancel must not turn a confirmed mutation into apparent cancellation. An unacknowledged mutation reports that the server may already have applied it and asks for an explicit refresh. Cancellation is not rollback. Pending captured bytes/operation reconciliation are not retained yet.
+
+The Open panel shortcut uses the actual registered Open ID outside the transfer mutex, so it can reveal Cancel during a background operation. Direct Share/Copy still reserve the session immediately and never queue. Registration changes and rollback refresh this Open ID from actual inventory, not a settings draft.
 
 ## Evidence and Fixture Guardrails
 
 Portable subprocess probes cover several requests on one child, flooded-but-bounded stderr, uncertainty/epoch retention and reaping after a lost acknowledgment, and cancellation of a reader taken for cleanup. A desktop fake-clipboard probe checks one capture precedes SSH failure and no clipboard write occurs.
 
 A gated native clipboard probe drops the async reader while the owner remains blocked, rejects later reads/writes without queueing, then releases the owner and verifies only a newly requested write executes. This verifies cancellation admission without touching the OS clipboard.
+
+Controller probes cover waking an already waiting operation, dropping pending work, rejecting stale Cancel IDs, lost-acknowledgment uncertainty, cancellation before native write admission, and acknowledgment/write finishing boundaries. Rendered tests cover Cancel during a pending transfer, startup during a background operation, stale event rejection above JavaScript's safe integer range, and disabled Cancel while finishing. Native desktop Cancel, panel opening during a transfer, and remote cleanup still need a combined Windows acceptance pass.
 
 A native WSL probe shares/lists/fetches/checks health through one real proxy launch, kills/restarts the disposable daemon, verifies no hidden replacement/replay, then explicitly opens a new empty epoch. This is local process/socket evidence, not remote SSH/native paste acceptance.
 

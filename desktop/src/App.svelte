@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { cloneSettings, cloneTransport, command, defaultTransport, initialView, subscribe, type PanelView, type Settings } from "./api";
+  import { cloneSettings, cloneTransport, command, defaultTransport, initialView, subscribe, type OperationView, type PanelView, type Settings } from "./api";
   import { displayShortcut, shortcutFromEvent } from "./shortcut.js";
 
   let view = $state<PanelView>(initialView);
@@ -8,7 +8,9 @@
   let sshOptionsText = $state("");
   let page = $state("panel");
   let section = $state("connection");
-  let busy = $state(false);
+  let localBusy = $state(false);
+  let operation = $state<OperationView>({ generation: "0", active: null });
+  const busy = $derived(localBusy || operation.active !== null);
   let message = $state("");
   let error = $state(false);
   type ShortcutField = "openShortcut" | "directShareShortcut" | "directCopyShortcut";
@@ -43,6 +45,20 @@
   }
 
   function inform(text: string, failed = false) { message = text; error = failed; }
+
+  function acceptOperation(next: OperationView) {
+    if (disposed || !next || !/^(0|[1-9][0-9]*)$/.test(next.generation)) return;
+    if (BigInt(next.generation) < BigInt(operation.generation)) return;
+    operation = next;
+    if (!next.active && reloadPending && !localBusy) void reloadSavedSettings();
+  }
+
+  async function cancelOperation() {
+    const active = operation.active;
+    if (!active?.cancellable) return;
+    try { acceptOperation(await command<OperationView>("cancel_operation", { id: active.id })); }
+    catch (cause) { inform(String(cause), true); }
+  }
 
   function discardDraft() { draft = cloneSettings(view.settings); sshOptionsText = draft.transport.sshOptions.join("\n"); draftRevision = view.settingsRevision; stopRecording(); removingProfile = false; }
 
@@ -127,7 +143,7 @@
   async function perform(name: string, success: string, args?: Record<string, unknown>) {
     if (busy || !ready) return;
     const hadDraft = dirty;
-    busy = true;
+    localBusy = true;
     operationEpoch++;
     inform("");
     try {
@@ -141,7 +157,7 @@
       inform(cause instanceof Error ? cause.message : String(cause), true);
       // Reflect connection/registration state even after a failed operation.
       try { view = await command<PanelView>("get_panel"); if (!hadDraft) discardDraft(); } catch { /* Keep the last view. */ }
-    } finally { busy = false; if (reloadPending) void reloadSavedSettings(); }
+    } finally { localBusy = false; if (reloadPending) void reloadSavedSettings(); }
   }
 
   function navigate(next: string) {
@@ -198,11 +214,12 @@
           if (recording) recordShortcut(binding);
           else if (openPanel) navigate("panel");
           else inform("Direct shortcuts work while this app is in the background. Use the panel buttons here.");
-        });
+        }, acceptOperation);
         if (disposed) unsubscribe(); else stop = unsubscribe;
       } catch { inform("Could not listen for tray or settings changes. Reopen through the launcher.", true); }
       if (disposed) return;
       try {
+        acceptOperation(await command<OperationView>("get_operation"));
         const next = await command<PanelView>("get_panel");
         if (disposed) return;
         view = next; discardDraft(); ready = true;
@@ -232,6 +249,12 @@
   </header>
 
   <main bind:this={content}>
+    {#if operation.active}
+      <div class="feedback operation-progress" role="status">
+        <span>{operation.active.label}… {operation.active.cancelling ? "Stopping…" : !operation.active.cancellable ? "Finishing…" : ""}</span>
+        <button type="button" disabled={!operation.active.cancellable} onclick={cancelOperation}>Cancel operation</button>
+      </div>
+    {/if}
     {#if view.settingsNotice}<div class="feedback error" role="alert">{view.settingsNotice}</div>{/if}
     {#if page === "panel"}
       <div class="status-line"><span class:connected={view.connected} class="status-dot"></span>{busy ? "Working…" : view.connected ? "Server reachable" : configured ? "Not connected" : "Setup needed"}<span class="mode">{view.settings.profileName}</span></div>

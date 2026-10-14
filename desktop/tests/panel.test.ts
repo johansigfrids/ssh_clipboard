@@ -18,6 +18,7 @@ beforeEach(() => {
   bridge.invoke.mockReset();
   bridge.listen.mockReset().mockResolvedValue(() => {});
   bridge.invoke.mockImplementation(async (name: string, args?: { settings?: PanelView["settings"]; profileId?: string }) => {
+    if (name === "get_operation") return { generation: "0", active: null };
     if (name === "apply_settings") {
       state.settings = { ...args!.settings!, profileId: args!.settings!.profileId ?? "new-profile" };
       const profile = { id: state.settings.profileId!, name: state.settings.profileName, target: state.settings.target, port: state.settings.port, identityFile: state.settings.identityFile, transport: cloneTransport(state.settings.transport), endpoint: { ...state.settings.endpoint } };
@@ -46,6 +47,60 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("Cancel remains available during a pending transfer and targets its operation ID", async () => {
+    state.settings.target = "hub";
+    const normal = bridge.invoke.getMockImplementation()!;
+    let reject!: (message: string) => void;
+    bridge.invoke.mockImplementation((name, args) => {
+      if (name === "refresh_item") return new Promise((_resolve, fail) => { reject = fail; });
+      if (name === "cancel_operation") return {generation:"2",active:{id:"41",label:"Refreshing shared clipboard",cancellable:false,cancelling:true}};
+      return normal(name,args);
+    });
+    render(App);
+    await screen.findByText("hub");
+    await fireEvent.click(screen.getByRole("button",{name:"Refresh shared clipboard"}));
+    const changed = bridge.listen.mock.calls.find(([name])=>name==="operation-state")![1];
+    changed({payload:{generation:"1",active:{id:"41",label:"Refreshing shared clipboard",cancellable:true,cancelling:false}}});
+    await fireEvent.click(await screen.findByRole("button",{name:"Cancel operation"}));
+    expect(bridge.invoke.mock.calls.find(([name])=>name==="cancel_operation")![1]).toEqual({id:"41"});
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Cancel operation"}).hasAttribute("disabled")).toBe(true));
+    changed({payload:{generation:"3",active:null}});
+    reject("Cancelled. This computer's clipboard was left unchanged.");
+    await screen.findByRole("alert");
+    expect(screen.queryByText("Shared clipboard refreshed.")).toBeNull();
+    expect(bridge.invoke.mock.calls.some(([name])=>["share_clipboard","copy_item"].includes(name))).toBe(false);
+  });
+
+  it("startup exposes a background operation before the panel snapshot is available", async () => {
+    const normal = bridge.invoke.getMockImplementation()!;
+    let finish!: (view: PanelView) => void;
+    bridge.invoke.mockImplementation((name,args)=> {
+      if(name==="get_operation") return {generation:"9007199254740994",active:{id:"9007199254740993",label:"Sharing current clipboard",cancellable:true,cancelling:false}};
+      if(name==="get_panel") return new Promise<PanelView>((resolve)=>{finish=resolve;});
+      if(name==="cancel_operation") return {generation:"9007199254740995",active:{id:"9007199254740993",label:"Sharing current clipboard",cancellable:false,cancelling:true}};
+      return normal(name,args);
+    });
+    render(App);
+    const cancel = await screen.findByRole("button",{name:"Cancel operation"});
+    expect(cancel.hasAttribute("disabled")).toBe(false);
+    await fireEvent.click(cancel);
+    expect(bridge.invoke.mock.calls.find(([name])=>name==="cancel_operation")![1]).toEqual({id:"9007199254740993"});
+    const changed = bridge.listen.mock.calls.find(([name])=>name==="operation-state")![1];
+    changed({payload:{generation:"9007199254740996",active:null}});
+    changed({payload:{generation:"9007199254740994",active:{id:"old",label:"Old operation",cancellable:true,cancelling:false}}});
+    finish(structuredClone(state));
+    await waitFor(()=>expect(screen.queryByRole("button",{name:"Cancel operation"})).toBeNull());
+  });
+
+  it("a clipboard write already finishing cannot be cancelled from the panel", async () => {
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    const changed = bridge.listen.mock.calls.find(([name])=>name==="operation-state")![1];
+    changed({payload:{generation:"1",active:{id:"1",label:"Copying shared clipboard",cancellable:false,cancelling:false}}});
+    expect((await screen.findByRole("button",{name:"Cancel operation"})).hasAttribute("disabled")).toBe(true);
+    expect(bridge.invoke.mock.calls.some(([name])=>name==="cancel_operation")).toBe(false);
+  });
+
   it("history selection previews by stable ID and revision without copying or sharing", async () => {
     state.settings.target = "hub";
     state.settings.endpoint = {protocol:"shelf", max_item_bytes:67108864, max_decoded_bytes:268435456};
@@ -55,8 +110,8 @@ describe("quick panel contracts", () => {
     await screen.findByRole("region", {name:"Temporary clipboard history"});
     await fireEvent.click(screen.getByRole("button", {name:/Earlier snippet/}));
     await screen.findByText("Item selected. Your clipboard is unchanged.");
-    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_panel","select_item"]);
-    expect(bridge.invoke.mock.calls[1][1]).toEqual({itemId:"first",epoch:"server-epoch",expectedRevision:"19"});
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation", "get_panel","select_item"]);
+    expect(bridge.invoke.mock.calls[2][1]).toEqual({itemId:"first",epoch:"server-epoch",expectedRevision:"19"});
   });
 
   it("clearing server history requires confirmation and carries the displayed epoch", async () => {
@@ -67,13 +122,13 @@ describe("quick panel contracts", () => {
     render(App);
     await screen.findByRole("button", {name:"Clear history…"});
     await fireEvent.click(screen.getByRole("button", {name:"Clear history…"}));
-    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation", "get_panel"]);
     await fireEvent.click(screen.getByRole("button", {name:"Cancel"}));
     expect(screen.queryByRole("group", {name:"History removal confirmation"})).toBeNull();
     await fireEvent.click(screen.getByRole("button", {name:"Clear history…"}));
     await fireEvent.click(screen.getByRole("button", {name:"Clear history",exact:true}));
     await screen.findByText("History cleared.");
-    expect(bridge.invoke.mock.calls[1]).toEqual(["clear_history",{epoch:"old-epoch",expectedRevision:"4"}]);
+    expect(bridge.invoke.mock.calls[2]).toEqual(["clear_history",{epoch:"old-epoch",expectedRevision:"4"}]);
   });
 
   it("endpoint changes stay in a draft until Apply and do not probe or transfer", async () => {
@@ -82,7 +137,7 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
     await fireEvent.change(screen.getByLabelText("Server features"),{target:{value:"shelf"}});
     expect(state.settings.endpoint.protocol).toBe("legacy");
-    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation", "get_panel"]);
     await fireEvent.click(screen.getByRole("button",{name:"Apply settings"}));
     await screen.findByText("Settings applied.");
     expect(state.settings.endpoint).toEqual({protocol:"shelf",max_item_bytes:67108864,max_decoded_bytes:268435456});
@@ -110,11 +165,11 @@ describe("quick panel contracts", () => {
     expect(screen.getByRole("button", { name: "Test notification" }).hasAttribute("disabled")).toBe(true);
     await fireEvent.change(screen.getByLabelText("Direct action feedback"), { target: { value: "off" } });
     expect(state.settings.notifications).toBe("panel");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
     await screen.findByText("Settings applied.");
     expect(state.settings.notifications).toBe("off");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "apply_settings"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "apply_settings"]);
   });
 
   it("testing notifications is explicit, has no clipboard commands, and retains the feedback draft", async () => {
@@ -134,7 +189,7 @@ describe("quick panel contracts", () => {
     expect((screen.getByLabelText("Direct action feedback") as HTMLSelectElement).value).toBe("errors");
     expect(state.settings.notifications).toBe("panel");
     expect(screen.getByText("Test submitted; delivery is not verified.")).toBeTruthy();
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "test_notification"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "test_notification"]);
   });
 
   it("quiet-mode results survive reopening and repeated outcomes replace older UI feedback", async () => {
@@ -147,7 +202,7 @@ describe("quick panel contracts", () => {
     bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
     await waitFor(() => expect(screen.getByRole("status")).toHaveProperty("textContent", "Shared clipboard copied to this computer."));
     expect(screen.queryByText("Older UI feedback")).toBeNull();
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "get_panel"]);
   });
 
   it("direct shortcuts are opt-in, independently recorded drafts with no clipboard commands", async () => {
@@ -176,7 +231,7 @@ describe("quick panel contracts", () => {
     expect(args.settings.directShareShortcut).toBe("control+alt+KeyC");
     expect(args.settings.directCopyShortcut).toBe("Control+Alt+KeyV");
     expect(args.settings.openShortcut).toBe(initialView.settings.openShortcut);
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "set_shortcut_recording", "set_shortcut_recording", "set_shortcut_recording", "set_shortcut_recording", "apply_settings"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "set_shortcut_recording", "set_shortcut_recording", "set_shortcut_recording", "set_shortcut_recording", "apply_settings"]);
     expect(bridge.invoke.mock.calls.filter(([name]) => name === "set_shortcut_recording").map(([, args]) => args.active)).toEqual([true, false, true, false]);
   });
 
@@ -198,7 +253,7 @@ describe("quick panel contracts", () => {
     const args = bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1];
     expect(args.settings.directShortcutsEnabled).toBe(false);
     expect(args.settings.directCopyShortcut).toBe("Control+Alt+KeyV");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "set_shortcut_recording", "set_shortcut_recording", "apply_settings"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "set_shortcut_recording", "set_shortcut_recording", "apply_settings"]);
   });
 
   it("losing focus cancels a pending recorder and clears native suppression in order", async () => {
@@ -216,7 +271,7 @@ describe("quick panel contracts", () => {
     acknowledge();
     await waitFor(() => expect(bridge.invoke.mock.calls.filter(([name]) => name === "set_shortcut_recording").map(([, args]) => args.active)).toEqual([true, false]));
     expect(screen.queryByText("Press a shortcut · Esc to cancel")).toBeNull();
-    expect(bridge.invoke.mock.calls.every(([name]) => ["get_panel", "set_shortcut_recording"].includes(name))).toBe(true);
+    expect(bridge.invoke.mock.calls.every(([name]) => ["get_operation", "get_panel", "set_shortcut_recording"].includes(name))).toBe(true);
   });
 
   it("direct action completion is shown as success and foreground shortcuts do not transfer", async () => {
@@ -229,7 +284,7 @@ describe("quick panel contracts", () => {
     bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
     await waitFor(() => expect(screen.getByRole("status")).toHaveProperty("textContent", "Current clipboard shared."));
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "get_panel"]);
   });
 
   it("connection diagnostics distinguish verified SSH/proxy from a missing daemon", async () => {
@@ -261,7 +316,7 @@ describe("quick panel contracts", () => {
     expect(screen.getByText("Metadata check · Not verified")).toBeTruthy();
     expect(screen.getByText("Check the daemon service on the server.")).toBeTruthy();
     expect(screen.queryByText("SSH proxy and clipboard daemon responded.")).toBeNull();
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "test_connection", "get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "test_connection", "get_panel"]);
     await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "other-hub" } });
     expect(screen.queryByRole("region", { name: "Saved connection diagnostics" })).toBeNull();
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
@@ -289,7 +344,7 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getByRole("button", { name: "Copy to this computer" }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByText("No shared item loaded")).toBeTruthy();
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "test_connection"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "test_connection"]);
   });
 
   function savedProfiles() {
@@ -313,7 +368,7 @@ describe("quick panel contracts", () => {
     expect((screen.getByLabelText("Connection name") as HTMLInputElement).value).toBe("Other account");
     expect((screen.getByLabelText(/Identity file/) as HTMLInputElement).value).toBe("other/key");
     expect(screen.getByRole("button", { name: "Test saved connection" }).hasAttribute("disabled")).toBe(true);
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
     await screen.findByText("Settings applied.");
     const args = bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1];
@@ -326,7 +381,7 @@ describe("quick panel contracts", () => {
     expect(screen.getByText("Other account")).toBeTruthy();
     expect(screen.queryByText("Old snapshot")).toBeNull();
     expect(screen.getByRole("button", { name: "Copy to this computer" }).hasAttribute("disabled")).toBe(true);
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "apply_settings"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "apply_settings"]);
   });
 
   it("a new connection starts without another connection's key and can be cancelled before saving", async () => {
@@ -344,7 +399,7 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     expect((screen.getByLabelText(/Identity file/) as HTMLInputElement).value).toBe("first/key");
     expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("9000");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
     await fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
     await fireEvent.input(screen.getByLabelText("Connection name"), { target: { value: "New server" } });
     await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "new-hub" } });
@@ -363,14 +418,14 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Remove…" }));
     expect(screen.getByRole("group", { name: "Remove connection confirmation" })).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
     await fireEvent.click(screen.getByRole("button", { name: "Remove…" }));
     await fireEvent.click(screen.getByRole("button", { name: "Remove connection", exact: true }));
     await screen.findByText("Connection removed. Another saved connection is now active.");
     expect(bridge.invoke.mock.calls.find(([name]) => name === "remove_profile")![1]).toEqual({ profileId: "default", expectedRevision: "4" });
     expect((screen.getByLabelText("Connection name") as HTMLInputElement).value).toBe("Other account");
     expect(screen.getByRole("button", { name: "Remove…" }).hasAttribute("disabled")).toBe(true);
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "remove_profile"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "remove_profile"]);
   });
 
   it("a CLI removal invalidates a profile draft and Discard returns to the surviving profile", async () => {
@@ -387,7 +442,7 @@ describe("quick panel contracts", () => {
     expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(true);
     await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     expect((screen.getByLabelText("Connection name") as HTMLInputElement).value).toBe("Default");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "get_panel"]);
   });
 
   it("a failed removal keeps the existing connection and reports no success", async () => {
@@ -419,7 +474,7 @@ describe("quick panel contracts", () => {
     expect(state.settings.transport.sshOptions).toEqual([]);
     expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(false);
     expect(screen.getByRole("button", { name: "Test saved connection" }).hasAttribute("disabled")).toBe(true);
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
     await screen.findByText("Settings applied.");
     const transport = bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1].settings.transport;
@@ -446,7 +501,7 @@ describe("quick panel contracts", () => {
     expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("12000");
     expect(budget.value).toBe("4096");
     expect((screen.getByLabelText(/SSH options/) as HTMLTextAreaElement).value).toBe("ServerAliveInterval=30");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
   });
 
   it("a preference-only edit preserves advanced integers larger than JavaScript's exact range", async () => {
@@ -483,7 +538,7 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("15000");
     expect((screen.getByLabelText(/SSH options/) as HTMLTextAreaElement).value).toBe("ServerAliveInterval=30");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "get_panel"]);
   });
 
   it("an imported configuration explains preserved setup choices while remaining editable", async () => {
@@ -505,8 +560,8 @@ describe("quick panel contracts", () => {
     render(App);
     await screen.findByText("Could not listen for tray or settings changes. Reopen through the launcher.");
     await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
-    expect(stop).toHaveBeenCalledTimes(3);
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(stop).toHaveBeenCalledTimes(4);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
   });
 
   it("a settings change during the initial snapshot is delivered after startup", async () => {
@@ -515,17 +570,18 @@ describe("quick panel contracts", () => {
     const firstReply = structuredClone(state);
     let finish!: (view: PanelView) => void;
     const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementationOnce(() => ({generation:"0",active:null}));
     bridge.invoke.mockImplementationOnce(() => new Promise<PanelView>((resolve) => { finish = resolve; }));
     render(App);
-    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledOnce());
+    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledTimes(2));
     state.settings.target = "second-hub";
     state.settingsRevision = "2";
     bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
-    expect(bridge.invoke).toHaveBeenCalledOnce();
+    expect(bridge.invoke).toHaveBeenCalledTimes(2);
     bridge.invoke.mockImplementation(normal);
     finish(firstReply);
     await screen.findByText("second-hub");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "get_panel"]);
   });
 
   it("settings notifications during a transfer reload after its reply without starting another transfer", async () => {
@@ -541,10 +597,10 @@ describe("quick panel contracts", () => {
     state.settings.target = "second-hub";
     state.settingsRevision = "2";
     bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "refresh_item"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "refresh_item"]);
     finish(reply);
     await screen.findByText("second-hub");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "refresh_item", "get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "refresh_item", "get_panel"]);
   });
 
   it("transfer clicks carry the displayed settings revision and recover a stale clean form", async () => {
@@ -585,7 +641,7 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
     await screen.findByText("Settings applied.");
     expect(bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1].expectedRevision).toBe("2");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel", "apply_settings"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "get_panel", "apply_settings"]);
   });
 
   it("external settings update a clean form while leaving clipboard actions explicit", async () => {
@@ -596,7 +652,7 @@ describe("quick panel contracts", () => {
     state.settingsRevision = "1";
     bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
     await waitFor(() => expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("cli-hub"));
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "get_panel"]);
   });
 
   it("corrupt settings show a recovery message and prevent overwriting the file", async () => {
@@ -607,7 +663,7 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "hub" } });
     expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(true);
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
   });
 
   it("startup restores saved settings without connecting or reading the clipboard", async () => {
@@ -619,14 +675,14 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("saved-hub");
     expect(screen.getByText("Saved on this computer")).toBeTruthy();
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
   });
 
   it("a failed save keeps the draft available without claiming it was applied", async () => {
     const normal = bridge.invoke.getMockImplementation()!;
     bridge.invoke.mockImplementation((name, args) => name === "apply_settings" ? Promise.reject("Settings changed in another process. Quit and reopen before editing again.") : normal(name, args));
     render(App);
-    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledOnce());
+    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledTimes(2));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "new-hub" } });
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
@@ -641,13 +697,13 @@ describe("quick panel contracts", () => {
   it("opening the panel reads state without reading, sharing, or replacing the clipboard", async () => {
     render(App);
     await waitFor(() => expect(bridge.invoke).toHaveBeenCalledWith("get_panel", undefined));
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
     expect(screen.getByRole("button", { name: "Copy to this computer" }).hasAttribute("disabled")).toBe(true);
   });
 
   it("settings apply before the connection can be tested", async () => {
     render(App);
-    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledOnce());
+    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledTimes(2));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "clipboard-hub" } });
     expect(screen.getByRole("button", { name: "Test saved connection" }).hasAttribute("disabled")).toBe(true);
@@ -655,7 +711,7 @@ describe("quick panel contracts", () => {
     await screen.findByText("Settings applied.");
     await fireEvent.click(screen.getByRole("button", { name: "Test saved connection" }));
     await screen.findByText("SSH proxy and clipboard daemon responded.");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "apply_settings", "test_connection"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "apply_settings", "test_connection"]);
   });
 
   it("an empty refresh explains the server state instead of asking to refresh again", async () => {
@@ -713,7 +769,7 @@ describe("quick panel contracts", () => {
     const normal = bridge.invoke.getMockImplementation()!;
     bridge.invoke.mockImplementation((name, args) => name === "share_clipboard" ? new Promise<PanelView>((resolve) => { complete = resolve; }) : normal(name, args));
     render(App);
-    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledOnce());
+    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledTimes(2));
     const share = screen.getByRole("button", { name: "Share current clipboard" });
     await fireEvent.click(share);
     expect(share.hasAttribute("disabled")).toBe(true);
@@ -730,7 +786,7 @@ describe("quick panel contracts", () => {
     await screen.findByText("Original bytes");
     await fireEvent.click(screen.getByRole("button", { name: "Copy to this computer" }));
     await screen.findByText("Copied to this computer. You can paste it now.");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "copy_item"]);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "copy_item"]);
   });
 
   it("clipboard write failure never displays a success message", async () => {

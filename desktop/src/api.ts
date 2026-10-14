@@ -85,6 +85,11 @@ export interface PanelView {
   notificationStatus: { available: boolean; detail: string };
 }
 
+export interface OperationView {
+  generation: string;
+  active: null | { id: string; label: string; cancellable: boolean; cancelling: boolean };
+}
+
 export interface ConnectionReport {
   healthy: boolean;
   summary: string;
@@ -119,13 +124,14 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
   return invoke<T>(name, args);
 }
 
-export async function subscribe(navigate: (page: string) => void, notice: (message: string, failed: boolean) => void, settingsChanged: () => void, shortcutPressed: (binding: string, openPanel: boolean) => void) {
+export async function subscribe(navigate: (page: string) => void, notice: (message: string, failed: boolean) => void, settingsChanged: () => void, shortcutPressed: (binding: string, openPanel: boolean) => void, operationChanged: (state: OperationView) => void) {
   if (!isTauri()) return () => {};
   const results = await Promise.allSettled([
     listen<string>("navigate", (event) => navigate(event.payload)),
     listen<string>("operation-notice", (event) => notice(event.payload, true)),
     listen<{ binding: string; openPanel: boolean }>("shortcut-pressed", (event) => shortcutPressed(event.payload.binding, event.payload.openPanel)),
     listen("settings-changed", settingsChanged),
+    listen<OperationView>("operation-state", (event) => operationChanged(event.payload)),
   ]);
   const failed = results.find((result) => result.status === "rejected");
   const stops = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);

@@ -98,6 +98,8 @@ Desktop [history evidence](desktop-history.md#evidence-and-remaining-acceptance)
 
 [Persistent connection probes](persistent-sessions.md#evidence-and-fixture-guardrails) verify repeated requests on one child, lifetime diagnostic bounds, uncertainty/reaping after missing acknowledgment, reader cancellation, and no replay after daemon restart. Native process cases run serially to avoid fork-inherited executable writers; each case still exercises concurrent clients. Disposable runtimes cap worker threads. The clipboard capture-order probe uses a fake owner, not the user's clipboard.
 
+Desktop cancellation checks add a gated native-owner admission probe, controller wake/drop and stale-ID tests, acknowledgment/write finishing races, and rendered Cancel controls that remain available while the transfer or initial panel snapshot is pending. Stale operation events above JavaScript's safe integer range must not resurrect a completed action. Native Cancel and Open-panel-during-transfer checks belong to the next combined acceptance pass; the user-confirmed Windows direct Share result is recorded in the shortcut evidence, separately from these automated checks.
+
 ## Platform `cfg` Hygiene
 
 

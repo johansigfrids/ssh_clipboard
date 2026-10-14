@@ -4,6 +4,7 @@ use crate::model::{
     ConnectionProfile, ItemPreview, SessionSettings, is_wayland, validate_transfer_size,
 };
 use crate::notifications;
+use crate::operation::{Controller, Operation};
 use crate::shortcuts::{Action, Bindings, Registry};
 use serde::Serialize;
 use ssh_clipboard::client::connection::Connection;
@@ -19,7 +20,7 @@ use ssh_clipboard::session_protocol::{
     Response as ShelfResponse,
 };
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
@@ -54,6 +55,8 @@ struct OperationNotice {
 
 struct Desktop {
     session: Arc<Mutex<Session>>,
+    operations: Controller,
+    open_shortcut: AtomicU64,
     pressed_shortcuts: StdMutex<HashSet<u32>>,
     recording_shortcut: AtomicBool,
     clipboard: ClipboardWorker,
@@ -85,6 +88,15 @@ struct PanelView {
 }
 
 impl Session {
+    fn after_operation(&mut self, operation: &Operation) {
+        if operation.was_cancelled() {
+            self.connection = None;
+            self.connected = false;
+            self.item = None;
+            self.history = History::default();
+            self.connection_report = None;
+        }
+    }
     async fn take_connection(&mut self) -> Result<Connection, String> {
         let policy = self
             .shelf_policy()?
@@ -314,6 +326,19 @@ async fn get_panel(state: State<'_, Desktop>) -> Result<PanelView, String> {
 }
 
 #[tauri::command]
+fn get_operation(state: State<'_, Desktop>) -> Result<crate::operation::View, String> {
+    state.operations.view()
+}
+
+#[tauri::command]
+fn cancel_operation(
+    state: State<'_, Desktop>,
+    id: String,
+) -> Result<crate::operation::View, String> {
+    state.operations.cancel(&id)
+}
+
+#[tauri::command]
 fn set_shortcut_recording(state: State<'_, Desktop>, active: bool) {
     // Independent of the transfer lock: losing focus while recording must not start a share.
     state.recording_shortcut.store(active, Ordering::SeqCst);
@@ -351,7 +376,17 @@ fn configure_shortcut(
         }
     }
     let desired = Bindings::requested(next)?;
-    match session.shortcuts.replace(desired, &mut NativeRegistry(app)) {
+    let result = session.shortcuts.replace(desired, &mut NativeRegistry(app));
+    if let Some(state) = app.try_state::<Desktop>() {
+        state.open_shortcut.store(
+            session
+                .shortcuts
+                .open_id()
+                .map_or(0, |id| u64::from(id) + 1),
+            Ordering::SeqCst,
+        );
+    }
+    match result {
         Ok(status) => Ok(status),
         Err(error) => {
             session.shortcut_status = error.clone();
@@ -505,10 +540,17 @@ async fn test_connection(
     session.check_revision(expected_revision.as_deref())?;
     session.settings.validate_connection()?;
     let config = session.client_config()?;
-    let report = match session.shelf_policy()? {
-        Some(policy) => diagnose_shelf(&config, policy).await,
-        None => diagnose(&config).await,
-    };
+    let operation = state.operations.begin("Testing connection")?;
+    let result = operation
+        .run(async {
+            Ok(match session.shelf_policy()? {
+                Some(policy) => diagnose_shelf(&config, policy).await,
+                None => diagnose(&config).await,
+            })
+        })
+        .await;
+    session.after_operation(&operation);
+    let report = result?;
     session.connected = report.healthy;
     let failure = (!report.healthy).then(|| report.message());
     session.connection_report = Some(report);
@@ -528,7 +570,10 @@ async fn refresh_item(
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
-    fetch_item(&mut session).await?;
+    let operation = state.operations.begin("Refreshing shared clipboard")?;
+    let result = operation.run(fetch_item(&mut session)).await;
+    session.after_operation(&operation);
+    result?;
     session.view()
 }
 
@@ -546,7 +591,10 @@ async fn select_item(
     session.check_revision(expected_revision.as_deref())?;
     session.history.guard(epoch)?;
     session.item = None;
-    let value = session.load_selected(item_id).await?;
+    let operation = state.operations.begin("Loading item preview")?;
+    let result = operation.run(session.load_selected(item_id)).await;
+    session.after_operation(&operation);
+    let value = result?;
     session.item = Some(value);
     session.connected = true;
     session.view()
@@ -567,7 +615,17 @@ async fn delete_item(
     if !session.history.items.iter().any(|item| item.id == item_id) {
         return Err("This item is no longer in the loaded history. Refresh first.".into());
     }
-    mutate_history(&mut session, epoch, ShelfAction::Delete { item_id }).await?;
+    let operation = state.operations.begin("Deleting shared item")?;
+    let result = operation
+        .run(mutate_history(
+            &mut session,
+            epoch,
+            ShelfAction::Delete { item_id },
+            &operation,
+        ))
+        .await;
+    session.after_operation(&operation);
+    result?;
     session.view()
 }
 
@@ -582,7 +640,17 @@ async fn clear_history(
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
-    mutate_history(&mut session, epoch, ShelfAction::Clear).await?;
+    let operation = state.operations.begin("Clearing shared history")?;
+    let result = operation
+        .run(mutate_history(
+            &mut session,
+            epoch,
+            ShelfAction::Clear,
+            &operation,
+        ))
+        .await;
+    session.after_operation(&operation);
+    result?;
     session.view()
 }
 
@@ -590,6 +658,7 @@ async fn mutate_history(
     session: &mut Session,
     epoch: Uuid,
     action: ShelfAction,
+    operation: &Operation,
 ) -> Result<(), String> {
     session.history.guard(epoch)?;
     let deleted = match &action {
@@ -602,6 +671,7 @@ async fn mutate_history(
         session.keep_connection(connection);
         return Err("The server restarted. Refresh history before continuing.".into());
     }
+    operation.mutation_started()?;
     let result = connection
         .execute(action, &[])
         .await
@@ -614,6 +684,7 @@ async fn mutate_history(
     ) {
         return Err("Unexpected history mutation reply.".into());
     }
+    operation.confirmed()?;
     // A confirmed mutation is final; a subsequent refresh cannot turn it into failure.
     session
         .history
@@ -687,11 +758,20 @@ async fn share_clipboard(
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
-    share_current(&mut session, &state.clipboard).await?;
+    let operation = state.operations.begin("Sharing current clipboard")?;
+    let result = operation
+        .run(share_current(&mut session, &state.clipboard, &operation))
+        .await;
+    session.after_operation(&operation);
+    result?;
     session.view()
 }
 
-async fn share_current(session: &mut Session, clipboard: &ClipboardWorker) -> Result<(), String> {
+async fn share_current(
+    session: &mut Session,
+    clipboard: &ClipboardWorker,
+    operation: &Operation,
+) -> Result<(), String> {
     session.settings.validate_connection()?;
     if let Some(policy) = session.shelf_policy()? {
         let device = &session
@@ -739,6 +819,7 @@ async fn share_current(session: &mut Session, clipboard: &ClipboardWorker) -> Re
         let mut connection = session.take_connection().await?;
         let result = async {
             session.connected = false;
+            operation.mutation_started()?;
             let reply = connection
                 .execute(
                     ShelfAction::Share {
@@ -754,6 +835,7 @@ async fn share_current(session: &mut Session, clipboard: &ClipboardWorker) -> Re
             let ShelfResponse::Shared { epoch, item, .. } = reply.response else {
                 return Err("Unexpected share reply.".into());
             };
+            operation.confirmed()?;
             let id = item.id;
             session
                 .history
@@ -781,6 +863,7 @@ async fn share_current(session: &mut Session, clipboard: &ClipboardWorker) -> Re
     }
     let value = clipboard.read(session.client_config()?.max_size).await?;
     ItemPreview::from_value(&value, session.settings.show_preview)?;
+    operation.mutation_started()?;
     match request(
         session,
         RequestKind::Set {
@@ -789,7 +872,10 @@ async fn share_current(session: &mut Session, clipboard: &ClipboardWorker) -> Re
     )
     .await?
     {
-        ResponseKind::Ok => session.item = Some(value),
+        ResponseKind::Ok => {
+            operation.confirmed()?;
+            session.item = Some(value);
+        }
         _ => return Err("Unexpected server response to share.".into()),
     }
     session.clipboard_checked = true;
@@ -801,6 +887,21 @@ async fn share_current(session: &mut Session, clipboard: &ClipboardWorker) -> Re
 fn panel_focused(app: &AppHandle) -> bool {
     app.get_webview_window("main")
         .is_none_or(|window| window.is_focused().unwrap_or(true))
+}
+
+async fn copy_latest(
+    session: &mut Session,
+    clipboard: &ClipboardWorker,
+    operation: &Operation,
+) -> Result<(), String> {
+    fetch_latest_item(session).await?;
+    let value = session
+        .item
+        .clone()
+        .ok_or("The shared clipboard is empty. Your clipboard was left unchanged.")?;
+    let limit = session.max_decoded()?;
+    operation.finishing()?;
+    clipboard.write_with_limit(value, limit).await
 }
 
 fn handle_shortcut(
@@ -822,6 +923,14 @@ fn handle_shortcut(
         return;
     }
     drop(pressed);
+    // Open must remain available while a transfer owns the session lock. This ID
+    // comes from the actual registration map, including rollback reconciliation.
+    if state.open_shortcut.load(Ordering::SeqCst) == u64::from(shortcut.id()) + 1
+        && !state.recording_shortcut.load(Ordering::SeqCst)
+    {
+        show_panel(app, false);
+        return;
+    }
     // Reserve the operation immediately. Never queue captures behind an earlier transfer
     // or a profile change, and dispatch only from the actual committed registration map.
     let Ok(mut session) = state.session.clone().try_lock_owned() else {
@@ -852,6 +961,13 @@ fn handle_shortcut(
         return;
     }
     let app = app.clone();
+    let Ok(operation) = state.operations.begin(if action == Action::Share {
+        "Sharing current clipboard"
+    } else {
+        "Copying shared clipboard"
+    }) else {
+        return;
+    };
     tauri::async_runtime::spawn(async move {
         if app
             .state::<Desktop>()
@@ -862,31 +978,29 @@ fn handle_shortcut(
             return;
         }
         let state = app.state::<Desktop>();
-        let result = if session.settings_notice.is_some() {
-            Err("Repair the saved settings before using direct shortcuts.".into())
-        } else {
-            match action {
-                Action::Share => share_current(&mut session, &state.clipboard).await,
-                Action::Copy => match fetch_latest_item(&mut session).await {
-                    Ok(()) => match session.item.clone() {
-                        Some(value) => match session.max_decoded() {
-                            Ok(limit) => state.clipboard.write_with_limit(value, limit).await,
-                            Err(error) => Err(error),
-                        },
-                        None => Err(
-                            "The shared clipboard is empty. Your clipboard was left unchanged."
-                                .into(),
-                        ),
-                    },
-                    Err(error) => Err(error),
-                },
-                Action::Open => unreachable!(),
-            }
-        };
+        let result = operation
+            .run(async {
+                if session.settings_notice.is_some() {
+                    Err("Repair the saved settings before using direct shortcuts.".into())
+                } else {
+                    match action {
+                        Action::Share => {
+                            share_current(&mut session, &state.clipboard, &operation).await
+                        }
+                        Action::Copy => {
+                            copy_latest(&mut session, &state.clipboard, &operation).await
+                        }
+                        Action::Open => unreachable!(),
+                    }
+                }
+            })
+            .await;
+        session.after_operation(&operation);
         let failed = result.is_err();
         let preference = session.settings.notifications;
         session.record_operation(result, action == Action::Share);
         drop(session);
+        drop(operation);
         let _ = app.emit("settings-changed", ());
         if !panel_focused(&app)
             && notifications::present(&app, preference, failed, action == Action::Share)
@@ -907,31 +1021,36 @@ async fn copy_item(
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
-    if let Some(policy) = session.shelf_policy()? {
-        let id = session
-            .history
-            .selected
-            .ok_or("Select an item in history first.")?;
-        session.item = None;
-        let value = session.load_selected(id).await?;
-        state
-            .clipboard
-            .write_with_limit(value.clone(), policy.max_decoded_bytes as usize)
-            .await?;
-        session.item = Some(value);
-        if session.settings.close_after_copy
-            && let Some(window) = app.get_webview_window("main")
-        {
-            let _ = window.hide();
-        }
-        return session.view();
-    }
-    // Copy the snapshot being shown, never silently substitute a newer remote value.
-    let value = session
-        .item
-        .clone()
-        .ok_or_else(|| "Refresh the shared clipboard first.".to_string())?;
-    state.clipboard.write(value).await?;
+    let operation = state.operations.begin("Copying shared clipboard")?;
+    let result = operation
+        .run(async {
+            if let Some(policy) = session.shelf_policy()? {
+                let id = session
+                    .history
+                    .selected
+                    .ok_or("Select an item in history first.")?;
+                session.item = None;
+                let value = session.load_selected(id).await?;
+                operation.finishing()?;
+                state
+                    .clipboard
+                    .write_with_limit(value.clone(), policy.max_decoded_bytes as usize)
+                    .await?;
+                session.item = Some(value);
+                return Ok(());
+            }
+            // Copy the snapshot being shown, never silently substitute a newer remote value.
+            let value = session
+                .item
+                .clone()
+                .ok_or_else(|| "Refresh the shared clipboard first.".to_string())?;
+            operation.finishing()?;
+            state.clipboard.write(value).await?;
+            Ok(())
+        })
+        .await;
+    session.after_operation(&operation);
+    result?;
     if session.settings.close_after_copy
         && let Some(window) = app.get_webview_window("main")
     {
@@ -1066,8 +1185,11 @@ pub fn run() {
                 configure_shortcut(app.handle(), &mut session, &settings)
                     .unwrap_or_else(|message| message)
             };
+            let open_shortcut = session.shortcuts.open_id().map_or(0, |id| u64::from(id) + 1);
             app.manage(Desktop {
                 session: Arc::new(Mutex::new(session)),
+                operations: Controller::default(),
+                open_shortcut: AtomicU64::new(open_shortcut),
                 pressed_shortcuts: StdMutex::new(HashSet::new()),
                 recording_shortcut: AtomicBool::new(false),
                 clipboard: ClipboardWorker::start()?,
@@ -1078,6 +1200,16 @@ pub fn run() {
                     "Unavailable: reopen through the app launcher.".into();
             }
             watch_settings(app.handle().clone());
+            let operations = app.state::<Desktop>().operations.clone();
+            let mut changed = operations.subscribe();
+            let operation_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                while changed.changed().await.is_ok() {
+                    if let Ok(view) = operations.view() {
+                        let _ = operation_app.emit("operation-state", view);
+                    }
+                }
+            });
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -1089,6 +1221,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_panel,
+            get_operation,
+            cancel_operation,
             set_shortcut_recording,
             test_notification,
             apply_settings,
@@ -1522,7 +1656,12 @@ mod tests {
         config.profiles[0].transport.ssh_bin = Some(dir.path().join("missing-ssh"));
         session.settings = SessionSettings::from_configuration(config).unwrap();
         session.item = None;
-        assert!(share_current(&mut session, &clipboard).await.is_err());
+        let operation = Controller::default().begin("Share").unwrap();
+        assert!(
+            share_current(&mut session, &clipboard, &operation)
+                .await
+                .is_err()
+        );
         assert_eq!(reads.load(Ordering::SeqCst), 1);
         assert_eq!(writes.load(Ordering::SeqCst), 0);
         assert!(session.connection.is_none());

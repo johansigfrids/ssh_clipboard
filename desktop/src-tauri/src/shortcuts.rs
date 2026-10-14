@@ -97,6 +97,13 @@ impl Bindings {
             .map(|b| b.text.clone())
     }
 
+    pub fn open_id(&self) -> Option<u32> {
+        self.0
+            .iter()
+            .find(|binding| binding.action == Some(Action::Open))
+            .map(|binding| binding.shortcut.id())
+    }
+
     pub fn suspend_direct(&mut self) {
         for binding in &mut self.0 {
             if binding.action != Some(Action::Open) {
@@ -318,5 +325,6 @@ mod tests {
         assert_eq!(os.registered, original);
         assert_eq!(bindings.action(id("Ctrl+Alt+P")), None);
         assert!(bindings.open_label().is_some());
+        assert_eq!(bindings.open_id(), Some(id(&defaults().open_shortcut)));
     }
 }

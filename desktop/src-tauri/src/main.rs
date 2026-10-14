@@ -5,6 +5,7 @@ mod connection;
 mod history;
 mod model;
 mod notifications;
+mod operation;
 mod panel;
 mod shortcuts;
 

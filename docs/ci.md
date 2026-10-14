@@ -40,14 +40,15 @@ The `desktop` job checks the isolated Phase 1 prototype on Windows, macOS, and L
 - Packages artifacts per OS and uploads to GitHub Releases with SHA256 checksums.
   - Agent builds include both `ssh_clipboard` and `ssh_clipboard_agent`.
 - Uses concurrency per tag (`github.ref`) to avoid overlapping release runs.
+- Sets `make_latest: false` so a legacy archive release cannot displace the desktop keyed-feed release; legacy downloads use an explicit `v*` tag.
 
 ## Desktop Release Staging
 
-Desktop CI also lints/tests installed features without release credentials and builds a synthetic-key NSIS package on Windows without installing it. The mock framework handoff and bounded download probes run as tests. The separate manual desktop workflow pins actions/toolchain, validates an immutable master commit, and exposes signing credentials only in its protected packaging step. It creates drafts; publishing, environment configuration, and installed/native acceptance remain separate. See [release operations](releasing.md).
+Desktop CI also lints/tests installed features without release credentials and builds a synthetic-key NSIS package on Windows without installing it. The mock framework handoff and bounded download probes run as tests. The separate manual desktop workflow pins actions/toolchain, validates an immutable master commit, and exposes signing credentials only in its protected packaging step. It creates drafts; the owner has configured environment protections/signing inputs, while actual protected signing, publishing and installed/native acceptance remain separate. See [release operations](releasing.md).
 
 ## Server Release Staging
 
-The manual server workflow validates the exact stable core commit on master, pins Rust/actions, and runs headless checks without credentials. A separate `server-release` environment gates the Linux x64 signing step. It builds on Ubuntu 24.04, verifies exact signed bytes/version/platform with the server policy, and creates a `server-v<version>` draft without publishing/overwriting. Source SHA/profile/key ID/checksum evidence accompanies the package. Other architectures/runtime compatibility and real user-systemd acceptance remain gates. This workflow has not run on GitHub; the real staging helper has passed locally with synthetic trust on Windows/Ubuntu WSL. See [release setup](releasing.md#signed-server-drafts).
+The manual server workflow validates the exact stable core commit on master, pins Rust/actions, and runs headless checks without credentials. A separate `server-release` environment gates the Linux x64 signing step. It builds on Ubuntu 24.04, verifies exact signed bytes/version/platform with the server policy, and creates a `server-v<version>` draft without publishing/overwriting or becoming latest. The credential-free validation job also executes the actual draft handoff with inert adapters, checking source/platform/profile refusal, no overwrite and desktop-feed isolation. Source SHA/profile/key ID/checksum evidence accompanies the package. Other architectures/runtime compatibility and real user-systemd acceptance remain gates. Environment protections/signing inputs are configured, but this workflow has not run on GitHub; the real staging helper has passed locally with synthetic trust on Windows/Ubuntu WSL. See [release setup](releasing.md#signed-server-drafts).
 
 ## Update Triggers
 - Changing build variants, features, or supported OSes.

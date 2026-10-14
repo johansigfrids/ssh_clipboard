@@ -54,7 +54,7 @@ The installed rework and legacy agent can otherwise both own startup/shortcuts. 
 
 ## Release Gates Still Open
 
-- Production signing key retained in the owner's password manager, protected GitHub environments configured, independent public trust reviewed, complete drafts reviewed before publication.
+- Owner signing-key/password retention and protected environment setup are complete, with metadata/public-key consistency verified. Actual protected signing, trusted first-installation admission and complete draft review remain required before publication.
 - Actual installed desktop clean install/old-to-new upgrade, startup/configuration preservation, interrupted replacement and trusted key transition on each shipped platform. Windows synthetic package evidence is not an installed upgrade; macOS/Linux desktop packages remain unverified.
 - Disposable **real** user-systemd installation and the exact server runtime package, then separately authorized legacy service/SSH cutover and released-client combinations.
 - Combined native daily-use check for shelf history, remote changes, cancellation/reconnect and private feedback. The earlier user-confirmed direct Windows Share result covers only that behavior/build.

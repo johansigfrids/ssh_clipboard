@@ -45,6 +45,8 @@ jobs:
           cargo +1.99.0 fmt -- --check
           cargo +1.99.0 clippy --locked --no-default-features --all-targets -- -D warnings
           cargo +1.99.0 test --locked --no-default-features
+      - name: Validate draft and desktop-feed isolation
+        run: node --test desktop/tests/server-release.test.mjs
 
   package:
     needs: validate
@@ -97,7 +99,7 @@ jobs:
           const name=`SSHClipboardServer-stable-linux-x86_64-${version}`;
           const assets=[name,`${name}.sig`,`${name}.sha256`,'candidate.json','build-evidence.json'].map(name=>path.join(stage,name));
           for(const file of assets)readFileSync(file);
-          execFileSync('gh',['release','create',tag,...assets,'--repo',repo,'--target',process.env.GITHUB_SHA,'--draft','--title',`SSH Clipboard server ${version}`,'--notes-file','CHANGELOG.md'],{stdio:'inherit'});
+          execFileSync('gh',['release','create',tag,...assets,'--repo',repo,'--target',process.env.GITHUB_SHA,'--draft','--latest=false','--title',`SSH Clipboard server ${version}`,'--notes-file','CHANGELOG.md'],{stdio:'inherit'});
           JS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()

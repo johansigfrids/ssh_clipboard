@@ -59,7 +59,7 @@ On 2026-10-14, temporary-file/executable probes pass for exact backup bytes, cur
 
 `tests/fixtures/legacy-agent.toml` is imported under both CLI and desktop dependency lockfiles, which currently select different compatible TOML parser patch releases. Keep that fixture check when changing either graph; a compatible version range alone is not migration evidence. Local OpenSSH `-G` with an empty configuration also confirms that the prepended batch-mode value wins without connecting to a host.
 
-A metadata-only CLI probe through the user's existing prototype profile succeeded. The settings file's SHA-256 was identical before/after, confirming that the saved file was unchanged. No legacy user file was imported by the automated probes, and no server was replaced/restarted. The integrated native first-save/relaunch check for schema 2 and other platforms' migration checks remain pending.
+A metadata-only CLI probe through the user's existing prototype profile succeeded. The settings file's SHA-256 was identical before/after, confirming that the saved file was unchanged. No legacy user file was imported by the automated probes, and no server was replaced/restarted. On 2026-10-14 the user confirmed the native Windows schema 2 Apply/Quit/relaunch check and small-image Share/Copy/paste into Paint in `SSHClipboardPrototype-20261014T064745955Z.exe`. This confirms the prototype upgrade path and native RGBA adapter; live legacy TOML import and other platforms' migration checks remain unverified.
 
 ## Update Triggers
 

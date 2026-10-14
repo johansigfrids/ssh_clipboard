@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { cloneSettings, cloneTransport, command, defaultTransport, initialView, subscribe, type OperationView, type PanelView, type Settings } from "./api";
+  import { cloneSettings, cloneTransport, command, defaultTransport, initialView, subscribe, type OperationView, type PanelView, type Settings, type UpdateView } from "./api";
   import { displayShortcut, shortcutFromEvent } from "./shortcut.js";
 
   let view = $state<PanelView>(initialView);
@@ -20,6 +20,7 @@
   let recordingSync = Promise.resolve();
   let removingProfile = $state(false);
   let confirmingHistory = $state<{ kind: "delete" | "clear"; epoch: string; itemId: string | null } | null>(null);
+  let confirmingInstall = $state<string | null>(null);
   let ready = $state(false);
   let content = $state<HTMLElement>();
   let draftRevision = $state<string | null>(null);
@@ -160,17 +161,33 @@
     } finally { localBusy = false; if (reloadPending) void reloadSavedSettings(); }
   }
 
+  async function updateAction(name: "check_updates" | "download_update" | "install_update", version?: string) {
+    if (!ready || busy || view.updateStatus.busy) return;
+    if (name === "install_update" && (dirty || view.pendingShare)) return;
+    localBusy = true;
+    operationEpoch++;
+    confirmingInstall = null;
+    inform("");
+    try {
+      const next = await command<UpdateView | void>(name, version ? { version } : undefined);
+      if (next) view = { ...view, updateStatus: next };
+    } catch (cause) { inform(String(cause), true); }
+    finally { localBusy = false; if (reloadPending) void reloadSavedSettings(); }
+  }
+
   function navigate(next: string) {
     if (busy) return;
     stopRecording();
     removingProfile = false;
     confirmingHistory = null;
+    confirmingInstall = null;
     page = next;
     if (content) content.scrollTop = 0;
   }
 
   function selectSection(next: string) {
     section = next;
+    confirmingInstall = null;
     stopRecording();
     removingProfile = false;
     if (content) content.scrollTop = 0;
@@ -214,7 +231,7 @@
           if (recording) recordShortcut(binding);
           else if (openPanel) navigate("panel");
           else inform("Direct shortcuts work while this app is in the background. Use the panel buttons here.");
-        }, acceptOperation);
+        }, acceptOperation, (next) => { if (!disposed) view = { ...view, updateStatus: next }; });
         if (disposed) unsubscribe(); else stop = unsubscribe;
       } catch { inform("Could not listen for tray or settings changes. Reopen through the launcher.", true); }
       if (disposed) return;
@@ -333,7 +350,7 @@
       <div class="settings-title"><h2>Settings</h2><span>{view.settingsSaved ? "Saved on this computer" : "Apply to save"}</span></div>
       {#if view.migrationSummary}<p class="field-help">{view.migrationSummary}</p>{/if}
       <nav aria-label="Settings sections">
-        {#each [["connection", "Connection"], ["shortcuts", "Shortcuts"], ["behavior", "Behavior"]] as [id, label]}
+        {#each [["connection", "Connection"], ["shortcuts", "Shortcuts"], ["behavior", "Behavior"], ["updates", "Updates"]] as [id, label]}
           <button class:active={section === id} aria-current={section === id ? "page" : undefined} onclick={() => selectSection(id)}>{label}</button>
         {/each}
       </nav>
@@ -421,6 +438,30 @@
           {/each}
           <p class="field-help">To share: copy text or an image normally first, then press your Share shortcut. It sends what's already on this computer's clipboard; it doesn't copy selected text.</p>
           <p class="field-help">To receive: press your Copy shortcut to put the latest shared item on this computer's clipboard, then paste normally. It doesn't paste into the active app. Recording a shortcut never transfers content.</p>
+        {:else if section === "updates"}
+          <h3>Updates</h3>
+          <p>Current version: {view.updateStatus.currentVersion === "0.0.0" ? "Development prototype" : view.updateStatus.currentVersion}</p>
+          <p class="field-help" role="status">{view.updateStatus.detail}</p>
+          {#if view.updateStatus.offeredVersion}<p>Available version: <strong>{view.updateStatus.offeredVersion}</strong></p>{/if}
+          {#if view.updateStatus.notes}<pre class="release-notes">{view.updateStatus.notes}</pre>{/if}
+          {#if view.updateStatus.phase === "downloading"}<p>{formatSize(view.updateStatus.downloadedBytes)}{view.updateStatus.totalBytes !== null ? ` of ${formatSize(view.updateStatus.totalBytes)}` : " downloaded"}</p>{/if}
+          <button type="button" disabled={!ready || busy || view.updateStatus.busy || !view.updateStatus.available} onclick={() => updateAction("check_updates")}>Check for updates</button>
+          {#if view.updateStatus.offeredVersion && view.updateStatus.phase !== "ready"}
+            <button type="button" disabled={!ready || busy || view.updateStatus.busy} onclick={() => updateAction("download_update", view.updateStatus.offeredVersion!)}>Download and verify</button>
+          {/if}
+          {#if view.updateStatus.phase === "ready" && view.updateStatus.offeredVersion}
+            {#if confirmingInstall === view.updateStatus.offeredVersion}
+              <div class="feedback" role="group" aria-label="Install update confirmation">
+                <p>Install version {confirmingInstall} and restart? Configuration is kept. The current local clipboard owner will close.</p>
+                <button type="button" disabled={busy || dirty || !!view.pendingShare || view.updateStatus.busy} onclick={() => updateAction("install_update", confirmingInstall!)}>Install and restart</button>
+                <button type="button" disabled={busy} onclick={() => confirmingInstall = null}>Cancel</button>
+              </div>
+            {:else}
+              <button type="button" class="primary" disabled={busy || dirty || !!view.pendingShare || view.updateStatus.busy} onclick={() => confirmingInstall = view.updateStatus.offeredVersion}>Install update…</button>
+            {/if}
+            {#if dirty}<p class="field-help">Apply or discard settings changes before installing.</p>{/if}
+            {#if view.pendingShare}<p class="field-help">Resolve or discard the uncertain share before installing.</p>{/if}
+          {/if}
         {:else}
           <label class="toggle"><input type="checkbox" bind:checked={draft.showPreview} disabled={!ready || busy} />Show content previews</label>
           <p class="field-help">Hide text and image previews when sharing your screen.</p>
@@ -441,11 +482,11 @@
           <p class="field-help">{view.startupStatus.detail} {dirty ? "Apply or discard other changes first." : "Changes to this choice are saved immediately."}</p>
         {/if}
         {#if staleDraft}<p class="field-help">Saved settings changed. Discard your draft to load them.</p>{/if}
-        <div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { discardDraft(); inform("Loaded current saved settings."); }}>Discard changes</button></div>
+        {#if section !== "updates"}<div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { discardDraft(); inform("Loaded current saved settings."); }}>Discard changes</button></div>{/if}
       </form>
       {@render feedback()}
     {/if}
   </main>
 
-  <footer><span>{view.activeShortcut ? displayShortcut(view.activeShortcut) : "Open from the launcher or tray"}</span><span>Prototype</span><button class="quit-button" disabled={!ready || busy} onclick={() => command("quit_app").catch((cause) => inform(String(cause), true))}>Quit</button></footer>
+  <footer><span>{view.activeShortcut ? displayShortcut(view.activeShortcut) : "Open from the launcher or tray"}</span><span>{view.updateStatus.available ? view.updateStatus.currentVersion : "Prototype"}</span><button class="quit-button" disabled={!ready || busy} onclick={() => command("quit_app").catch((cause) => inform(String(cause), true))}>Quit</button></footer>
 </div>

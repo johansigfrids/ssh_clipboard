@@ -19,7 +19,7 @@ pub enum Rejection {
     Binding,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Candidate {
     pub version: String,

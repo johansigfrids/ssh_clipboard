@@ -6,6 +6,7 @@ Document the GitHub Actions setup for tests and releases, including build varian
 ## Key Files
 - `.github/workflows/ci.yml` (PR/push checks)
 - `.github/workflows/release.yml` (tagged release builds)
+- `.github/workflows/desktop-release.yml` (manual environment-gated Windows signed drafts)
 - `docs/testing.md` (local test commands and Linux deps)
 
 ## CI Overview
@@ -38,6 +39,10 @@ The `desktop` job checks the isolated Phase 1 prototype on Windows, macOS, and L
 - Packages artifacts per OS and uploads to GitHub Releases with SHA256 checksums.
   - Agent builds include both `ssh_clipboard` and `ssh_clipboard_agent`.
 - Uses concurrency per tag (`github.ref`) to avoid overlapping release runs.
+
+## Desktop Release Staging
+
+Desktop CI also lints/tests installed features without release credentials and builds a synthetic-key NSIS package on Windows without installing it. The mock framework handoff and bounded download probes run as tests. The separate manual desktop workflow pins actions/toolchain, validates an immutable master commit, and exposes signing credentials only in its protected packaging step. It creates drafts; publishing, environment configuration, and installed/native acceptance remain separate. See [release operations](releasing.md).
 
 ## Update Triggers
 - Changing build variants, features, or supported OSes.

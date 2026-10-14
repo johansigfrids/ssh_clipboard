@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Track Phase 6 implementation and distinguish package verification from installed update evidence. Strict artifact verification, installed-build staging, and explicit startup controls are implemented. Runtime download/update UI, protected release workflow, and installed upgrade acceptance remain open.
+Track Phase 6 implementation and distinguish package verification from installed update evidence. Strict verification, installed staging, explicit startup, bounded update discovery/download, guarded installer handoff, and a protected draft-release workflow are implemented. Production trust setup, native login, and installed upgrade acceptance remain open.
 
 ## Key Files
 
@@ -13,6 +13,29 @@ Track Phase 6 implementation and distinguish package verification from installed
 - `desktop/scripts/build-installed.mjs`, `smoke-installed-build.mjs`: stage/sign/verify packages; isolated synthetic-key build smoke.
 - `desktop/src-tauri/tauri.installed.conf.json`, `build.rs`: installed identity, CLI sidecar, per-user NSIS, explicit release trust inputs.
 - `desktop/src-tauri/src/startup.rs`, `startup_native.rs`, `panel.rs`: actual native startup state, explicit changes, and coordinated-save rollback.
+- `update_feed.rs`, `update_network.rs`, `updates.rs`: untrusted feed parsing, bounded HTTPS, cancellation, and independent update state.
+- `update_handoff.rs`, `tests/framework_handoff.rs`: one-use local metadata bridge and actual framework check with a mock runtime.
+- `.github/workflows/desktop-release.yml`: manual master-only validation and environment-gated signed draft creation.
+
+## Runtime Update Path
+
+Installed release builds check after a short startup delay and every six hours without opening the panel, sampling the clipboard, or downloading/installing a package. Checking uses independent state, so a quiet network request does not hold the transfer/session lock. The Updates page offers an explicit check, download/verify, then separate install confirmation. Notes are bounded inert text. A prepared verified package is retained in RAM until install, a new explicit check, or Quit; quiet polling does not invalidate it.
+
+Remote requests enforce HTTPS and platform TLS verification. Only GitHub and its known release asset hosts are allowed, including redirects, with at most five redirects. Metadata reads cap at 64 KiB/20 seconds, notes at 16 KiB, and package reads at 256 MiB/300 seconds. Check declared lengths before allocation and streamed lengths before append; missing or false lengths do not bypass the budget. Cancel drops the response and partial bytes. There is no automatic resume, download, install, or clipboard replay. Interrupted and oversized synthetic HTTP responses are tested without relaxing production HTTPS.
+
+The current framework's `check()` and `download()` buffer remote bodies without application caps. Do not call them on remote URLs. Our reader validates a candidate, downloads bounded bytes, verifies the package, then uses a one-use **127.0.0.1** metadata bridge solely to construct the framework's supported installer object. It has a random route, 4 KiB request cap, fixed bounded response, five-second lifetime, and abort-on-drop ownership. The object's version/URL/signature must still equal the verified candidate. It never calls the framework downloader. Reverify the exact owned bytes immediately before handoff; no frontend-supplied paths or package bytes are accepted.
+
+The installed overlay enables the framework's plain-HTTP setting **only for that loopback bridge** and leaves its default endpoints empty. All remote reads independently require HTTPS. No frontend updater plugin permissions are granted. Replacing this bridge with the library's remote check would remove the metadata bound and widen that setting; keep the adapter tests and these constraints when updating dependencies.
+
+Installation reserves the operation/session boundary, requires idle native clipboard work and resolved/discarded uncertain shares, and disables new transfers until completion/failure. Once installer execution starts, cancellation is unavailable. The framework Windows pre-exit hook runs before process launch and can be followed by launch failure: stop/reap SSH owners there, retain native app/clipboard owners, and restore background transport tasks if launching fails. Normal Quit still joins owners and stops the clipboard worker. A successful Windows handoff exits; macOS/AppImage use framework replacement and relaunch, with native acceptance still required. There is no automatic installer rollback promise.
+
+## Verification and Release Gates
+
+Windows checks pass for strict crypto, bounded feed/stream reads, interruption, loopback lifetime/route rejection, and actual framework candidate selection using Tauri's mock runtime. Rendered tests cover inert notes, no automatic download/install, explicit confirmation, and transfer/uncertain-share guards. A fresh isolated NSIS debug package with this source was built, signed, and verified; it was not installed or published.
+
+The framework mock probe imports `TaskDialogIndirect` on Windows. Put it in an integration-test target and supply the common-controls manifest with **test-scoped** linker flags. Missing manifests produce `STATUS_ENTRYPOINT_NOT_FOUND`; global flags conflict with the app's existing manifest resource. The full test suite and real package smoke must both pass after build-script changes.
+
+The new workflow is manual, master-only, checks the immutable dispatch SHA/version, validates without credentials, and stages a Windows x64 draft only after the `desktop-release` environment gate. Actions use resolved commit pins, Rust is pinned, Cargo/npm locks are used, release jobs do not restore PR build caches, and signing inputs are scoped to the package step. It never publishes or overwrites an existing release. This workflow has been source-checked locally but has not run on GitHub; environment reviewers/ref rules and production credentials are not configured by this implementation. Other platforms stay outside this initial release job until native package/upgrade gates pass. See [release/key operations](releasing.md).
 
 ## Package Staging
 

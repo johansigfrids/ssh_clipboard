@@ -50,7 +50,9 @@ const cliBinary=path.join(root,"target",profile,`ssh_clipboard${extension}`);
 const reported=run(cliBinary,["--version"],root,cliEnv,true).trim();
 if(reported!==`ssh_clipboard ${version}`)throw new Error("Bundled CLI/core version mismatch.");
 const sidecars=path.join(desktop,"src-tauri/binaries");mkdirSync(sidecars,{recursive:true});copyFileSync(cliBinary,path.join(sidecars,`ssh_clipboard-${host}${extension}`));
-const overlay={version,plugins:{updater:{pubkey:publicKey,endpoints:[feed],requireSignedVersion:true,allowDowngrades:false,windows:{installMode:"passive"}}}};
+// Plain HTTP is used ONLY for a one-use loopback metadata handoff to the framework.
+// The Rust downloader enforces remote HTTPS, bounded bodies, and exact-byte verification.
+const overlay={version,plugins:{updater:{pubkey:publicKey,endpoints:[],dangerousInsecureTransportProtocol:true,requireSignedVersion:true,allowDowngrades:false,windows:{installMode:"passive"}}}};
 if(flags.has("--test-build")){overlay.productName="SSH Clipboard Update Test";overlay.identifier="io.github.johansigfrids.sshclipboard.update-test";}
 if(!platform.startsWith("windows"))overlay.bundle={targets:[platform.startsWith("darwin")?"app":"appimage"]};
 const overlayPath=path.join(stage,"build-config.json");writeFileSync(overlayPath,JSON.stringify(overlay,null,2));

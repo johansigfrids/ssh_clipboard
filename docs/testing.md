@@ -104,6 +104,10 @@ Metadata monitor probes add transient reconnect and authentication-pause checks,
 
 The new shelf also has an explicitly ignored real SSH probe, run with `./scripts/Test-LiveShelf.ps1 -Target user@host -Binary target/linux-wsl/debug/ssh_clipboard`. The runner builds the test first, creates an owned `/tmp/ssh-clipboard-integration-*` fixture, copies the selected Linux test binary, starts a private temporary daemon/socket, and verifies protected share/retry, exact Unicode bytes, snapshot, Watch, operation acknowledgment, and deletion on one owned SSH child. The Python fixture stops and removes itself on EOF/stop or a 120-second lifetime bound; the runner verifies directory removal after success. It does not install/replace/restart a configured service or access an OS clipboard. On 2026-10-14 this passed from Windows against the authorized Ubuntu host, including cleanup. Native desktop UI/paste and installed-artifact evidence remain separate.
 
+## Desktop Update Evidence
+
+Desktop update checks run with `cargo test --manifest-path desktop/src-tauri/Cargo.toml --all-features` and frontend `npm test` from `desktop`. They include synthetic cryptographic faults, bounded declared/chunked/interrupted bodies, one-use local handoff ownership, real framework selection in a mock runtime, inert notes, and explicit install/transfer/recovery guards. `npm run test:package` stages an isolated synthetic-key Windows installer and verifies it without execution; private test keys are removed. These passed on Windows on 2026-10-14. Actual clean install, startup login, old-to-new installed replacement/interruption, OS publisher identity, and macOS/Linux packages remain native acceptance gaps.
+
 ## Platform `cfg` Hygiene
 
 

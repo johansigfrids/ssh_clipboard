@@ -86,6 +86,12 @@ export interface PanelView {
   historyStatus: null | { phase: "connecting" | "live" | "reconnecting" | "needs_action"; detail: string; retryInMs: number | null };
   pendingShare: null | {id:string;canRetry:boolean};
   startupStatus: { available: boolean; enabled: boolean | null; desired: boolean; detail: string };
+  updateStatus: UpdateView;
+}
+
+export interface UpdateView {
+  available: boolean; currentVersion: string; offeredVersion: string | null; notes: string;
+  phase: string; detail: string; busy: boolean; downloadedBytes: number; totalBytes: number | null;
 }
 
 export interface OperationView {
@@ -123,6 +129,7 @@ export const initialView: PanelView = {
   historyStatus: null,
   pendingShare: null,
   startupStatus: { available: false, enabled: null, desired: false, detail: "Waiting for the desktop app" },
+  updateStatus: { available: false, currentVersion: "0.0.0", offeredVersion: null, notes: "", phase: "unavailable", detail: "Waiting for the desktop app", busy: false, downloadedBytes: 0, totalBytes: null },
 };
 
 export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
@@ -130,7 +137,7 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
   return invoke<T>(name, args);
 }
 
-export async function subscribe(navigate: (page: string) => void, notice: (message: string, failed: boolean) => void, settingsChanged: () => void, shortcutPressed: (binding: string, openPanel: boolean) => void, operationChanged: (state: OperationView) => void) {
+export async function subscribe(navigate: (page: string) => void, notice: (message: string, failed: boolean) => void, settingsChanged: () => void, shortcutPressed: (binding: string, openPanel: boolean) => void, operationChanged: (state: OperationView) => void, updateChanged: (state: UpdateView) => void) {
   if (!isTauri()) return () => {};
   const results = await Promise.allSettled([
     listen<string>("navigate", (event) => navigate(event.payload)),
@@ -138,6 +145,7 @@ export async function subscribe(navigate: (page: string) => void, notice: (messa
     listen<{ binding: string; openPanel: boolean }>("shortcut-pressed", (event) => shortcutPressed(event.payload.binding, event.payload.openPanel)),
     listen("settings-changed", settingsChanged),
     listen<OperationView>("operation-state", (event) => operationChanged(event.payload)),
+    listen<UpdateView>("update-state", (event) => updateChanged(event.payload)),
   ]);
   const failed = results.find((result) => result.status === "rejected");
   const stops = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);

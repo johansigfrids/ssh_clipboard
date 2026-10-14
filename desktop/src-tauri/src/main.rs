@@ -10,6 +10,7 @@ mod panel;
 mod pending;
 mod shortcuts;
 mod startup_native;
+mod updates;
 
 fn main() {
     panel::run();

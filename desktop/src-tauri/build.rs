@@ -1,4 +1,12 @@
 fn main() {
+    // Mock-runtime integration tests can link TaskDialogIndirect through Tauri.
+    // Scope to integration tests: app binaries already have a manifest resource.
+    if std::env::var("TARGET").is_ok_and(|target| target.ends_with("windows-msvc")) {
+        println!("cargo:rustc-link-arg-tests=/MANIFEST:EMBED");
+        println!(
+            "cargo:rustc-link-arg-tests=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"
+        );
+    }
     for name in [
         "SSH_CLIPBOARD_UPDATE_PUBLIC_KEY",
         "SSH_CLIPBOARD_UPDATE_FEED",

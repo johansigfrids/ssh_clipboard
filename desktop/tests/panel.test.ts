@@ -47,6 +47,53 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("update notes are inert and a verified package still needs explicit install confirmation", async () => {
+    state.updateStatus={available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",notes:"<script>never executed</script>",phase:"ready",detail:"Verified",busy:false,downloadedBytes:123,totalBytes:123};
+    const normal=bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name,args)=>name==="install_update"?undefined:normal(name,args));
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Quit"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Updates"}));
+    expect(screen.getByText("<script>never executed</script>").tagName).toBe("PRE");
+    expect(document.querySelector("main script")).toBeNull();
+    expect(bridge.invoke.mock.calls.some(([name])=>name==="install_update")).toBe(false);
+    await fireEvent.click(screen.getByRole("button",{name:"Install update…"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Cancel",exact:true}));
+    expect(bridge.invoke.mock.calls.some(([name])=>name==="install_update")).toBe(false);
+    await fireEvent.click(screen.getByRole("button",{name:"Install update…"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Install and restart"}));
+    expect(bridge.invoke.mock.calls.find(([name])=>name==="install_update")![1]).toEqual({version:"2.0.0"});
+  });
+
+  it("quiet update discovery never downloads or installs and uncertainty blocks installation", async () => {
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Quit"}).hasAttribute("disabled")).toBe(false));
+    const next={available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",notes:"Notes",phase:"offered",detail:"Available",busy:false,downloadedBytes:0,totalBytes:null};
+    bridge.listen.mock.calls.find(([name])=>name==="update-state")![1]({payload:next});
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Updates"}));
+    expect(screen.getByRole("button",{name:"Download and verify"})).toBeTruthy();
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+    state.pendingShare={id:"uncertain",canRetry:true};
+    state.updateStatus={...next,phase:"ready"};
+    bridge.listen.mock.calls.find(([name])=>name==="settings-changed")![1]();
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Install update…"}).hasAttribute("disabled")).toBe(true));
+    expect(screen.getByText("Resolve or discard the uncertain share before installing.")).toBeTruthy();
+  });
+
+  it("a current transfer blocks update installation even after confirmation is visible", async () => {
+    state.updateStatus={...state.updateStatus,available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",phase:"ready"};
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Quit"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Updates"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Install update…"}));
+    bridge.listen.mock.calls.find(([name])=>name==="operation-state")![1]({payload:{generation:"1",active:{id:"1",label:"Sharing",cancellable:true,cancelling:false}}});
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Install and restart"}).hasAttribute("disabled")).toBe(true));
+    expect(bridge.invoke.mock.calls.some(([name])=>name==="install_update")).toBe(false);
+  });
+
   it("startup shows actual state without activating an imported preference and saves only on an explicit click", async () => {
     state.settingsRevision = "7";
     state.startupStatus = { available: true, enabled: false, desired: true, detail: "Retained preference differs from this app's startup entry." };
@@ -655,7 +702,7 @@ describe("quick panel contracts", () => {
     render(App);
     await screen.findByText("Could not listen for tray or settings changes. Reopen through the launcher.");
     await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
-    expect(stop).toHaveBeenCalledTimes(4);
+    expect(stop).toHaveBeenCalledTimes(5);
     expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
   });
 

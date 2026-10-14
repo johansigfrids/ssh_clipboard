@@ -287,6 +287,10 @@ impl ClipboardWorker {
             .map_err(|_| "Clipboard worker stopped.".to_string())?
     }
 
+    pub fn is_busy(&self) -> bool {
+        self.busy.load(Ordering::Acquire)
+    }
+
     pub fn stop(&self) {
         if let Ok(mut thread) = self.thread.lock()
             && let Some(thread) = thread.take()

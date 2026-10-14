@@ -49,6 +49,7 @@ struct Session {
     metadata_barrier: tokio::time::Instant,
     pending_share: Option<PendingShare>,
     startup_status: ssh_clipboard_desktop_prototype::startup::Status,
+    updates: crate::updates::Updates,
 }
 
 #[derive(Clone, Serialize)]
@@ -69,6 +70,7 @@ struct Desktop {
     config_store: Option<ConfigStore>,
     monitor_request: watch::Sender<monitor::Request>,
     monitor_tasks: StdMutex<Vec<tauri::async_runtime::JoinHandle<()>>>,
+    updates: crate::updates::Updates,
 }
 
 #[derive(Serialize)]
@@ -96,6 +98,7 @@ struct PanelView {
     history_status: Option<monitor::Status>,
     pending_share: Option<crate::pending::View>,
     startup_status: ssh_clipboard_desktop_prototype::startup::Status,
+    update_status: crate::updates::View,
 }
 
 impl Session {
@@ -235,6 +238,7 @@ impl Session {
             operation_notice: self.operation_notice.clone(),
             notification_status: self.notification_status.clone(),
             startup_status: self.startup_status.clone(),
+            update_status: self.updates.view(),
             history_status: self.history_status.clone(),
             pending_share: self.pending_share.as_ref().map(|pending|{let mut view=pending.view();view.can_retry &= self.history.epoch.is_none_or(|epoch|epoch==pending.epoch);view}),
             profiles: self.saved_config.as_ref().map_or_else(
@@ -443,6 +447,110 @@ fn cancel_operation(
     id: String,
 ) -> Result<crate::operation::View, String> {
     state.operations.cancel(&id)
+}
+
+#[tauri::command]
+async fn check_updates(
+    app: AppHandle,
+    state: State<'_, Desktop>,
+) -> Result<crate::updates::View, String> {
+    let operation = state.operations.begin("Checking for updates")?;
+    operation.run(state.updates.check(&app)).await
+}
+
+#[tauri::command]
+async fn download_update(
+    app: AppHandle,
+    state: State<'_, Desktop>,
+    version: String,
+) -> Result<crate::updates::View, String> {
+    let operation = state.operations.begin("Downloading update")?;
+    operation.run(state.updates.download(&app, &version)).await
+}
+
+#[tauri::command]
+async fn install_update(
+    app: AppHandle,
+    state: State<'_, Desktop>,
+    version: String,
+) -> Result<(), String> {
+    let mut session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Wait for the current operation to finish.")?;
+    if session.pending_share.is_some() {
+        return Err("Resolve or discard the uncertain share before installing an update.".into());
+    }
+    if state.clipboard.is_busy() {
+        return Err("Wait for the native clipboard operation to finish.".into());
+    }
+    let operation = state.operations.begin("Installing update")?;
+    #[cfg(feature = "installed-desktop")]
+    {
+        use tauri_plugin_updater::UpdaterExt;
+        let (mut progress, candidate, bytes) = state.updates.take_verified(&app, &version).await?;
+        let result = async {
+            let bridge = ssh_clipboard_desktop_prototype::update_handoff::Bridge::new(&candidate).await?;
+            let cleanup_app = app.clone();
+            let builder = app.updater_builder()
+                .endpoints(vec![bridge.url.clone()]).map_err(|_| "Could not initialize installer handoff.")?
+                .target(crate::updates::platform())
+                .no_proxy()
+                .timeout(std::time::Duration::from_secs(4))
+                .configure_client(|client| client.redirect(reqwest::redirect::Policy::none()))
+                // Upstream calls this BEFORE ShellExecute. Keep native app/clipboard owners
+                // alive so launch failure remains recoverable; process exit releases them.
+                .on_before_exit(move || cleanup_transport(&cleanup_app));
+            let installer = operation.run(async {
+                builder.build().map_err(|_| "Could not initialize installer.")?
+                    .check().await
+                    .map_err(|_| "Could not prepare the verified installer. Nothing was installed.")?
+                    .ok_or_else(|| "The installer did not accept this update version.".to_string())
+            }).await?;
+            // The bridge is local and one-use; still bind the framework's selected object to
+            // the candidate whose exact bytes have passed our policy, before calling install.
+            if installer.version != candidate.version
+                || installer.download_url.as_str() != candidate.url
+                || installer.signature != candidate.signature
+            {
+                return Err("Installer metadata did not match the verified package.".into());
+            }
+            drop(bridge);
+            operation.finishing()?;
+            if let Some(connection) = session.connection.take() {
+                connection.close().await;
+            }
+            let installed = tauri::async_runtime::spawn_blocking(move || installer.install(bytes)).await
+                .map_err(|_| "The installer could not be started. Check the installed app before trying again.")?;
+            installed.map_err(|_| "Update installation did not finish. Check the installed app and version before retrying.".to_string())?;
+            #[cfg(not(target_os = "windows"))]
+            {
+                cleanup_desktop(&app);
+                app.restart();
+            }
+            Ok::<_, String>(())
+        }.await;
+        if let Err(error) = &result {
+            // The framework may have run its pre-exit hook before a failed launch.
+            // Restart only our transport tasks; the native app/clipboard never shut down.
+            if state
+                .monitor_tasks
+                .lock()
+                .is_ok_and(|tasks| tasks.is_empty())
+            {
+                start_background(&app);
+            }
+            progress.fail(error);
+        } else {
+            progress.finish();
+        }
+        result
+    }
+    #[cfg(not(feature = "installed-desktop"))]
+    {
+        let _ = (&mut session, operation, app, version);
+        Err("Updates are unavailable in this build.".into())
+    }
 }
 
 #[tauri::command]
@@ -1493,6 +1601,7 @@ pub fn run() {
             let settings = loaded.as_ref().map(SessionSettings::from_configuration)
                 .transpose().map_err(std::io::Error::other)?.unwrap_or_default();
             let startup_status = crate::startup_native::status(app.handle(), loaded.as_ref().is_some_and(|config| config.preferences.start_at_login));
+            let updates=crate::updates::Updates::new(app.package_info().version.to_string());
             let mut session = Session {
                 settings: settings.clone(),
                 item: None,
@@ -1513,6 +1622,7 @@ pub fn run() {
                 metadata_barrier: tokio::time::Instant::now(),
                 pending_share: None,
                 startup_status,
+                updates: updates.clone(),
             };
             session.shortcut_status = if is_wayland() {
                 "Wayland: use the launcher or tray menu. Portal support is pending.".into()
@@ -1531,6 +1641,7 @@ pub fn run() {
                 config_store,
                 monitor_request: watch::channel(monitor::Request::default()).0,
                 monitor_tasks: StdMutex::new(Vec::new()),
+                updates: updates.clone(),
             });
             if install_tray(app.handle()).is_err() {
                 app.state::<Desktop>().session.blocking_lock().tray_status =
@@ -1543,23 +1654,7 @@ pub fn run() {
             watch_settings(app.handle().clone());
             let monitor_state = app.state::<Desktop>();
             sync_monitor(&monitor_state,&mut monitor_state.session.blocking_lock());
-            let monitor_input = monitor_state.monitor_request.subscribe();
-            let monitor_generation = monitor_state.monitor_request.clone();
-            let (monitor_output,mut monitor_updates) = watch::channel(None::<Arc<monitor::Update>>);
-            let monitor_task = tauri::async_runtime::spawn(monitor::run(monitor_input,monitor_output));
-            let monitor_app = app.handle().clone();
-            let apply_task = tauri::async_runtime::spawn(async move {
-                while monitor_updates.changed().await.is_ok() {
-                    let update = monitor_updates.borrow_and_update().clone();
-                    let Some(update) = update else {continue;};
-                    let state = monitor_app.state::<Desktop>();
-                    let mut session = state.session.lock().await;
-                    if monitor_generation.borrow().generation == update.generation && session.apply_metadata(&update) {
-                        let _ = monitor_app.emit("settings-changed",());
-                    }
-                }
-            });
-            monitor_state.monitor_tasks.lock().unwrap().extend([monitor_task,apply_task]);
+            start_background(app.handle());
             let operations = app.state::<Desktop>().operations.clone();
             let mut changed = operations.subscribe();
             let operation_app = app.handle().clone();
@@ -1584,6 +1679,9 @@ pub fn run() {
             reconnect_history,
             get_operation,
             cancel_operation,
+            check_updates,
+            download_update,
+            install_update,
             set_shortcut_recording,
             test_notification,
             apply_settings,
@@ -1605,34 +1703,89 @@ pub fn run() {
         .expect("could not start desktop prototype");
     app.run(|app, event| {
         if matches!(event, tauri::RunEvent::Exit) {
-            let state = app.state::<Desktop>();
-            let tasks = state
-                .monitor_tasks
-                .lock()
-                .map(|mut tasks| std::mem::take(&mut *tasks))
-                .unwrap_or_default();
-            for task in &tasks {
-                task.abort();
-            }
-            let connection = state
-                .session
-                .try_lock()
-                .ok()
-                .and_then(|mut session| session.connection.take());
-            // Join the aborted owner so its SSH child/reader are dropped before process exit.
-            tauri::async_runtime::block_on(async {
-                let _ = tokio::time::timeout(std::time::Duration::from_secs(2), async {
-                    for task in tasks {
-                        let _ = task.await;
-                    }
-                    if let Some(connection) = connection {
-                        connection.close().await;
-                    }
-                })
-                .await;
-            });
-            state.clipboard.stop();
+            cleanup_desktop(app);
         }
+    });
+}
+
+fn start_background(app: &AppHandle) {
+    let state = app.state::<Desktop>();
+    let monitor_input = state.monitor_request.subscribe();
+    let monitor_generation = state.monitor_request.clone();
+    let (monitor_output, mut monitor_updates) = watch::channel(None::<Arc<monitor::Update>>);
+    let monitor_task = tauri::async_runtime::spawn(monitor::run(monitor_input, monitor_output));
+    let monitor_app = app.clone();
+    let apply_task = tauri::async_runtime::spawn(async move {
+        while monitor_updates.changed().await.is_ok() {
+            let update = monitor_updates.borrow_and_update().clone();
+            let Some(update) = update else {
+                continue;
+            };
+            let state = monitor_app.state::<Desktop>();
+            let mut session = state.session.lock().await;
+            if monitor_generation.borrow().generation == update.generation
+                && session.apply_metadata(&update)
+            {
+                let _ = monitor_app.emit("settings-changed", ());
+            }
+        }
+    });
+    state
+        .monitor_tasks
+        .lock()
+        .unwrap()
+        .extend([monitor_task, apply_task]);
+    let updates = state.updates.clone();
+    if updates.view().available {
+        let update_app = app.clone();
+        let task = tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+            loop {
+                if !updates.view().busy && updates.view().phase != "ready" {
+                    let _ = updates.check(&update_app).await;
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(6 * 60 * 60)).await;
+            }
+        });
+        state.monitor_tasks.lock().unwrap().push(task);
+    }
+}
+
+fn cleanup_desktop(app: &AppHandle) {
+    cleanup_transport(app);
+    if let Some(state) = app.try_state::<Desktop>() {
+        state.clipboard.stop();
+    }
+}
+
+fn cleanup_transport(app: &AppHandle) {
+    let Some(state) = app.try_state::<Desktop>() else {
+        return;
+    };
+    let tasks = state
+        .monitor_tasks
+        .lock()
+        .map(|mut tasks| std::mem::take(&mut *tasks))
+        .unwrap_or_default();
+    for task in &tasks {
+        task.abort();
+    }
+    let connection = state
+        .session
+        .try_lock()
+        .ok()
+        .and_then(|mut session| session.connection.take());
+    // Join the aborted owner so its SSH child/reader are dropped before process exit.
+    tauri::async_runtime::block_on(async {
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            for task in tasks {
+                let _ = task.await;
+            }
+            if let Some(connection) = connection {
+                connection.close().await;
+            }
+        })
+        .await;
     });
 }
 
@@ -2158,6 +2311,7 @@ mod tests {
                 desired: false,
                 detail: "Test fixture",
             },
+            updates: crate::updates::Updates::new("0.0.0".into()),
             item: Some(ClipboardValue {
                 content_type: ssh_clipboard::protocol::CONTENT_TYPE_TEXT.into(),
                 data: b"retained snapshot".to_vec(),

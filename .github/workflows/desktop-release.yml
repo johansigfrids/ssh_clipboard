@@ -1,0 +1,127 @@
+name: Stage signed desktop release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version already committed in the core Cargo.toml
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/master'
+    runs-on: windows-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, resolved 2026-10-14
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Validate immutable source and requested version
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Invalid stable version' }
+          $core = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          if ($core -ne $env:RELEASE_VERSION -or $core -eq '0.0.0') { throw 'Version must match the reviewed core commit' }
+          if ((git rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Unexpected source commit' }
+      - name: Pin Rust toolchain
+        run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt,clippy
+      - name: Validate core
+        shell: pwsh
+        run: |
+          cargo +1.99.0 fmt -- --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo +1.99.0 clippy --locked --features agent --all-targets -- -D warnings
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo +1.99.0 test --locked --features agent
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Validate desktop without release credentials
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          npm ci
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo +1.99.0 fmt --manifest-path src-tauri/Cargo.toml -- --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo +1.99.0 clippy --locked --manifest-path src-tauri/Cargo.toml --all-features --all-targets -- -D warnings
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo +1.99.0 test --locked --manifest-path src-tauri/Cargo.toml --all-features
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+  package:
+    needs: validate
+    runs-on: windows-latest
+    # Configure required reviewers and master-only deployment rules before first use.
+    environment: desktop-release
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RUSTUP_TOOLCHAIN: '1.99.0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Prepare trusted build tools without signing credentials
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm --prefix desktop ci
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build, sign, and verify exact package
+        working-directory: desktop
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.DESKTOP_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.DESKTOP_SIGNING_PASSWORD }}
+          DESKTOP_PUBLIC_KEY: ${{ vars.DESKTOP_UPDATE_PUBLIC_KEY }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY -or -not $env:DESKTOP_PUBLIC_KEY) { throw 'Protected release trust inputs are missing' }
+          $publicKey = Join-Path $env:RUNNER_TEMP 'desktop-public-key.pub'
+          Set-Content -LiteralPath $publicKey -Value $env:DESKTOP_PUBLIC_KEY -NoNewline
+          node scripts/build-installed.mjs --version $env:RELEASE_VERSION --public-key-file $publicKey --notes-file ../CHANGELOG.md
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Create reviewable draft, never publish or overwrite
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $stages = @(Get-ChildItem desktop/artifacts -Directory -Filter "installed-$env:RELEASE_VERSION-*")
+          if ($stages.Count -ne 1) { throw 'Expected exactly one verified package stage' }
+          $stage = $stages[0].FullName
+          $evidence = Get-Content (Join-Path $stage 'build-evidence.json') -Raw | ConvertFrom-Json
+          if ($evidence.testOnly -or $evidence.version -ne $env:RELEASE_VERSION -or $evidence.platform -ne 'windows-x86_64') { throw 'Unexpected package identity' }
+          $tag = "desktop-v$env:RELEASE_VERSION"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { throw 'Release already exists; never overwrite a signed release' }
+          $assets = @(Get-ChildItem -LiteralPath $stage -File | Where-Object { $_.Name -match '^SSHClipboard-.*\.(exe|sig|sha256)$|^desktop-stable-[a-f0-9]{16}\.json$|^(build-evidence|candidate)\.json$' } | Select-Object -ExpandProperty FullName)
+          if ($assets.Count -ne 6) { throw 'Incomplete desktop release assets' }
+          gh release create $tag @assets --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --draft --title "SSH Clipboard $env:RELEASE_VERSION" --notes-file CHANGELOG.md
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: desktop-release-review
+          path: desktop/artifacts/installed-*/
+          if-no-files-found: ignore

@@ -531,7 +531,8 @@ async fn install_update(
                 crate::updates::cleanup_before_restart(move || cleanup_desktop(&cleanup_app)).await?;
                 app.restart();
             }
-            Ok::<_, String>(())
+            #[cfg(target_os = "windows")]
+            { Ok::<_, String>(()) }
         }.await;
         if let Err(error) = &result {
             // The framework may have run its pre-exit hook before a failed launch.

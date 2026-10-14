@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { command, initialView, subscribe, type PanelView, type Settings } from "./api";
+  import { cloneSettings, cloneTransport, command, defaultTransport, initialView, subscribe, type PanelView, type Settings } from "./api";
   import { displayShortcut, shortcutFromEvent } from "./shortcut.js";
 
   let view = $state<PanelView>(initialView);
-  let draft = $state<Settings>({ ...initialView.settings });
+  let draft = $state<Settings>(cloneSettings(initialView.settings));
+  let sshOptionsText = $state("");
   let page = $state("panel");
   let section = $state("connection");
   let busy = $state(false);
@@ -26,22 +27,34 @@
 
   function inform(text: string, failed = false) { message = text; error = failed; }
 
-  function discardDraft() { draft = { ...view.settings }; draftRevision = view.settingsRevision; recording = false; removingProfile = false; }
+  function discardDraft() { draft = cloneSettings(view.settings); sshOptionsText = draft.transport.sshOptions.join("\n"); draftRevision = view.settingsRevision; recording = false; removingProfile = false; }
 
   function chooseProfile(id: string) {
     if (dirty || busy || !ready) return;
     const profile = view.profiles.find((profile) => profile.id === id);
     if (!profile) return;
-    draft = { ...draft, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile };
+    draft = { ...draft, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: cloneTransport(profile.transport) };
+    sshOptionsText = draft.transport.sshOptions.join("\n");
     removingProfile = false;
     inform("");
   }
 
   function addProfile() {
     if (dirty || busy || !ready) return;
-    draft = { ...draft, profileId: null, profileName: "New connection", target: "", port: null, identityFile: "" };
+    draft = { ...draft, profileId: null, profileName: "New connection", target: "", port: null, identityFile: "", transport: defaultTransport() };
+    sshOptionsText = "";
     removingProfile = false;
     inform("");
+  }
+
+  function editSshOptions(text: string) {
+    sshOptionsText = text;
+    draft.transport.sshOptions = text.split(/\r?\n/).filter((option) => option.trim().length > 0);
+  }
+
+  function resetTransport() {
+    draft.transport = defaultTransport();
+    sshOptionsText = "";
   }
 
   async function reloadSavedSettings() {
@@ -193,7 +206,7 @@
           <button class:active={section === id} aria-current={section === id ? "page" : undefined} onclick={() => selectSection(id)}>{label}</button>
         {/each}
       </nav>
-      <form onsubmit={(event) => { event.preventDefault(); void perform("apply_settings", "Settings applied.", { settings: { ...draft }, expectedRevision: draftRevision }); }}>
+      <form onsubmit={(event) => { event.preventDefault(); void perform("apply_settings", "Settings applied.", { settings: cloneSettings(draft), expectedRevision: draftRevision }); }}>
         {#if section === "connection"}
           <label for="profile">Connection</label>
           <select id="profile" value={draft.profileId ?? ""} onchange={(event) => chooseProfile(event.currentTarget.value)} disabled={!ready || !view.settingsWritable || dirty || busy}>
@@ -217,6 +230,24 @@
           <p class="field-help">Uses your existing SSH configuration and unlocked key. The server must already be installed.</p>
           <label for="port">Port <span>(optional)</span></label><input id="port" type="number" min="1" max="65535" value={draft.port ?? ""} oninput={(event) => draft.port = event.currentTarget.value === "" ? null : Number(event.currentTarget.value)} placeholder="From SSH config" disabled={!ready || busy} />
           <label for="identity">Identity file <span>(optional)</span></label><input id="identity" bind:value={draft.identityFile} placeholder="From SSH config or agent" autocomplete="off" disabled={!ready || busy} />
+          <details class="advanced-connection">
+            <summary>Advanced connection settings</summary>
+            <p class="field-help">These settings apply to this connection. SSH aliases already use your OpenSSH configuration.</p>
+            <label for="ssh-options">SSH options <span>(one per line)</span></label>
+            <textarea id="ssh-options" rows="3" value={sshOptionsText} oninput={(event) => editSshOptions(event.currentTarget.value)} placeholder="ServerAliveInterval=20" spellcheck="false" autocomplete="off" disabled={!ready || busy}></textarea>
+            <p class="field-help">Order is preserved; blank lines are ignored. Connection tests and transfers keep batch mode enabled, so keys must already be unlocked and hosts trusted.</p>
+            <label for="ssh-binary">SSH executable <span>(optional)</span></label><input id="ssh-binary" bind:value={draft.transport.sshBinary} placeholder="System ssh" autocomplete="off" disabled={!ready || busy} />
+            <p class="field-help">An executable path, without command-line arguments.</p>
+            <label for="timeout">Timeout (milliseconds)</label><input id="timeout" inputmode="numeric" bind:value={draft.transport.timeoutMs} disabled={!ready || busy} />
+            <p class="field-help">Default 7,000 ms (7 seconds).</p>
+            <label for="transfer-limit">Transfer limit (bytes)</label><input id="transfer-limit" inputmode="numeric" bind:value={draft.transport.maxSize} disabled={!ready || busy} />
+            <p class="field-help">Default 10,485,760 bytes (10 MiB), including metadata. Raising this client limit also needs matching proxy and daemon limits. Images still have a separate 64 MiB decoded-pixel limit.</p>
+            <label class="toggle"><input type="checkbox" bind:checked={draft.transport.resyncFrames} disabled={!ready || busy} />Recover from text before protocol frames</label>
+            <p class="field-help">Handles a bounded SSH login banner. Turn off for strict framing.</p>
+            <label for="resync-budget">Framing recovery budget (bytes)</label><input id="resync-budget" inputmode="numeric" bind:value={draft.transport.resyncMaxBytes} disabled={!ready || busy || !draft.transport.resyncFrames} />
+            <p class="field-help">Default 8,192 bytes. Retained while strict framing is selected.</p>
+            <button type="button" class="text-button" disabled={!ready || busy} onclick={resetTransport}>Restore advanced defaults</button>
+          </details>
           <button type="button" class="test-button" disabled={!ready || !configured || dirty || busy} onclick={() => perform("test_connection", "SSH proxy and clipboard daemon responded.")}>Test saved connection</button>
           {#if dirty}<p class="field-help">Apply your changes before testing the connection.</p>{/if}
         {:else if section === "shortcuts"}

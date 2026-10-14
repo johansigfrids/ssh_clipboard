@@ -2,13 +2,14 @@
 
 ## Purpose
 
-Describe shared configuration, persistent desktop settings, connection profiles, CLI parity, and live reload. [Configuration migration](configuration-migration.md) covers legacy/schema 1 conversion and backups; [build variants](build-variants.md) cover the headless boundary. Advanced desktop controls and broader platform acceptance remain pending.
+Describe shared configuration, desktop connection profiles and advanced policy, CLI parity, and live reload. [Configuration migration](configuration-migration.md) covers legacy/schema 1 conversion and backups; [build variants](build-variants.md) cover the headless boundary. OS startup/updater controls and broader platform acceptance remain pending.
 
 ## Key Files
 
 - `src/configuration.rs`: schema, validation, bounded reads, coordinated saves.
 - `src/cli/settings.rs`, `tests/shared_settings_cli.rs`: CLI edits/selection and executable-level configuration probes.
 - `desktop/src-tauri/src/model.rs`: mapping the selected profile/preferences to desktop settings.
+- `desktop/src-tauri/src/connection.rs`: lossless transport drafts and numeric validation at the UI boundary.
 - `desktop/src-tauri/src/panel.rs`: startup restoration and shortcut/save handling.
 - `desktop/src/api.ts`, `desktop/src/App.svelte`: saved state and recovery messages.
 
@@ -16,7 +17,7 @@ Describe shared configuration, persistent desktop settings, connection profiles,
 
 The prototype reads `ssh_clipboard/settings-v1.json` beneath the platform user configuration directory: `%APPDATA%` on Windows, `~/Library/Application Support` on macOS, and `$XDG_CONFIG_HOME` or `~/.config` on Linux. The historical filename is stable; schema 2 is now written, with a backed-up schema 1 upgrade. The file is separate from old agent configuration and replaceable executables. Startup can initialize a missing shared file from a valid, backed-up legacy agent file; it never overwrites the original. See [migration source selection](configuration-migration.md#source-selection).
 
-Opening the app reads existing settings, or initializes from a legacy source when the shared file is missing. With neither source present it waits for setup/Apply. Schema 2 includes revisions, stable profile IDs, target/port/key reference, advanced transport settings, device identity, panel preferences, retained startup/direct-shortcut choices, and future update policy. Desktop Connection settings add/select/rename/remove profiles and edit basic fields without dropping other profiles or advanced policy. The CLI also edits connection/transport/preview/dismissal/device-name settings. Advanced desktop controls and actual startup/updater activation remain later work.
+Opening the app reads existing settings, or initializes from a legacy source when the shared file is missing. With neither source present it waits for setup/Apply. Schema 2 includes revisions, stable profile IDs, target/port/key reference, advanced transport settings, device identity, panel preferences, retained startup/direct-shortcut choices, and future update policy. Desktop Connection settings add/select/rename/remove profiles and edit basic/advanced policy without dropping other profiles. The CLI also edits connection/transport/preview/dismissal/device-name settings. Actual startup/updater activation and optional direct shortcuts remain later work.
 
 The file contains configuration only; clipboard payloads and SSH key contents are not persisted. Starting the app does not connect, download, share, or write the clipboard. Clipboard snapshots remain process-local.
 
@@ -33,6 +34,22 @@ After initial setup, Add connection starts a blank connection with independent b
 Remove requires an inline confirmation and is disabled while a draft is edited or only one profile remains. Removing the active profile selects the first remaining profile in saved order. The shared removal service also supports CLI deletion of an inactive profile without switching. Removal changes local configuration only; it does not contact a server or clear its clipboard. Device identity, global preferences, and other profiles remain intact.
 
 Both Apply and Remove take the displayed revision, compare the full saved document under the writer lock, and prepare the file before OS activation. A failed activation abandons the write; a failed replacement attempts to restore the previous shortcut. GUI saves and watcher reloads share the same activation boundary: changes to selected profile ID, destination, port, key, or transport clear the snapshot and connection status, even when two profiles use the same SSH target. This must remain true for both paths; checking only target strings during GUI Apply could otherwise expose the previous profile's item.
+
+### Advanced Connection Policy
+
+Connection settings have a collapsed Advanced section. Its draft belongs to the chosen profile and follows the same Apply/Discard, revision, reload, and snapshot-clearing rules as basic connection fields. Opening/typing/resetting settings never runs SSH or samples the clipboard.
+
+| Field | Default and behavior |
+| --- | --- |
+| SSH options | One OpenSSH `-o` argument per line, in order. When edited, blank lines are ignored; remaining strings are preserved. The GUI still prepends `BatchMode=yes`. |
+| SSH executable | Empty uses system `ssh`; a nonempty value is an executable reference/path, including spaces, without shell splitting or added arguments. |
+| Timeout | 7,000 milliseconds. |
+| Transfer limit | 10,485,760 encoded bytes including metadata. This client policy does not reconfigure the remote proxy/daemon; image decoding retains its separate 64 MiB safety limit. |
+| Framing recovery | Enabled, bounded by 8,192 bytes; disabling selects strict framing and retains the saved budget. |
+
+Restore advanced defaults only edits the current draft; Discard can undo it before Apply. New profiles start with independent defaults. Existing/migrated values load directly, including values from CLI edits.
+
+`TransportDraft` carries numeric values as decimal **strings** across IPC, then parses positive integers into Rust's actual field types and calls the shared policy validator. The schema 2 file still uses JSON numbers. Never convert these IPC fields through JavaScript `Number`: an unrelated preference edit could otherwise round a large saved timeout/byte count. Deep-copy nested transport/options when creating a draft or choosing a profile, or bindings could mutate the active view and make dirty detection fail. Keep raw multiline editor text separate from parsed options so a trailing newline can be typed while blank lines stay out of submitted arguments.
 
 ### CLI Selection and Edits (Rework Branch)
 
@@ -82,6 +99,8 @@ Live-reload backend probes cover profile isolation, preference-only retention, u
 The 2026-10-13 target-less CLI `peek --ssh-option BatchMode=yes --json` also reached the server using the saved desktop profile and returned PNG metadata. This probe fetched no payload and changed neither clipboard.
 
 On 2026-10-14, temporary-store desktop probes cover creating/renaming/removing connections, UUID stability, preserved device/preferences/transport, same-target profile isolation, stale saves, activation rejection, and replacement rollback. Executable CLI checks cover deleting selected/inactive profiles and refusing missing/last profiles without changing bytes. Rendered frontend checks cover draft selection, cancelling creation, confirmation/cancellation, failed removal, and recovery after external deletion. Separately, on 2026-10-14 the user confirmed native Windows creation/Test, switching with preview clearing, rename/relaunch persistence, and removal back to the original connection in SSHClipboardPrototype-20261014T070735201Z.exe.
+
+Advanced-policy probes cover exact integers beyond JavaScript's safe range, rejected zero/negative/fractional/overflowing values and embedded option control characters, per-profile persistence and actual client policy, retained batch mode, isolated nested drafts, multiline option editing, reset/Discard, strict-budget retention, and stale-draft recovery. These are temporary-store/rendered UI checks; native advanced-control persistence/Test remains pending.
 
 ## Update Triggers
 

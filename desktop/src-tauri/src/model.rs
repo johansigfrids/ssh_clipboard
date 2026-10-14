@@ -1,9 +1,12 @@
+use crate::connection::TransportDraft;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use image::ImageEncoder;
 use serde::{Deserialize, Serialize};
-use ssh_clipboard::client::{ssh::SshConfig, transport::ClientConfig};
+use ssh_clipboard::client::transport::ClientConfig;
+#[cfg(test)]
+use ssh_clipboard::protocol::DEFAULT_MAX_SIZE;
 use ssh_clipboard::protocol::{
-    CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardValue, DEFAULT_MAX_SIZE, Request, RequestKind,
+    CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardValue, Request, RequestKind,
 };
 
 pub const MAX_DECODED_BYTES: usize = 64 * 1024 * 1024;
@@ -37,6 +40,7 @@ pub struct SessionSettings {
     pub target: String,
     pub port: Option<u16>,
     pub identity_file: String,
+    pub transport: TransportDraft,
     pub open_shortcut: String,
     pub shortcut_enabled: bool,
     pub show_preview: bool,
@@ -51,6 +55,7 @@ impl Default for SessionSettings {
             target: String::new(),
             port: None,
             identity_file: String::new(),
+            transport: TransportDraft::default(),
             open_shortcut: "CommandOrControl+Shift+V".into(),
             shortcut_enabled: !is_wayland(),
             show_preview: true,
@@ -70,6 +75,7 @@ impl SessionSettings {
             target: profile.target.clone(),
             port: profile.port,
             identity_file: profile.identity_file.clone(),
+            transport: TransportDraft::from(&profile.transport),
             open_shortcut: config.preferences.open_shortcut.clone(),
             shortcut_enabled: config.preferences.shortcut_enabled,
             show_preview: config.preferences.show_preview,
@@ -82,6 +88,7 @@ impl SessionSettings {
         config: &mut ssh_clipboard::configuration::Configuration,
     ) -> Result<(), String> {
         self.validate()?;
+        let transport = self.transport.to_shared()?;
         let id = if let Some(id) = &self.profile_id {
             if !config.profiles.iter().any(|p| &p.id == id) {
                 return Err("This connection no longer exists. Discard your draft to reload saved settings.".into());
@@ -103,6 +110,7 @@ impl SessionSettings {
         profile.target = self.target.clone();
         profile.port = self.port;
         profile.identity_file = self.identity_file.clone();
+        profile.transport = transport;
         config.preferences.open_shortcut = self.open_shortcut.clone();
         config.preferences.shortcut_enabled = self.shortcut_enabled;
         config.preferences.show_preview = self.show_preview;
@@ -114,6 +122,7 @@ impl SessionSettings {
         if self.profile_name.trim().is_empty() || self.profile_name.chars().any(char::is_control) {
             return Err("Enter a connection name without control characters.".into());
         }
+        self.transport.to_shared()?;
         ssh_clipboard::configuration::validate_connection(
             self.target.trim(),
             self.port,
@@ -129,24 +138,16 @@ impl SessionSettings {
         Ok(())
     }
 
-    pub fn client_config(&self) -> ClientConfig {
-        ClientConfig {
-            ssh: SshConfig {
-                target: self.target.trim().into(),
-                port: self.port,
-                identity_file: (!self.identity_file.trim().is_empty())
-                    .then(|| self.identity_file.trim().into()),
-                user: None,
-                host: None,
-                // No password/host-trust prompts may block a hidden GUI child.
-                ssh_options: vec!["BatchMode=yes".into()],
-                ssh_bin: None,
-            },
-            max_size: DEFAULT_MAX_SIZE,
-            timeout_ms: 7000,
-            resync_frames: true,
-            resync_max_bytes: 8192,
+    pub fn client_config(&self) -> Result<ClientConfig, String> {
+        Ok(ssh_clipboard::configuration::Profile {
+            id: self.profile_id.clone().unwrap_or_default(),
+            name: self.profile_name.clone(),
+            target: self.target.trim().into(),
+            port: self.port,
+            identity_file: self.identity_file.clone(),
+            transport: self.transport.to_shared()?,
         }
+        .client_config())
     }
 }
 
@@ -158,6 +159,7 @@ pub struct ConnectionProfile {
     pub target: String,
     pub port: Option<u16>,
     pub identity_file: String,
+    pub transport: TransportDraft,
 }
 
 impl From<&ssh_clipboard::configuration::Profile> for ConnectionProfile {
@@ -168,6 +170,7 @@ impl From<&ssh_clipboard::configuration::Profile> for ConnectionProfile {
             target: profile.target.clone(),
             port: profile.port,
             identity_file: profile.identity_file.clone(),
+            transport: TransportDraft::from(&profile.transport),
         }
     }
 }
@@ -307,7 +310,7 @@ mod tests {
             port: Some(2222),
             show_preview: false,
             close_after_copy: true,
-            ..Default::default()
+            ..SessionSettings::from_configuration(&config).unwrap()
         };
         settings.update_configuration(&mut config).unwrap();
         let restored = SessionSettings::from_configuration(&config).unwrap();

@@ -50,13 +50,14 @@ struct PanelView {
 
 impl Session {
     fn client_config(&self) -> Result<ssh_clipboard::client::transport::ClientConfig, String> {
-        let mut config = self
-            .saved_config
-            .as_ref()
-            .map(|c| c.selected_profile().map(|p| p.client_config()))
-            .transpose()
-            .map_err(|e| e.to_string())?
-            .unwrap_or_else(|| self.settings.client_config());
+        let mut config = if let Some(saved) = &self.saved_config {
+            saved
+                .selected_profile()
+                .map_err(|e| e.to_string())?
+                .client_config()
+        } else {
+            self.settings.client_config()?
+        };
         config.ssh.ssh_options.insert(0, "BatchMode=yes".into());
         Ok(config)
     }
@@ -658,6 +659,73 @@ mod tests {
     }
 
     #[test]
+    fn advanced_gui_edits_persist_per_profile_and_drive_the_actual_transport() {
+        let (_directory, store, mut session) = persisted_session();
+        let mut next = session.saved_config.clone().unwrap();
+        let mut other = next.profiles[0].clone();
+        other.id = "other".into();
+        other.transport.timeout_ms = 16000;
+        other.transport.ssh_bin = Some("other/ssh".into());
+        next.profiles.push(other.clone());
+        save_configuration(&mut session, &store, next, |_, _| Ok("Registered".into())).unwrap();
+        assert!(session.item.is_some());
+
+        let mut draft = session.settings.clone();
+        draft.transport.ssh_options = vec!["BatchMode=no".into(), "ServerAliveInterval=20".into()];
+        draft.transport.ssh_binary = "path with spaces/ssh".into();
+        draft.transport.max_size = "1048576".into();
+        draft.transport.timeout_ms = "12000".into();
+        draft.transport.resync_frames = false;
+        draft.transport.resync_max_bytes = "4096".into();
+        let mut next = session.saved_config.clone().unwrap();
+        draft.update_configuration(&mut next).unwrap();
+        save_configuration(&mut session, &store, next, |_, _| Ok("Registered".into())).unwrap();
+
+        let saved = store.load().unwrap().unwrap();
+        assert_eq!(saved.profiles[1], other);
+        assert_eq!(
+            saved.selected_profile().unwrap().transport,
+            draft.transport.to_shared().unwrap()
+        );
+        let client = session.client_config().unwrap();
+        assert_eq!(client.timeout_ms, 12000);
+        assert_eq!(client.max_size, 1048576);
+        assert_eq!(client.resync_max_bytes, 4096);
+        assert!(!client.resync_frames);
+        assert_eq!(
+            client.ssh.ssh_options,
+            ["BatchMode=yes", "BatchMode=no", "ServerAliveInterval=20"]
+        );
+        assert_eq!(
+            client.ssh.ssh_bin.unwrap(),
+            std::path::PathBuf::from("path with spaces/ssh")
+        );
+        assert!(session.item.is_none());
+        assert!(!session.connected);
+        let view = session.view().unwrap();
+        assert_eq!(view.settings.transport.timeout_ms, "12000");
+        assert_eq!(view.profiles[1].transport.timeout_ms, "16000");
+    }
+
+    #[test]
+    fn invalid_advanced_drafts_leave_the_configuration_and_snapshot_untouched() {
+        let (_directory, store, session) = persisted_session();
+        let original = session.saved_config.clone().unwrap();
+        let mut draft = session.settings.clone();
+        draft.transport.timeout_ms = "0".into();
+        let mut next = original.clone();
+        assert!(
+            draft
+                .update_configuration(&mut next)
+                .unwrap_err()
+                .contains("Timeout")
+        );
+        assert_eq!(next, original);
+        assert_eq!(store.load().unwrap(), Some(original));
+        assert!(session.item.is_some());
+    }
+
+    #[test]
     fn desktop_profile_lifecycle_preserves_identity_policy_and_global_preferences() {
         let (_directory, store, mut session) = persisted_session();
         let original = session.saved_config.clone().unwrap();
@@ -667,6 +735,7 @@ mod tests {
             target: "second-hub".into(),
             port: Some(2222),
             identity_file: "path with spaces/key".into(),
+            transport: crate::connection::TransportDraft::default(),
             ..session.settings.clone()
         };
         let mut next = original.clone();

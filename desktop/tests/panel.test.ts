@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App.svelte";
-import { initialView, type PanelView } from "../src/api";
+import { cloneTransport, defaultTransport, initialView, type PanelView } from "../src/api";
 
 const bridge = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn(), native: true }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: bridge.invoke, isTauri: () => bridge.native }));
@@ -20,7 +20,7 @@ beforeEach(() => {
   bridge.invoke.mockImplementation(async (name: string, args?: { settings?: PanelView["settings"]; profileId?: string }) => {
     if (name === "apply_settings") {
       state.settings = { ...args!.settings!, profileId: args!.settings!.profileId ?? "new-profile" };
-      const profile = { id: state.settings.profileId!, name: state.settings.profileName, target: state.settings.target, port: state.settings.port, identityFile: state.settings.identityFile };
+      const profile = { id: state.settings.profileId!, name: state.settings.profileName, target: state.settings.target, port: state.settings.port, identityFile: state.settings.identityFile, transport: cloneTransport(state.settings.transport) };
       const index = state.profiles.findIndex(({ id }) => id === profile.id);
       if (index === -1) state.profiles.push(profile); else state.profiles[index] = profile;
       state.settingsSaved = true;
@@ -32,7 +32,7 @@ beforeEach(() => {
     if (name === "remove_profile") {
       state.profiles = state.profiles.filter(({ id }) => id !== args!.profileId);
       const profile = state.profiles[0];
-      state.settings = { ...state.settings, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile };
+      state.settings = { ...state.settings, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: cloneTransport(profile.transport) };
       state.settingsRevision = String(Number(state.settingsRevision ?? "0") + 1);
       state.item = null;
       state.connected = false;
@@ -50,8 +50,8 @@ describe("quick panel contracts", () => {
     state.settingsSaved = true;
     state.settingsRevision = "4";
     state.profiles = [
-      { id: "default", name: "Default", target: "shared-hub", port: null, identityFile: "first/key" },
-      { id: "other", name: "Other account", target: "shared-hub", port: 2222, identityFile: "other/key" },
+      { id: "default", name: "Default", target: "shared-hub", port: null, identityFile: "first/key", transport: defaultTransport() },
+      { id: "other", name: "Other account", target: "shared-hub", port: 2222, identityFile: "other/key", transport: { ...defaultTransport(), timeoutMs: "15000", sshOptions: ["ServerAliveInterval=20"] } },
     ];
   }
 
@@ -71,6 +71,8 @@ describe("quick panel contracts", () => {
     const args = bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1];
     expect(args.settings.profileId).toBe("other");
     expect(args.settings.port).toBe(2222);
+    expect(args.settings.transport.timeoutMs).toBe("15000");
+    expect(args.settings.transport.sshOptions).toEqual(["ServerAliveInterval=20"]);
     expect(args.expectedRevision).toBe("4");
     await fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getByText("Other account")).toBeTruthy();
@@ -81,14 +83,19 @@ describe("quick panel contracts", () => {
 
   it("a new connection starts without another connection's key and can be cancelled before saving", async () => {
     savedProfiles();
+    state.settings.transport = { ...defaultTransport(), sshOptions: ["ProxyJump=first-gateway"], timeoutMs: "9000", sshBinary: "custom/ssh" };
     render(App);
     await screen.findByText("shared-hub");
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     await fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
     expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("");
     expect((screen.getByLabelText(/Identity file/) as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("7000");
+    expect((screen.getByLabelText(/SSH executable/) as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText(/SSH options/) as HTMLTextAreaElement).value).toBe("");
     await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     expect((screen.getByLabelText(/Identity file/) as HTMLInputElement).value).toBe("first/key");
+    expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("9000");
     expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
     await fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
     await fireEvent.input(screen.getByLabelText("Connection name"), { target: { value: "New server" } });
@@ -148,6 +155,87 @@ describe("quick panel contracts", () => {
     expect(screen.queryByText("Connection removed. Another saved connection is now active.")).toBeNull();
     expect(state.profiles).toHaveLength(2);
     expect((screen.getByLabelText("Connection name") as HTMLInputElement).value).toBe("Default");
+  });
+
+  it("advanced fields edit a separate draft and preserve option order while ignoring blank lines", async () => {
+    savedProfiles();
+    render(App);
+    await screen.findByText("shared-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    const options = screen.getByLabelText(/SSH options/) as HTMLTextAreaElement;
+    const text = "BatchMode=no\n\nServerAliveInterval=20\n";
+    await fireEvent.input(options, { target: { value: text } });
+    await fireEvent.input(screen.getByLabelText("Timeout (milliseconds)"), { target: { value: "9000" } });
+    expect(options.value).toBe(text);
+    expect(state.settings.transport.timeoutMs).toBe("7000");
+    expect(state.settings.transport.sshOptions).toEqual([]);
+    expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByRole("button", { name: "Test saved connection" }).hasAttribute("disabled")).toBe(true);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("Settings applied.");
+    const transport = bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1].settings.transport;
+    expect(transport.timeoutMs).toBe("9000");
+    expect(transport.sshOptions).toEqual(["BatchMode=no", "ServerAliveInterval=20"]);
+  });
+
+  it("advanced defaults remain a cancellable draft and strict framing retains its budget", async () => {
+    savedProfiles();
+    state.settings.transport = { ...defaultTransport(), timeoutMs: "12000", resyncFrames: false, resyncMaxBytes: "4096", sshOptions: ["ServerAliveInterval=30"] };
+    render(App);
+    await screen.findByText("shared-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    const budget = screen.getByLabelText("Framing recovery budget (bytes)") as HTMLInputElement;
+    expect(budget.value).toBe("4096");
+    expect(budget.disabled).toBe(true);
+    await fireEvent.click(screen.getByLabelText("Recover from text before protocol frames"));
+    expect(budget.disabled).toBe(false);
+    expect(budget.value).toBe("4096");
+    await fireEvent.click(screen.getByRole("button", { name: "Restore advanced defaults" }));
+    expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("7000");
+    expect(budget.value).toBe("8192");
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("12000");
+    expect(budget.value).toBe("4096");
+    expect((screen.getByLabelText(/SSH options/) as HTMLTextAreaElement).value).toBe("ServerAliveInterval=30");
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel"]);
+  });
+
+  it("a preference-only edit preserves advanced integers larger than JavaScript's exact range", async () => {
+    savedProfiles();
+    state.settings.transport.timeoutMs = "18446744073709551615";
+    state.settings.transport.maxSize = "9007199254740993";
+    render(App);
+    await screen.findByText("shared-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Behavior", exact: true }));
+    await fireEvent.click(screen.getByLabelText("Show content previews"));
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("Settings applied.");
+    const transport = bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1].settings.transport;
+    expect(transport.timeoutMs).toBe("18446744073709551615");
+    expect(transport.maxSize).toBe("9007199254740993");
+  });
+
+  it("external edits preserve an advanced draft until Discard loads the latest policy", async () => {
+    savedProfiles();
+    render(App);
+    await screen.findByText("shared-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.input(screen.getByLabelText("Timeout (milliseconds)"), { target: { value: "12000" } });
+    await fireEvent.input(screen.getByLabelText(/SSH options/), { target: { value: "ServerAliveInterval=10\n" } });
+    state.settings.transport.timeoutMs = "15000";
+    state.settings.transport.sshOptions = ["ServerAliveInterval=30"];
+    state.settingsRevision = "5";
+    bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
+    await screen.findByText("Saved settings changed. Discard your draft to load them before editing again.");
+    expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("12000");
+    expect((screen.getByLabelText(/SSH options/) as HTMLTextAreaElement).value).toBe("ServerAliveInterval=10\n");
+    expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(true);
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("15000");
+    expect((screen.getByLabelText(/SSH options/) as HTMLTextAreaElement).value).toBe("ServerAliveInterval=30");
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_panel", "get_panel"]);
   });
 
   it("an imported configuration explains preserved setup choices while remaining editable", async () => {

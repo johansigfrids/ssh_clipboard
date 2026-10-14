@@ -94,6 +94,28 @@ impl Default for TransportSettings {
     }
 }
 
+impl TransportSettings {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.max_size == 0 {
+            return Err("Transfer limit must be greater than zero.".into());
+        }
+        if self.timeout_ms == 0 {
+            return Err("Timeout must be greater than zero.".into());
+        }
+        if self.resync_max_bytes == 0 {
+            return Err("Framing recovery budget must be greater than zero.".into());
+        }
+        if self
+            .ssh_options
+            .iter()
+            .any(|s| s.chars().any(char::is_control))
+        {
+            return Err("Each SSH option must be on one line, without control characters.".into());
+        }
+        Ok(())
+    }
+}
+
 impl Profile {
     /// A new connection has its own stable identity and independent transport defaults.
     pub fn new(name: String) -> Self {
@@ -202,17 +224,10 @@ impl Configuration {
             }
             validate_connection(&profile.target, profile.port, &profile.identity_file)
                 .map_err(|_| ConfigError::Invalid)?;
-            let transport = &profile.transport;
-            if transport.max_size == 0
-                || transport.timeout_ms == 0
-                || transport.resync_max_bytes == 0
-                || transport
-                    .ssh_options
-                    .iter()
-                    .any(|s| s.chars().any(char::is_control))
-            {
-                return Err(ConfigError::Invalid);
-            }
+            profile
+                .transport
+                .validate()
+                .map_err(|_| ConfigError::Invalid)?;
         }
         if self.preferences.open_shortcut.is_empty() {
             return Err(ConfigError::Invalid);

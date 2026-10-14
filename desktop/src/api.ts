@@ -7,10 +7,32 @@ export interface Settings {
   target: string;
   port: number | null;
   identityFile: string;
+  transport: TransportSettings;
   openShortcut: string;
   shortcutEnabled: boolean;
   showPreview: boolean;
   closeAfterCopy: boolean;
+}
+
+export interface TransportSettings {
+  sshOptions: string[];
+  sshBinary: string;
+  maxSize: string;
+  timeoutMs: string;
+  resyncFrames: boolean;
+  resyncMaxBytes: string;
+}
+
+export function defaultTransport(): TransportSettings {
+  return { sshOptions: [], sshBinary: "", maxSize: "10485760", timeoutMs: "7000", resyncFrames: true, resyncMaxBytes: "8192" };
+}
+
+export function cloneTransport(value: TransportSettings): TransportSettings {
+  return { ...value, sshOptions: [...value.sshOptions] };
+}
+
+export function cloneSettings(value: Settings): Settings {
+  return { ...value, transport: cloneTransport(value.transport) };
 }
 
 export interface ConnectionProfile {
@@ -19,6 +41,7 @@ export interface ConnectionProfile {
   target: string;
   port: number | null;
   identityFile: string;
+  transport: TransportSettings;
 }
 
 export interface PanelView {
@@ -47,8 +70,8 @@ export interface PanelView {
 }
 
 export const initialView: PanelView = {
-  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, showPreview: true, closeAfterCopy: false },
-  profiles: [{ id: "default", name: "Default", target: "", port: null, identityFile: "" }],
+  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, showPreview: true, closeAfterCopy: false },
+  profiles: [{ id: "default", name: "Default", target: "", port: null, identityFile: "", transport: defaultTransport() }],
   item: null,
   connected: false,
   clipboardChecked: false,

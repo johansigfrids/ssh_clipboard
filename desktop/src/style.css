@@ -2,11 +2,11 @@
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; overflow: hidden; }
 body { margin: 0; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; padding: 11px 15px; cursor: pointer; font-weight: 600; }
 button:hover:not(:disabled) { border-color: var(--accent); background: #edf4ff; }
 button:disabled { opacity: .48; cursor: default; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #6295e2; outline-offset: 3px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #6295e2; outline-offset: 3px; }
 .app-shell { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
 header { display: flex; align-items: center; gap: 12px; padding: 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .brand-mark { display: grid; place-items: center; flex-shrink: 0; background: #e8f0fc; color: var(--accent); width: 38px; height: 38px; border-radius: 10px; font-size: 24px; }
@@ -46,7 +46,10 @@ nav button { flex: 1; padding: 9px 5px; font-size: 12px; background: transparent
 nav button.active { background: var(--surface); border-color: var(--border); color: var(--accent); }
 label { display: block; font-size: 12px; font-weight: 600; margin: 18px 0 7px; }
 label span { color: var(--muted); font-weight: normal; }
-input:not([type=checkbox]), select { width: 100%; min-width: 0; padding: 10px 12px; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; font-size: 13px; }
+input:not([type=checkbox]), select, textarea { width: 100%; min-width: 0; padding: 10px 12px; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; font-size: 13px; }
+textarea { resize: vertical; overflow-wrap: anywhere; }
+.advanced-connection { margin: 20px 0 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+summary { cursor: pointer; font-size: 12px; font-weight: 600; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .profile-actions button { min-width: 0; font-size: 12px; }
 .remove-confirmation { margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; overflow-wrap: anywhere; }

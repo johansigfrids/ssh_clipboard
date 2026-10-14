@@ -322,7 +322,9 @@ async fn item_aware_cli_lists_exports_and_guards_mutations_through_the_real_prox
     let snapshot: serde_json::Value = serde_json::from_slice(&listed.stdout).unwrap();
     let epoch = snapshot["epoch"].as_str().unwrap().to_owned();
     let item = snapshot["items"][0]["id"].as_str().unwrap().to_owned();
-    assert!(!String::from_utf8_lossy(&listed.stdout).contains(text.trim()));
+    assert_eq!(snapshot["items"][0]["label"], "synthetic α");
+    assert!(snapshot["items"][0].get("data").is_none());
+    assert!(snapshot["items"][0].get("payload").is_none());
     let fetched = invoke(vec!["fetch".into(), item.clone(), "--stdout".into()]).await;
     assert!(
         fetched.status.success(),

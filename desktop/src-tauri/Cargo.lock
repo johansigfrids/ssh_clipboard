@@ -3707,6 +3707,7 @@ dependencies = [
  "eyre",
  "image",
  "serde",
+ "serde_json",
  "ssh_clipboard",
  "tauri",
  "tauri-build",
@@ -3715,6 +3716,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tempfile",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 use eyre::{Result, eyre};
-use image::codecs::png::{PngDecoder, PngEncoder};
-use image::{ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat, Rgba};
+use image::codecs::png::PngEncoder;
+use image::{ImageBuffer, ImageDecoder, ImageEncoder, ImageFormat, ImageReader, Limits, Rgba};
 use std::borrow::Cow;
 use std::io::Cursor;
 
@@ -31,18 +31,24 @@ pub fn encode_png(image: ImageData<'static>) -> Result<Vec<u8>> {
 }
 
 pub fn decode_png(data: &[u8], max_decoded_bytes: usize) -> Result<ImageData<'static>> {
-    let decoder =
-        PngDecoder::new(Cursor::new(data)).map_err(|err| eyre!("png decode failed: {err}"))?;
+    let mut reader = ImageReader::with_format(Cursor::new(data), ImageFormat::Png);
+    let mut limits = Limits::default();
+    limits.max_alloc = Some(max_decoded_bytes as u64);
+    reader.limits(limits);
+    let decoder = reader
+        .into_decoder()
+        .map_err(|_| eyre!("png decode failed or image too large"))?;
     let (width, height) = decoder.dimensions();
     let decoded_bytes = (width as u64)
         .saturating_mul(height as u64)
         .saturating_mul(4);
-    if decoded_bytes > max_decoded_bytes as u64 {
+    if decoded_bytes > max_decoded_bytes as u64 || decoder.total_bytes() > max_decoded_bytes as u64
+    {
         return Err(eyre!("png image too large to decode safely"));
     }
 
-    let image = image::load_from_memory_with_format(data, ImageFormat::Png)
-        .map_err(|err| eyre!("png decode failed: {err}"))?;
+    let image =
+        image::DynamicImage::from_decoder(decoder).map_err(|_| eyre!("png decode failed"))?;
     let rgba = image.into_rgba8();
     let (width, height) = rgba.dimensions();
     let bytes = rgba.into_raw();
@@ -91,5 +97,15 @@ mod tests {
     fn decode_rejects_invalid_png() {
         let err = decode_png(b"not a png", 1024).unwrap_err();
         assert!(err.to_string().contains("png decode failed"));
+    }
+
+    #[test]
+    fn sixteen_bit_png_native_output_is_bounded_even_when_rgba_dimensions_fit() {
+        let mut png = Vec::new();
+        PngEncoder::new(&mut png)
+            .write_image(&[0; 18], 3, 1, image::ExtendedColorType::Rgb16)
+            .unwrap();
+        assert!(decode_png(&png, 12).is_err());
+        assert_eq!(decode_png(&png, 1024).unwrap().bytes.len(), 12);
     }
 }

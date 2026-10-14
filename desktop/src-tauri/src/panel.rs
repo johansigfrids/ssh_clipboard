@@ -1,24 +1,37 @@
 use crate::clipboard::ClipboardWorker;
+use crate::history::History;
 use crate::model::{
     ConnectionProfile, ItemPreview, SessionSettings, is_wayland, validate_transfer_size,
 };
 use crate::notifications;
 use crate::shortcuts::{Action, Bindings, Registry};
 use serde::Serialize;
-use ssh_clipboard::client::diagnostics::{ConnectionReport, diagnose, server_problem};
+use ssh_clipboard::client::diagnostics::{
+    ConnectionReport, diagnose, diagnose_shelf, server_problem,
+};
+use ssh_clipboard::client::session::{Action as ShelfAction, SessionPolicy};
+use ssh_clipboard::client::session_transport::{
+    self as shelf_transport, Operation as ShelfOperation, Outcome as ShelfOutcome,
+};
 use ssh_clipboard::client::transport::{make_request, send_request};
 use ssh_clipboard::configuration::{ConfigStore, Configuration};
 use ssh_clipboard::protocol::{ClipboardValue, ErrorCode, RequestKind, ResponseKind};
+use ssh_clipboard::session_protocol::{
+    ContentType as ShelfContent, Origin as ShelfOrigin, Representation as ShelfRepresentation,
+    Response as ShelfResponse,
+};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 struct Session {
     settings: SessionSettings,
     item: Option<ClipboardValue>,
+    history: History,
     clipboard_checked: bool,
     shortcuts: Bindings,
     shortcut_status: String,
@@ -54,6 +67,7 @@ struct PanelView {
     settings: SessionSettings,
     profiles: Vec<ConnectionProfile>,
     item: Option<ItemPreview>,
+    history: Option<crate::history::View>,
     clipboard_checked: bool,
     shortcut_status: String,
     tray_status: String,
@@ -72,6 +86,18 @@ struct PanelView {
 }
 
 impl Session {
+    fn shelf_policy(&self) -> Result<Option<SessionPolicy>, String> {
+        self.settings
+            .endpoint
+            .session_policy(self.client_config()?.timeout_ms)
+    }
+    fn max_decoded(&self) -> Result<usize, String> {
+        Ok(self
+            .shelf_policy()?
+            .map_or(crate::model::MAX_DECODED_BYTES, |policy| {
+                policy.max_decoded_bytes as usize
+            }))
+    }
     fn record_operation(&mut self, result: Result<(), String>, sharing: bool) {
         self.operation_counter = self.operation_counter.wrapping_add(1);
         self.operation_notice = Some(OperationNotice {
@@ -115,6 +141,7 @@ impl Session {
     fn view(&self) -> Result<PanelView, String> {
         Ok(PanelView {
             settings: self.settings.clone(),
+            history: (!matches!(self.settings.endpoint, ssh_clipboard::configuration::Endpoint::Legacy {})).then(|| self.history.view(self.settings.show_preview)),
             connection_report: self.connection_report.clone(),
             operation_notice: self.operation_notice.clone(),
             notification_status: self.notification_status.clone(),
@@ -123,11 +150,11 @@ impl Session {
                 |c| c.profiles.iter().map(ConnectionProfile::from).collect(),
             ),
             clipboard_checked: self.clipboard_checked,
-            item: self
+            item: if matches!(self.settings.endpoint, ssh_clipboard::configuration::Endpoint::Shelf {..}) {self.history.item_preview(self.settings.show_preview)} else {self
                 .item
                 .as_ref()
                 .map(|value| ItemPreview::from_value(value, self.settings.show_preview))
-                .transpose()?,
+                .transpose()?},
             shortcut_status: self.shortcut_status.clone(),
             tray_status: self.tray_status.clone(),
             shortcut_available: !is_wayland(),
@@ -165,8 +192,10 @@ impl Session {
             || next.target != self.settings.target
             || next.port != self.settings.port
             || next.identity_file != self.settings.identity_file
+            || next.endpoint != self.settings.endpoint
         {
             self.item = None;
+            self.history = History::default();
             self.clipboard_checked = false;
             self.connected = false;
             self.connection_report = None;
@@ -446,7 +475,11 @@ async fn test_connection(
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
     session.settings.validate_connection()?;
-    let report = diagnose(&session.client_config()?).await;
+    let config = session.client_config()?;
+    let report = match session.shelf_policy()? {
+        Some(policy) => diagnose_shelf(&config, policy).await,
+        None => diagnose(&config).await,
+    };
     session.connected = report.healthy;
     let failure = (!report.healthy).then(|| report.message());
     session.connection_report = Some(report);
@@ -470,7 +503,139 @@ async fn refresh_item(
     session.view()
 }
 
+#[tauri::command]
+async fn select_item(
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+    epoch: Uuid,
+    item_id: Uuid,
+) -> Result<PanelView, String> {
+    let mut session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Another operation is running.".to_string())?;
+    session.check_revision(expected_revision.as_deref())?;
+    session.history.guard(epoch)?;
+    let policy = session
+        .shelf_policy()?
+        .ok_or("This connection has no history controls.")?;
+    let config = session.client_config()?;
+    let show_preview = session.settings.show_preview;
+    session.item = None;
+    let value = session
+        .history
+        .fetch(&config.ssh, policy, item_id, show_preview)
+        .await?;
+    session.item = Some(value);
+    session.connected = true;
+    session.view()
+}
+
+#[tauri::command]
+async fn delete_item(
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+    epoch: Uuid,
+    item_id: Uuid,
+) -> Result<PanelView, String> {
+    let mut session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Another operation is running.".to_string())?;
+    session.check_revision(expected_revision.as_deref())?;
+    if !session.history.items.iter().any(|item| item.id == item_id) {
+        return Err("This item is no longer in the loaded history. Refresh first.".into());
+    }
+    mutate_history(&mut session, epoch, ShelfAction::Delete { item_id }).await?;
+    session.view()
+}
+
+#[tauri::command]
+async fn clear_history(
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+    epoch: Uuid,
+) -> Result<PanelView, String> {
+    let mut session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Another operation is running.".to_string())?;
+    session.check_revision(expected_revision.as_deref())?;
+    mutate_history(&mut session, epoch, ShelfAction::Clear).await?;
+    session.view()
+}
+
+async fn mutate_history(
+    session: &mut Session,
+    epoch: Uuid,
+    action: ShelfAction,
+) -> Result<(), String> {
+    session.history.guard(epoch)?;
+    let policy = session
+        .shelf_policy()?
+        .ok_or("This connection has no history controls.")?;
+    let config = session.client_config()?;
+    let deleted = match &action {
+        ShelfAction::Delete { item_id } => Some(*item_id),
+        ShelfAction::Clear => None,
+        _ => return Err("Unsupported history action.".into()),
+    };
+    let outcome = shelf_transport::run(
+        &config.ssh,
+        policy,
+        ShelfOperation::AtEpoch { epoch, action },
+        &[],
+    )
+    .await
+    .map_err(|error| error.to_string())?;
+    if !matches!(
+        outcome,
+        ShelfOutcome::Reply(ssh_clipboard::client::session::Reply {
+            response: ShelfResponse::Deleted { .. } | ShelfResponse::Cleared { .. },
+            ..
+        })
+    ) {
+        return Err("Unexpected history mutation reply.".into());
+    }
+    // A confirmed mutation is final; a subsequent refresh cannot turn it into failure.
+    session
+        .history
+        .items
+        .retain(|item| deleted.is_some_and(|id| item.id != id));
+    if session
+        .history
+        .selected
+        .is_none_or(|id| !session.history.items.iter().any(|item| item.id == id))
+    {
+        session.history.selected = session.history.items.first().map(|item| item.id);
+    }
+    session.history.preview = None;
+    session.item = None;
+    session.connected = true;
+    session.clipboard_checked = true;
+    Ok(())
+}
+
 async fn fetch_item(session: &mut Session) -> Result<(), String> {
+    if let Some(policy) = session.shelf_policy()? {
+        session.item = None;
+        session.history.preview = None;
+        let config = session.client_config()?;
+        session.connected = false;
+        session.history.refresh(&config.ssh, policy).await?;
+        session.connected = true;
+        session.connection_report = None;
+        session.clipboard_checked = true;
+        if let Some(id) = session.history.selected {
+            session.item = Some(
+                session
+                    .history
+                    .fetch(&config.ssh, policy, id, session.settings.show_preview)
+                    .await?,
+            );
+        }
+        return Ok(());
+    }
     match request(session, RequestKind::Get).await? {
         ResponseKind::Value { value } => {
             ItemPreview::from_value(&value, session.settings.show_preview)?;
@@ -481,6 +646,13 @@ async fn fetch_item(session: &mut Session) -> Result<(), String> {
     }
     session.clipboard_checked = true;
     Ok(())
+}
+
+async fn fetch_latest_item(session: &mut Session) -> Result<(), String> {
+    if session.shelf_policy()?.is_some() {
+        session.history.selected = None;
+    }
+    fetch_item(session).await
 }
 
 #[tauri::command]
@@ -499,6 +671,87 @@ async fn share_clipboard(
 
 async fn share_current(session: &mut Session, clipboard: &ClipboardWorker) -> Result<(), String> {
     session.settings.validate_connection()?;
+    if let Some(policy) = session.shelf_policy()? {
+        let device = &session
+            .saved_config
+            .as_ref()
+            .ok_or("Save this connection before sharing.")?
+            .device;
+        let origin = ShelfOrigin {
+            device_id: device
+                .id
+                .as_ref()
+                .ok_or("Save settings to initialize this computer's identity.")?
+                .parse()
+                .map_err(|_| "Invalid device identity.")?,
+            name: device.name.clone(),
+        };
+        // Reject invalid saved identity metadata before sampling the native clipboard.
+        ssh_clipboard::session_protocol::Request::Share {request_id:1.into(), epoch:Uuid::from_u128(1), operation_id:Uuid::from_u128(1), origin:origin.clone(), representation:ShelfRepresentation {id:0,content_type:ShelfContent::Text,encoded_bytes:0,dimensions:None,decoded_bytes:None},created_at_ms:None}.validate(0).map_err(|_|"This computer's device identity or name is invalid. Repair shared settings before sharing.".to_string())?;
+        let value = clipboard
+            .read_with_limit(
+                policy.max_item_bytes as usize,
+                policy.max_decoded_bytes as usize,
+            )
+            .await?;
+        let preview = ItemPreview::from_value_with_limit(
+            &value,
+            session.settings.show_preview,
+            policy.max_decoded_bytes as usize,
+        )?;
+        let representation = ShelfRepresentation {
+            id: 0,
+            content_type: if value.content_type == ssh_clipboard::protocol::CONTENT_TYPE_PNG {
+                ShelfContent::Png
+            } else {
+                ShelfContent::Text
+            },
+            encoded_bytes: value.data.len() as u32,
+            dimensions: None,
+            decoded_bytes: None,
+        };
+        let config = session.client_config()?;
+        session.connected = false;
+        let outcome = shelf_transport::run(
+            &config.ssh,
+            policy,
+            ShelfOperation::Action(ShelfAction::Share {
+                operation_id: Uuid::new_v4(),
+                origin,
+                representation,
+                created_at_ms: Some(value.created_at.into()),
+            }),
+            &value.data,
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+        let ShelfOutcome::Reply(reply) = outcome else {
+            return Err("Unexpected share reply.".into());
+        };
+        let ShelfResponse::Shared { epoch, item, .. } = reply.response else {
+            return Err("Unexpected share reply.".into());
+        };
+        let id = item.id;
+        session
+            .history
+            .accept_snapshot(ssh_clipboard::client::session::Snapshot {
+                epoch,
+                sequence: item.sequence,
+                items: vec![item],
+            });
+        // The share is confirmed. A later metadata refresh failure cannot report it as failed.
+        let _ = session.history.refresh(&config.ssh, policy).await;
+        if session.history.selected == Some(id) {
+            session.item = Some(value);
+            session.history.preview = Some(preview);
+        } else {
+            session.item = None;
+        }
+        session.connected = true;
+        session.clipboard_checked = true;
+        session.connection_report = None;
+        return Ok(());
+    }
     let value = clipboard.read(session.client_config()?.max_size).await?;
     ItemPreview::from_value(&value, session.settings.show_preview)?;
     match request(
@@ -587,9 +840,12 @@ fn handle_shortcut(
         } else {
             match action {
                 Action::Share => share_current(&mut session, &state.clipboard).await,
-                Action::Copy => match fetch_item(&mut session).await {
+                Action::Copy => match fetch_latest_item(&mut session).await {
                     Ok(()) => match session.item.clone() {
-                        Some(value) => state.clipboard.write(value).await,
+                        Some(value) => match session.max_decoded() {
+                            Ok(limit) => state.clipboard.write_with_limit(value, limit).await,
+                            Err(error) => Err(error),
+                        },
                         None => Err(
                             "The shared clipboard is empty. Your clipboard was left unchanged."
                                 .into(),
@@ -619,11 +875,35 @@ async fn copy_item(
     state: State<'_, Desktop>,
     expected_revision: Option<String>,
 ) -> Result<PanelView, String> {
-    let session = state
+    let mut session = state
         .session
         .try_lock()
         .map_err(|_| "Another operation is running.".to_string())?;
     session.check_revision(expected_revision.as_deref())?;
+    if let Some(policy) = session.shelf_policy()? {
+        let id = session
+            .history
+            .selected
+            .ok_or("Select an item in history first.")?;
+        session.item = None;
+        let config = session.client_config()?;
+        let show_preview = session.settings.show_preview;
+        let value = session
+            .history
+            .fetch(&config.ssh, policy, id, show_preview)
+            .await?;
+        state
+            .clipboard
+            .write_with_limit(value.clone(), policy.max_decoded_bytes as usize)
+            .await?;
+        session.item = Some(value);
+        if session.settings.close_after_copy
+            && let Some(window) = app.get_webview_window("main")
+        {
+            let _ = window.hide();
+        }
+        return session.view();
+    }
     // Copy the snapshot being shown, never silently substitute a newer remote value.
     let value = session
         .item
@@ -744,6 +1024,7 @@ pub fn run() {
             let mut session = Session {
                 settings: settings.clone(),
                 item: None,
+                history: History::default(),
                 clipboard_checked: false,
                 shortcuts: Bindings::default(),
                 shortcut_status: "Disabled".into(),
@@ -791,6 +1072,9 @@ pub fn run() {
             remove_profile,
             test_connection,
             refresh_item,
+            select_item,
+            delete_item,
+            clear_history,
             share_clipboard,
             copy_item,
             hide_panel,
@@ -1141,6 +1425,29 @@ mod tests {
         assert!(!session.connected);
     }
 
+    #[test]
+    fn endpoint_changes_clear_both_history_and_the_legacy_snapshot_without_io() {
+        let mut session = session();
+        session.history.epoch = Some(Uuid::from_u128(1));
+        session.history.selected = Some(Uuid::from_u128(2));
+        let mut next = session.saved_config.clone().unwrap();
+        next.revision += 1;
+        next.profiles[0].endpoint = ssh_clipboard::configuration::Endpoint::Shelf {
+            max_item_bytes: 67108864,
+            max_decoded_bytes: 268435456,
+        };
+        assert!(synchronize_settings(
+            &mut session,
+            Ok(Some(next)),
+            |_, _| Ok("Registered".into())
+        ));
+        assert!(session.item.is_none());
+        assert!(session.history.epoch.is_none());
+        assert!(session.history.selected.is_none());
+        assert!(!session.clipboard_checked);
+        assert!(!session.connected);
+    }
+
     fn session() -> Session {
         let mut config = Configuration {
             revision: 1,
@@ -1148,6 +1455,7 @@ mod tests {
         };
         config.profiles[0].target = "first-hub".into();
         Session {
+            history: History::default(),
             settings: SessionSettings::from_configuration(&config).unwrap(),
             saved_config: Some(config),
             settings_notice: None,

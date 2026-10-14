@@ -31,6 +31,46 @@ pub struct Profile {
     pub port: Option<u16>,
     pub identity_file: String,
     pub transport: TransportSettings,
+    #[serde(default)]
+    pub endpoint: Endpoint,
+}
+
+/// Selecting a new endpoint is explicit and never rewrites a restricted SSH key.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "protocol", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Endpoint {
+    Legacy {},
+    Shelf {
+        max_item_bytes: u32,
+        max_decoded_bytes: u32,
+    },
+}
+impl Default for Endpoint {
+    fn default() -> Self {
+        Self::Legacy {}
+    }
+}
+impl Endpoint {
+    pub fn session_policy(
+        &self,
+        timeout_ms: u64,
+    ) -> Result<Option<crate::client::session::SessionPolicy>, String> {
+        match self {
+            Self::Legacy {} => Ok(None),
+            Self::Shelf {
+                max_item_bytes,
+                max_decoded_bytes,
+            } => {
+                let policy = crate::client::session::SessionPolicy {
+                    max_item_bytes: *max_item_bytes,
+                    max_decoded_bytes: *max_decoded_bytes,
+                    operation_timeout: std::time::Duration::from_millis(timeout_ms),
+                };
+                policy.validate().map_err(|error| error.to_string())?;
+                Ok(Some(policy))
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,6 +178,7 @@ impl Profile {
             port: None,
             identity_file: String::new(),
             transport: TransportSettings::default(),
+            endpoint: Endpoint::default(),
         }
     }
 
@@ -174,6 +215,7 @@ impl Default for Configuration {
                 port: None,
                 identity_file: String::new(),
                 transport: TransportSettings::default(),
+                endpoint: Endpoint::default(),
             }],
             preferences: Preferences {
                 open_shortcut: "CommandOrControl+Shift+V".into(),
@@ -240,6 +282,10 @@ impl Configuration {
             profile
                 .transport
                 .validate()
+                .map_err(|_| ConfigError::Invalid)?;
+            profile
+                .endpoint
+                .session_policy(profile.transport.timeout_ms)
                 .map_err(|_| ConfigError::Invalid)?;
         }
         if self.preferences.open_shortcut.is_empty() {
@@ -697,5 +743,47 @@ mod tests {
         fs::write(store.path(), &bytes).unwrap();
         assert_eq!(store.load().unwrap(), Some(original.clone()));
         assert!(store.prepare(Some(&original), original.clone()).is_ok());
+    }
+
+    #[test]
+    fn omitted_endpoints_remain_legacy_and_new_policy_is_validated_without_rewriting_reads() {
+        let (_directory, store) = store();
+        let mut value = serde_json::to_value(Configuration::default()).unwrap();
+        value["profiles"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("endpoint");
+        let bytes = serde_json::to_vec(&value).unwrap();
+        fs::create_dir_all(store.path().parent().unwrap()).unwrap();
+        fs::write(store.path(), &bytes).unwrap();
+        let mut config = store.load().unwrap().unwrap();
+        assert_eq!(config.profiles[0].endpoint, Endpoint::Legacy {});
+        assert_eq!(fs::read(store.path()).unwrap(), bytes);
+        for endpoint in [
+            serde_json::json!({"protocol":"future"}),
+            serde_json::json!({"protocol":"shelf","max_item_bytes":0,"max_decoded_bytes":1024}),
+            serde_json::json!({"protocol":"legacy","max_item_bytes":1024}),
+        ] {
+            value["profiles"][0]["endpoint"] = endpoint;
+            let invalid = serde_json::to_vec(&value).unwrap();
+            fs::write(store.path(), &invalid).unwrap();
+            assert!(store.load().is_err());
+            assert_eq!(fs::read(store.path()).unwrap(), invalid);
+        }
+        fs::write(store.path(), &bytes).unwrap();
+        config.profiles[0].endpoint = Endpoint::Shelf {
+            max_item_bytes: 64 * 1024 * 1024,
+            max_decoded_bytes: 256 * 1024 * 1024,
+        };
+        let saved = store
+            .prepare(Some(&store.load().unwrap().unwrap()), config)
+            .unwrap()
+            .commit()
+            .unwrap();
+        assert!(matches!(saved.profiles[0].endpoint, Endpoint::Shelf { .. }));
+        let mut invalid = saved.clone();
+        invalid.profiles[0].transport.timeout_ms = u64::MAX;
+        assert!(store.prepare(Some(&saved), invalid).is_err());
+        assert_eq!(store.load().unwrap(), Some(saved));
     }
 }

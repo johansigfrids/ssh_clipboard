@@ -366,6 +366,7 @@ async fn a_full_page_with_maximum_names_and_integers_fits_the_metadata_budget() 
     let epoch = Uuid::from_u128(1);
     let items: Vec<_> = (0..16)
         .map(|index| Item {
+            label: "世".repeat(80),
             id: Uuid::from_u128(index + 1),
             sequence: (u64::MAX - index as u64).into(),
             origin: Some(Origin {

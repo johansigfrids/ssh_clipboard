@@ -111,7 +111,12 @@ On 2026-10-14, temporary-store desktop probes cover creating/renaming/removing c
 
 Advanced-policy probes cover exact integers beyond JavaScript's safe range, rejected zero/negative/fractional/overflowing values and embedded option control characters, per-profile persistence and actual client policy, retained batch mode, isolated nested drafts, multiline option editing, reset/Discard, strict-budget retention, and stale-draft recovery. These are temporary-store/rendered UI checks; native advanced-control persistence/Test remains pending.
 
+## Endpoint Selection
+
+Per-profile endpoint selection now defaults to legacy without rewriting missing fields. Shelf mode has independent raw item/decode limits and a bounded session timeout; see [desktop endpoint/history contracts](desktop-history.md#endpoint-selection-and-compatibility). Unknown endpoint fields are preserved/rejected, including on the zero-field legacy mode. Endpoint changes clear history and snapshots along with other connection changes.
+
 ## Update Triggers
+
 
 - CLI uses this schema or live reload is added.
 - Legacy configuration migration, profiles, or additional settings are implemented.

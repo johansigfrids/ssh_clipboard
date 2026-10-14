@@ -14,9 +14,38 @@ use tokio::sync::oneshot;
 
 struct NativeClipboard(Clipboard);
 
+struct EncodedImage {
+    bytes: Vec<u8>,
+    maximum: usize,
+}
+impl std::io::Write for EncodedImage {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if self.bytes.len().saturating_add(bytes.len()) > self.maximum {
+            return Err(std::io::Error::other("encoded image exceeds item limit"));
+        }
+        self.bytes
+            .try_reserve_exact(bytes.len())
+            .map_err(|_| std::io::Error::other("image buffer allocation failed"))?;
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 fn capture(
     clipboard: &mut impl ClipboardAccess,
     max_size: usize,
+) -> Result<ClipboardValue, String> {
+    capture_with_limit(clipboard, max_size, super::model::MAX_DECODED_BYTES)
+}
+
+fn capture_with_limit(
+    clipboard: &mut impl ClipboardAccess,
+    max_size: usize,
+    max_decoded: usize,
 ) -> Result<ClipboardValue, String> {
     match clipboard.read_text() {
         Ok(text) => {
@@ -37,12 +66,13 @@ fn capture(
                 .checked_mul(image.height)
                 .and_then(|pixels| pixels.checked_mul(4))
                 .ok_or_else(|| "The clipboard image dimensions are too large.".to_string())?;
-            if decoded_bytes > super::model::MAX_DECODED_BYTES {
+            if decoded_bytes > max_decoded {
                 return Err(format!(
-                    "Image {} x {} needs {:.2} MiB of pixels, above the 64 MiB image limit. Copy a smaller image and try again.",
+                    "Image {} x {} needs {:.2} MiB of pixels, above the {} MiB image limit. Copy a smaller image and try again.",
                     image.width,
                     image.height,
-                    decoded_bytes as f64 / 1048576.0
+                    decoded_bytes as f64 / 1048576.0,
+                    max_decoded / 1048576
                 ));
             }
             if image.width == 0 || image.height == 0 || image.bytes.len() != decoded_bytes {
@@ -50,7 +80,10 @@ fn capture(
             }
             let width = u32::try_from(image.width).map_err(|_| "Invalid image width.")?;
             let height = u32::try_from(image.height).map_err(|_| "Invalid image height.")?;
-            let mut png = Vec::new();
+            let mut png = EncodedImage {
+                bytes: Vec::new(),
+                maximum: max_size,
+            };
             // Preserve every RGBA pixel; prefer balanced compression over the fast default.
             image::codecs::png::PngEncoder::new_with_quality(
                 &mut png,
@@ -58,7 +91,8 @@ fn capture(
                 image::codecs::png::FilterType::Adaptive,
             )
             .write_image(&image.bytes, width, height, image::ExtendedColorType::Rgba8)
-            .map_err(|_| "Could not encode the clipboard image as PNG.".to_string())?;
+            .map_err(|_| format!("Image {width} x {height} could not fit within the {:.2} MiB PNG transfer limit. Copy a smaller image or adjust this connection's limit.", max_size as f64 / 1048576.0))?;
+            let png = png.bytes;
             if png.len() > max_size {
                 return Err(format!(
                     "Image {width} x {height} is {:.2} MiB as PNG. The transfer limit is {:.2} MiB ({max_size} bytes). Copy a smaller image and try again.",
@@ -103,8 +137,12 @@ impl ClipboardAccess for NativeClipboard {
 }
 
 enum Job {
-    Read(usize, oneshot::Sender<Result<ClipboardValue, String>>),
-    Write(ClipboardValue, oneshot::Sender<Result<(), String>>),
+    Read(
+        usize,
+        usize,
+        oneshot::Sender<Result<ClipboardValue, String>>,
+    ),
+    Write(ClipboardValue, usize, oneshot::Sender<Result<(), String>>),
     Stop,
 }
 
@@ -139,13 +177,19 @@ impl ClipboardWorker {
                         Ok(())
                     };
                     match job {
-                        Job::Read(max_size, reply) => {
+                        Job::Read(max_size, max_decoded, reply) => {
                             let result = init
                                 .map_err(|err| format!("Clipboard unavailable: {err}"))
-                                .and_then(|()| capture(clipboard.as_mut().unwrap(), max_size));
+                                .and_then(|()| {
+                                    capture_with_limit(
+                                        clipboard.as_mut().unwrap(),
+                                        max_size,
+                                        max_decoded,
+                                    )
+                                });
                             let _ = reply.send(result);
                         }
-                        Job::Write(value, reply) => {
+                        Job::Write(value, max_decoded, reply) => {
                             let result = init
                                 .map_err(|err| format!("Clipboard unavailable: {err}"))
                                 .and_then(|()| {
@@ -154,7 +198,7 @@ impl ClipboardWorker {
                                             request_id: 0,
                                             kind: ResponseKind::Value { value },
                                         },
-                                        super::model::MAX_DECODED_BYTES,
+                                        max_decoded,
                                         clipboard.as_mut().unwrap(),
                                     )
                                     .map_err(|err| err.message)
@@ -173,9 +217,18 @@ impl ClipboardWorker {
     }
 
     pub async fn read(&self, max_size: usize) -> Result<ClipboardValue, String> {
+        self.read_with_limit(max_size, super::model::MAX_DECODED_BYTES)
+            .await
+    }
+
+    pub async fn read_with_limit(
+        &self,
+        max_size: usize,
+        max_decoded: usize,
+    ) -> Result<ClipboardValue, String> {
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Job::Read(max_size, reply))
+            .try_send(Job::Read(max_size, max_decoded, reply))
             .map_err(|_| "Clipboard worker is busy or unavailable.".to_string())?;
         receive
             .await
@@ -183,9 +236,18 @@ impl ClipboardWorker {
     }
 
     pub async fn write(&self, value: ClipboardValue) -> Result<(), String> {
+        self.write_with_limit(value, super::model::MAX_DECODED_BYTES)
+            .await
+    }
+
+    pub async fn write_with_limit(
+        &self,
+        value: ClipboardValue,
+        max_decoded: usize,
+    ) -> Result<(), String> {
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Job::Write(value, reply))
+            .try_send(Job::Write(value, max_decoded, reply))
             .map_err(|_| "Clipboard worker is busy or unavailable.".to_string())?;
         receive
             .await
@@ -292,6 +354,28 @@ mod tests {
         assert!(error.contains("8192 x 8192"));
         assert!(error.contains("256.00 MiB of pixels"));
         assert!(error.contains("64 MiB image limit"));
+    }
+
+    #[test]
+    fn capture_honors_both_the_selected_pixel_budget_and_encoded_writer_limit() {
+        let image = || {
+            ImageClipboard(Some(ImageData {
+                width: 1,
+                height: 1,
+                bytes: vec![1, 2, 3, 255].into(),
+            }))
+        };
+        assert!(capture_with_limit(&mut image(), 1024, 3).is_err());
+        let value = capture_with_limit(&mut image(), 1024, 4).unwrap();
+        assert_eq!(
+            ssh_clipboard::client::image::decode_png(&value.data, 1024)
+                .unwrap()
+                .bytes
+                .as_ref(),
+            &[1, 2, 3, 255]
+        );
+        let error = capture_with_limit(&mut image(), 8, 4).unwrap_err();
+        assert!(error.contains("PNG transfer limit"));
     }
 
     #[test]

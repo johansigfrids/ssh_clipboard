@@ -17,6 +17,7 @@
   let recordingEpoch = 0;
   let recordingSync = Promise.resolve();
   let removingProfile = $state(false);
+  let confirmingHistory = $state<{ kind: "delete" | "clear"; epoch: string; itemId: string | null } | null>(null);
   let ready = $state(false);
   let content = $state<HTMLElement>();
   let draftRevision = $state<string | null>(null);
@@ -28,6 +29,18 @@
   const configured = $derived(view.settings.target.trim().length > 0);
   const dirty = $derived(JSON.stringify(draft) !== JSON.stringify(view.settings));
   const staleDraft = $derived(dirty && draftRevision !== view.settingsRevision);
+  const selectedHistory = $derived(view.history?.items.find((item) => item.id === view.history?.selectedId));
+
+  function requestHistoryRemoval(kind: "delete" | "clear") {
+    if (!view.history?.epoch) return;
+    confirmingHistory = { kind, epoch: view.history.epoch, itemId: view.history.selectedId };
+  }
+
+  function confirmHistoryRemoval() {
+    const confirmation = confirmingHistory;
+    if (!confirmation) return;
+    void perform(confirmation.kind === "clear" ? "clear_history" : "delete_item", confirmation.kind === "clear" ? "History cleared." : "Item deleted.", { epoch: confirmation.epoch, ...(confirmation.kind === "delete" ? { itemId: confirmation.itemId } : {}) });
+  }
 
   function inform(text: string, failed = false) { message = text; error = failed; }
 
@@ -64,7 +77,7 @@
     if (dirty || busy || !ready) return;
     const profile = view.profiles.find((profile) => profile.id === id);
     if (!profile) return;
-    draft = { ...draft, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: cloneTransport(profile.transport) };
+    draft = { ...draft, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: cloneTransport(profile.transport), endpoint: { ...profile.endpoint } };
     sshOptionsText = draft.transport.sshOptions.join("\n");
     removingProfile = false;
     inform("");
@@ -72,7 +85,7 @@
 
   function addProfile() {
     if (dirty || busy || !ready) return;
-    draft = { ...draft, profileId: null, profileName: "New connection", target: "", port: null, identityFile: "", transport: defaultTransport() };
+    draft = { ...draft, profileId: null, profileName: "New connection", target: "", port: null, identityFile: "", transport: defaultTransport(), endpoint: { protocol: "legacy" } };
     sshOptionsText = "";
     removingProfile = false;
     inform("");
@@ -101,6 +114,7 @@
       if (JSON.stringify(next.operationNotice) !== JSON.stringify(view.operationNotice)) inform("");
       view = next;
       removingProfile = false;
+      confirmingHistory = null;
       if (retainDraft && draftRevision !== next.settingsRevision) inform("Saved settings changed. Discard your draft to load them before editing again.", true);
       else if (!retainDraft) discardDraft();
     } catch (cause) { if (!disposed) inform(String(cause), true); }
@@ -117,10 +131,12 @@
     operationEpoch++;
     inform("");
     try {
-      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
+      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
+      confirmingHistory = null;
       view = await command<PanelView>(name, guardedArgs);
       if (name === "apply_settings" || name === "remove_profile") discardDraft();
       inform(name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success);
+      if (name === "select_item" && content) content.scrollTop = 0;
     } catch (cause) {
       inform(cause instanceof Error ? cause.message : String(cause), true);
       // Reflect connection/registration state even after a failed operation.
@@ -132,6 +148,7 @@
     if (busy) return;
     stopRecording();
     removingProfile = false;
+    confirmingHistory = null;
     page = next;
     if (content) content.scrollTop = 0;
   }
@@ -165,8 +182,8 @@
   }
 
   function formatSize(bytes: number) { return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KiB`; }
-  function formatTime(milliseconds: number) {
-    const date = new Date(milliseconds);
+  function formatTime(milliseconds: number | string) {
+    const date = new Date(Number(milliseconds));
     return Number.isNaN(date.getTime()) ? "Unknown time" : date.toLocaleString();
   }
 
@@ -198,6 +215,11 @@
 
 <svelte:window onkeydown={handleKey} onblur={stopRecording} />
 
+{#snippet feedback()}
+  {#if message}<div class:error class="feedback" role={error ? "alert" : "status"}>{message}</div>
+  {:else if view.operationNotice}<div class:error={view.operationNotice.failed} class="feedback" role={view.operationNotice.failed ? "alert" : "status"}>{view.operationNotice.message}</div>{/if}
+{/snippet}
+
 <div class="app-shell">
   <header>
     <div class="brand-mark" aria-hidden="true">↔</div>
@@ -226,9 +248,11 @@
           <h2>{view.item.label}</h2>
           {#if view.item.imageUrl}<img class="preview-image" src={view.item.imageUrl} alt="Shared clipboard preview" />
           {:else if view.item.text !== null}<pre>{view.item.text || "(Empty text)"}</pre>
-          {:else}<p class="muted">Content preview is hidden.</p>{/if}
-          <div class="item-meta">{formatTime(view.item.createdAt)}<span>Source device unavailable on this server</span></div>
+          {:else}<p class="muted">{view.settings.showPreview ? "Refresh or select this item to load its preview." : "Content preview is hidden."}</p>{/if}
+          <div class="item-meta">{formatTime(view.item.createdAt)}<span>{view.history ? selectedHistory?.source ?? "Unknown source device" : "Source device unavailable on this server"}</span></div>
         </section>
+      {:else if selectedHistory}
+        <section class="item-card" aria-label="Selected history item"><h2>{selectedHistory.label}</h2><p class="muted">Select this item in history to load its preview, or copy it to this computer.</p></section>
       {:else if view.clipboardChecked}
         <section class="empty-state compact"><h2>Server clipboard is empty</h2><p>Copy some text or an image on this computer, then choose Share current clipboard.</p></section>
       {:else}
@@ -236,10 +260,32 @@
       {/if}
 
       <div class="actions">
-        <button class="primary" disabled={!ready || !view.item || busy} onclick={() => perform("copy_item", "Copied to this computer. You can paste it now.")}>Copy to this computer</button>
+        <button class="primary" disabled={!ready || (!view.item && !selectedHistory) || busy} onclick={() => perform("copy_item", "Copied to this computer. You can paste it now.")}>Copy to this computer</button>
         <button disabled={!ready || !configured || busy} onclick={() => perform("share_clipboard", "Shared your clipboard with the server.")}>Share current clipboard</button>
-        <button class="text-button" disabled={!ready || !configured || busy} onclick={() => perform("refresh_item", "Shared clipboard refreshed.")}>Refresh shared clipboard</button>
+        <button class="text-button" disabled={!ready || !configured || busy} onclick={() => perform("refresh_item", view.history ? "History refreshed." : "Shared clipboard refreshed.")}>{view.history ? "Refresh history" : "Refresh shared clipboard"}</button>
       </div>
+      {@render feedback()}
+      {#if configured && view.history}
+        <section class="history" aria-label="Temporary clipboard history">
+          <div class="history-heading"><h2>Temporary history <span>{view.history.items.length}</span></h2><button type="button" class="text-button" disabled={!ready || busy || !view.history.items.length} onclick={() => requestHistoryRemoval("clear")}>Clear history…</button></div>
+          {#if view.history.items.length}
+            <ul class="history-list">
+              {#each view.history.items as item (item.id)}
+                <li><button type="button" class:selected={item.id === view.history.selectedId} aria-pressed={item.id === view.history.selectedId} disabled={!ready || busy} onclick={() => perform("select_item", "Item selected. Your clipboard is unchanged.", { itemId: item.id, epoch: view.history?.epoch })}>
+                  <span class="history-label">{item.label}</span><span class="history-detail">{item.source ?? "Unknown source"} · {formatSize(item.encodedBytes)}</span><span class="history-detail">{formatTime(item.receivedAt)} · Expires {formatTime(item.expiresAt)}</span>
+                </button></li>
+              {/each}
+            </ul>
+            <button class="text-button" disabled={!ready || busy || !selectedHistory} onclick={() => requestHistoryRemoval("delete")}>Delete selected item…</button>
+          {:else}<p class="field-help">Shared items expire automatically. History is also cleared when the server restarts.</p>{/if}
+          {#if confirmingHistory}
+            <div class="remove-confirmation" role="group" aria-label="History removal confirmation">
+              <p>{confirmingHistory.kind === "clear" ? "Clear all items from this server's temporary history?" : "Delete the selected item from the server?"} Copies already saved on other computers remain available.</p>
+              <div class="profile-actions"><button type="button" disabled={busy} onclick={confirmHistoryRemoval}>{confirmingHistory.kind === "clear" ? "Clear history" : "Delete item"}</button><button type="button" disabled={busy} onclick={() => confirmingHistory = null}>Cancel</button></div>
+            </div>
+          {/if}
+        </section>
+      {:else if configured}<p class="field-help">This connection uses the legacy server's single shared item.</p>{/if}
       <p class="quiet-note">Sharing and copying happen only when you ask.</p>
     {:else}
       <div class="settings-title"><h2>Settings</h2><span>{view.settingsSaved ? "Saved on this computer" : "Apply to save"}</span></div>
@@ -271,6 +317,11 @@
           <label for="profile-name">Connection name</label><input id="profile-name" bind:value={draft.profileName} autocomplete="off" disabled={!ready || busy} />
           <label for="target">SSH alias or user@host</label><input id="target" bind:value={draft.target} placeholder="clipboard-hub" autocomplete="off" disabled={!ready || busy} />
           <p class="field-help">Uses your existing SSH configuration and unlocked key. The server must already be installed.</p>
+          <label for="server-features">Server features</label>
+          <select id="server-features" value={draft.endpoint.protocol} disabled={!ready || busy} onchange={(event) => draft.endpoint = event.currentTarget.value === "shelf" ? { protocol: "shelf", max_item_bytes: 67108864, max_decoded_bytes: 268435456 } : { protocol: "legacy" }}>
+            <option value="legacy">Single shared item (legacy server)</option><option value="shelf">Temporary history (new server)</option>
+          </select>
+          <p class="field-help">Choose the features installed on this server. Temporary history requires the new server and an SSH key that allows its session endpoint.</p>
           <label for="port">Port <span>(optional)</span></label><input id="port" type="number" min="1" max="65535" value={draft.port ?? ""} oninput={(event) => draft.port = event.currentTarget.value === "" ? null : Number(event.currentTarget.value)} placeholder="From SSH config" disabled={!ready || busy} />
           <label for="identity">Identity file <span>(optional)</span></label><input id="identity" bind:value={draft.identityFile} placeholder="From SSH config or agent" autocomplete="off" disabled={!ready || busy} />
           <details class="advanced-connection">
@@ -283,12 +334,19 @@
             <p class="field-help">An executable path, without command-line arguments.</p>
             <label for="timeout">Timeout (milliseconds)</label><input id="timeout" inputmode="numeric" bind:value={draft.transport.timeoutMs} disabled={!ready || busy} />
             <p class="field-help">Default 7,000 ms (7 seconds).</p>
+            {#if draft.endpoint.protocol === "shelf"}
+              <label for="shelf-item-limit">Item limit (bytes)</label><input id="shelf-item-limit" type="number" min="1" max="268435456" step="1" required bind:value={draft.endpoint.max_item_bytes} disabled={!ready || busy} />
+              <p class="field-help">Default 64 MiB. The server may negotiate a smaller limit.</p>
+              <label for="shelf-decode-limit">Decoded image limit (bytes)</label><input id="shelf-decode-limit" type="number" min="1" max="268435456" step="1" required bind:value={draft.endpoint.max_decoded_bytes} disabled={!ready || busy} />
+              <p class="field-help">Default 256 MiB of decoded pixels. Images retain their original dimensions and fidelity.</p>
+            {:else}
             <label for="transfer-limit">Transfer limit (bytes)</label><input id="transfer-limit" inputmode="numeric" bind:value={draft.transport.maxSize} disabled={!ready || busy} />
             <p class="field-help">Default 10,485,760 bytes (10 MiB), including metadata. Raising this client limit also needs matching proxy and daemon limits. Images still have a separate 64 MiB decoded-pixel limit.</p>
             <label class="toggle"><input type="checkbox" bind:checked={draft.transport.resyncFrames} disabled={!ready || busy} />Recover from text before protocol frames</label>
             <p class="field-help">Handles a bounded SSH login banner. Turn off for strict framing.</p>
             <label for="resync-budget">Framing recovery budget (bytes)</label><input id="resync-budget" inputmode="numeric" bind:value={draft.transport.resyncMaxBytes} disabled={!ready || busy || !draft.transport.resyncFrames} />
             <p class="field-help">Default 8,192 bytes. Retained while strict framing is selected.</p>
+            {/if}
             <button type="button" class="text-button" disabled={!ready || busy} onclick={resetTransport}>Restore advanced defaults</button>
           </details>
           <button type="button" class="test-button" disabled={!ready || !configured || dirty || busy} onclick={() => perform("test_connection", "SSH proxy and clipboard daemon responded.")}>Test saved connection</button>
@@ -341,10 +399,8 @@
         {#if staleDraft}<p class="field-help">Saved settings changed. Discard your draft to load them.</p>{/if}
         <div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { discardDraft(); inform("Loaded current saved settings."); }}>Discard changes</button></div>
       </form>
+      {@render feedback()}
     {/if}
-
-    {#if message}<div class:error class="feedback" role={error ? "alert" : "status"}>{message}</div>
-    {:else if view.operationNotice}<div class:error={view.operationNotice.failed} class="feedback" role={view.operationNotice.failed ? "alert" : "status"}>{view.operationNotice.message}</div>{/if}
   </main>
 
   <footer><span>{view.activeShortcut ? displayShortcut(view.activeShortcut) : "Open from the launcher or tray"}</span><span>Prototype</span><button class="quit-button" disabled={!ready || busy} onclick={() => command("quit_app").catch((cause) => inform(String(cause), true))}>Quit</button></footer>

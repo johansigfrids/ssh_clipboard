@@ -20,7 +20,7 @@ beforeEach(() => {
   bridge.invoke.mockImplementation(async (name: string, args?: { settings?: PanelView["settings"]; profileId?: string }) => {
     if (name === "apply_settings") {
       state.settings = { ...args!.settings!, profileId: args!.settings!.profileId ?? "new-profile" };
-      const profile = { id: state.settings.profileId!, name: state.settings.profileName, target: state.settings.target, port: state.settings.port, identityFile: state.settings.identityFile, transport: cloneTransport(state.settings.transport) };
+      const profile = { id: state.settings.profileId!, name: state.settings.profileName, target: state.settings.target, port: state.settings.port, identityFile: state.settings.identityFile, transport: cloneTransport(state.settings.transport), endpoint: { ...state.settings.endpoint } };
       const index = state.profiles.findIndex(({ id }) => id === profile.id);
       if (index === -1) state.profiles.push(profile); else state.profiles[index] = profile;
       state.settingsSaved = true;
@@ -33,7 +33,7 @@ beforeEach(() => {
     if (name === "remove_profile") {
       state.profiles = state.profiles.filter(({ id }) => id !== args!.profileId);
       const profile = state.profiles[0];
-      state.settings = { ...state.settings, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: cloneTransport(profile.transport) };
+      state.settings = { ...state.settings, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: cloneTransport(profile.transport), endpoint: { ...profile.endpoint } };
       state.settingsRevision = String(Number(state.settingsRevision ?? "0") + 1);
       state.item = null;
       state.connected = false;
@@ -46,6 +46,61 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("history selection previews by stable ID and revision without copying or sharing", async () => {
+    state.settings.target = "hub";
+    state.settings.endpoint = {protocol:"shelf", max_item_bytes:67108864, max_decoded_bytes:268435456};
+    state.settingsRevision = "19";
+    state.history = {epoch:"server-epoch", selectedId:"second", items:[{id:"first",label:"Earlier snippet",kind:"text",encodedBytes:12,source:"Laptop",receivedAt:"100",expiresAt:"200"}, {id:"second",label:"Recent snippet",kind:"text",encodedBytes:14,source:"Desktop",receivedAt:"101",expiresAt:"201"}]};
+    render(App);
+    await screen.findByRole("region", {name:"Temporary clipboard history"});
+    await fireEvent.click(screen.getByRole("button", {name:/Earlier snippet/}));
+    await screen.findByText("Item selected. Your clipboard is unchanged.");
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_panel","select_item"]);
+    expect(bridge.invoke.mock.calls[1][1]).toEqual({itemId:"first",epoch:"server-epoch",expectedRevision:"19"});
+  });
+
+  it("clearing server history requires confirmation and carries the displayed epoch", async () => {
+    state.settings.target = "hub";
+    state.settings.endpoint = {protocol:"shelf",max_item_bytes:67108864,max_decoded_bytes:268435456};
+    state.settingsRevision = "4";
+    state.history = {epoch:"old-epoch",selectedId:"item",items:[{id:"item",label:"Text",kind:"text",encodedBytes:1,source:null,receivedAt:"1",expiresAt:"2"}]};
+    render(App);
+    await screen.findByRole("button", {name:"Clear history…"});
+    await fireEvent.click(screen.getByRole("button", {name:"Clear history…"}));
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_panel"]);
+    await fireEvent.click(screen.getByRole("button", {name:"Cancel"}));
+    expect(screen.queryByRole("group", {name:"History removal confirmation"})).toBeNull();
+    await fireEvent.click(screen.getByRole("button", {name:"Clear history…"}));
+    await fireEvent.click(screen.getByRole("button", {name:"Clear history",exact:true}));
+    await screen.findByText("History cleared.");
+    expect(bridge.invoke.mock.calls[1]).toEqual(["clear_history",{epoch:"old-epoch",expectedRevision:"4"}]);
+  });
+
+  it("endpoint changes stay in a draft until Apply and do not probe or transfer", async () => {
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.change(screen.getByLabelText("Server features"),{target:{value:"shelf"}});
+    expect(state.settings.endpoint.protocol).toBe("legacy");
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_panel"]);
+    await fireEvent.click(screen.getByRole("button",{name:"Apply settings"}));
+    await screen.findByText("Settings applied.");
+    expect(state.settings.endpoint).toEqual({protocol:"shelf",max_item_bytes:67108864,max_decoded_bytes:268435456});
+  });
+
+  it("a history reload cancels an open removal confirmation instead of retargeting it", async () => {
+    state.settings.target="hub";
+    state.settings.endpoint={protocol:"shelf",max_item_bytes:67108864,max_decoded_bytes:268435456};
+    state.history={epoch:"old",selectedId:"item",items:[{id:"item",label:"Text",kind:"text",encodedBytes:1,source:null,receivedAt:"1",expiresAt:"2"}]};
+    render(App);
+    await screen.findByRole("button",{name:"Clear history…"});
+    await fireEvent.click(screen.getByRole("button",{name:"Clear history…"}));
+    expect(screen.getByRole("group",{name:"History removal confirmation"})).toBeTruthy();
+    state.history.epoch="new";
+    bridge.listen.mock.calls.find(([name])=>name==="settings-changed")![1]({payload:null});
+    await waitFor(()=>expect(screen.queryByRole("group",{name:"History removal confirmation"})).toBeNull());
+    expect(bridge.invoke.mock.calls.some(([name])=>name==="clear_history")).toBe(false);
+  });
   it("notification feedback is a saved draft and never sends a notification while editing", async () => {
     state.notificationStatus = { available: false, detail: "This build shows results in the panel." };
     render(App);

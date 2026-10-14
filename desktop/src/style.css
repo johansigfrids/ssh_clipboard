@@ -38,6 +38,17 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 190px; overflo
 .item-meta { font-size: 10px; color: var(--muted); margin-top: 18px; }
 .item-meta span { display: block; margin-top: 4px; }
 .muted { color: var(--muted); }
+.history { margin-top: 22px; min-width: 0; }
+.history-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.history-heading h2 { margin: 0; font-size: 15px; }
+.history-heading h2 span { color: var(--muted); font-size: 12px; font-weight: normal; }
+.history-heading button { font-size: 11px; padding: 8px 0; }
+.history-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 7px; }
+.history-list li { min-width: 0; }
+.history-list button { display: flex; flex-direction: column; gap: 5px; width: 100%; text-align: left; min-width: 0; padding: 12px; }
+.history-list button.selected { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.history-label { font-size: 13px; overflow-wrap: anywhere; }
+.history-detail { font-size: 10px; font-weight: normal; color: var(--muted); overflow-wrap: anywhere; }
 .settings-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .settings-title h2 { margin: 0; }
 .settings-title span { font-size: 10px; color: var(--muted); }

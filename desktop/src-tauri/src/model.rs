@@ -41,6 +41,8 @@ pub struct SessionSettings {
     pub port: Option<u16>,
     pub identity_file: String,
     pub transport: TransportDraft,
+    #[serde(default)]
+    pub endpoint: ssh_clipboard::configuration::Endpoint,
     pub open_shortcut: String,
     pub shortcut_enabled: bool,
     pub direct_shortcuts_enabled: bool,
@@ -60,6 +62,7 @@ impl Default for SessionSettings {
             port: None,
             identity_file: String::new(),
             transport: TransportDraft::default(),
+            endpoint: Default::default(),
             open_shortcut: "CommandOrControl+Shift+V".into(),
             shortcut_enabled: !is_wayland(),
             direct_shortcuts_enabled: false,
@@ -84,6 +87,7 @@ impl SessionSettings {
             port: profile.port,
             identity_file: profile.identity_file.clone(),
             transport: TransportDraft::from(&profile.transport),
+            endpoint: profile.endpoint.clone(),
             open_shortcut: config.preferences.open_shortcut.clone(),
             shortcut_enabled: config.preferences.shortcut_enabled,
             direct_shortcuts_enabled: config.preferences.direct_shortcuts_enabled,
@@ -123,6 +127,7 @@ impl SessionSettings {
         profile.port = self.port;
         profile.identity_file = self.identity_file.clone();
         profile.transport = transport;
+        profile.endpoint = self.endpoint.clone();
         config.preferences.open_shortcut = self.open_shortcut.clone();
         config.preferences.shortcut_enabled = self.shortcut_enabled;
         config.preferences.direct_shortcuts_enabled = self.direct_shortcuts_enabled;
@@ -138,7 +143,8 @@ impl SessionSettings {
         if self.profile_name.trim().is_empty() || self.profile_name.chars().any(char::is_control) {
             return Err("Enter a connection name without control characters.".into());
         }
-        self.transport.to_shared()?;
+        let transport = self.transport.to_shared()?;
+        self.endpoint.session_policy(transport.timeout_ms)?;
         ssh_clipboard::configuration::validate_connection(
             self.target.trim(),
             self.port,
@@ -162,6 +168,7 @@ impl SessionSettings {
             port: self.port,
             identity_file: self.identity_file.clone(),
             transport: self.transport.to_shared()?,
+            endpoint: self.endpoint.clone(),
         }
         .client_config())
     }
@@ -176,6 +183,7 @@ pub struct ConnectionProfile {
     pub port: Option<u16>,
     pub identity_file: String,
     pub transport: TransportDraft,
+    pub endpoint: ssh_clipboard::configuration::Endpoint,
 }
 
 impl From<&ssh_clipboard::configuration::Profile> for ConnectionProfile {
@@ -187,6 +195,7 @@ impl From<&ssh_clipboard::configuration::Profile> for ConnectionProfile {
             port: profile.port,
             identity_file: profile.identity_file.clone(),
             transport: TransportDraft::from(&profile.transport),
+            endpoint: profile.endpoint.clone(),
         }
     }
 }
@@ -210,6 +219,14 @@ pub struct ItemPreview {
 
 impl ItemPreview {
     pub fn from_value(value: &ClipboardValue, show_preview: bool) -> Result<Self, String> {
+        Self::from_value_with_limit(value, show_preview, MAX_DECODED_BYTES)
+    }
+
+    pub fn from_value_with_limit(
+        value: &ClipboardValue,
+        show_preview: bool,
+        max_decoded: usize,
+    ) -> Result<Self, String> {
         let mut preview = Self {
             kind: "text",
             label: "Text".into(),
@@ -236,12 +253,13 @@ impl ItemPreview {
                 }
             }
             CONTENT_TYPE_PNG => {
-                let decoded =
-                    ssh_clipboard::client::image::decode_png(&value.data, MAX_DECODED_BYTES)
-                        .map_err(|_| {
-                            "The remote PNG is invalid or exceeds the 64 MiB decoded-image limit."
-                                .to_string()
-                        })?;
+                let decoded = ssh_clipboard::client::image::decode_png(&value.data, max_decoded)
+                    .map_err(|_| {
+                        format!(
+                            "The remote PNG is invalid or exceeds the {} MiB decoded-image limit.",
+                            max_decoded / 1048576
+                        )
+                    })?;
                 preview.kind = "image";
                 preview.label = format!("Image ({} x {})", decoded.width, decoded.height);
                 if show_preview {

@@ -126,11 +126,18 @@ pub struct Item {
     pub received_at_ms: Timestamp,
     pub expires_at_ms: Timestamp,
     pub representations: Vec<Representation>,
+    pub label: String,
 }
 
 impl Item {
     fn validate(&self) -> Result<(), WireError> {
-        if self.id.is_nil() || self.sequence.get() == 0 || self.representations.len() != 1 {
+        if self.id.is_nil()
+            || self.sequence.get() == 0
+            || self.representations.len() != 1
+            || self.label.is_empty()
+            || self.label.len() > 256
+            || self.label.chars().any(char::is_control)
+        {
             return Err(WireError::InvalidMetadata);
         }
         if let Some(origin) = &self.origin {
@@ -160,6 +167,7 @@ impl TryFrom<&shelf::ItemMetadata> for Item {
     type Error = WireError;
     fn try_from(item: &shelf::ItemMetadata) -> Result<Self, Self::Error> {
         let item = Self {
+            label: item.label.clone(),
             id: item.id,
             sequence: item.sequence.into(),
             origin: item.origin.as_ref().map(|origin| Origin {

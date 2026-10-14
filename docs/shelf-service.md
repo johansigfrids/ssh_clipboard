@@ -30,7 +30,7 @@ The shelf mutex is never held over stream I/O or image validation. Reply metadat
 
 `maintenance()` expires items/retry records and returns epoch/sequence. The native shelf daemon calls it every second even with no traffic. Authentication is outside this generic stream layer: a native listener must enforce private socket/directory permissions, same-UID peers, exclusive daemon ownership, bounded accepted tasks, and safe stale-socket recovery before calling `serve`.
 
-The service currently has no subscriptions, cancellation request, reconnection driver, or OS clipboard access. New endpoint command wiring and its optional V2 socket have native WSL evidence. The [item-aware CLI/shared client](shelf-client.md) now has stream/process evidence; desktop history is pending. The installed legacy daemon still holds one value and retains its existing limits.
+The service currently has no subscriptions, cancellation request, reconnection driver, or OS clipboard access. New endpoint command wiring and its optional V2 socket have native WSL evidence. The [item-aware CLI/shared client](shelf-client.md) now has stream/process evidence; [desktop history](desktop-history.md) now has automated/browser evidence, with native acceptance pending. The installed legacy daemon still holds one value and retains its existing limits.
 
 ## Legacy Adapter
 

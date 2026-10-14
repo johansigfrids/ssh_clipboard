@@ -144,6 +144,7 @@ async fn wrong_item_ids_are_rejected_before_waiting_for_the_payload() {
             .unwrap();
         let request = request(&mut server).await;
         let item = Item {
+            label: "Synthetic".into(),
             id: Uuid::from_u128(3),
             sequence: 1.into(),
             origin: None,
@@ -255,6 +256,7 @@ async fn fetched_content_is_validated_against_actual_bytes_and_claimed_png_metad
                 vec![255]
             };
             let item = Item {
+                label: "Synthetic".into(),
                 id: Uuid::from_u128(2),
                 sequence: 1.into(),
                 origin: None,

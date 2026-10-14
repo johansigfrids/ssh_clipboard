@@ -313,6 +313,30 @@ impl IncomingUpload {
         };
         let fingerprint =
             operation_id.map(|_| fingerprint(content_type, &origin, created_at_ms, &self.data));
+        let label = match content_type {
+            ContentType::Text => {
+                let text = std::str::from_utf8(&self.data).map_err(|_| ShelfError::InvalidText)?;
+                let line = text
+                    .lines()
+                    .find(|line| !line.trim().is_empty())
+                    .unwrap_or("")
+                    .trim();
+                let mut chars = line.chars().filter(|character| !character.is_control());
+                let mut label: String = chars.by_ref().take(60).collect();
+                if chars.next().is_some() {
+                    label.push('…');
+                }
+                if label.is_empty() {
+                    "Empty text".into()
+                } else {
+                    label
+                }
+            }
+            ContentType::Png => {
+                let (width, height, _) = dimensions.ok_or(ShelfError::InvalidImage)?;
+                format!("Image {width} × {height}")
+            }
+        };
         Ok(ValidatedUpload {
             blob: Arc::new(Blob {
                 data: self.data,
@@ -325,6 +349,7 @@ impl IncomingUpload {
             fingerprint,
             dimensions: dimensions.map(|info| (info.0, info.1)),
             decoded_bytes: dimensions.map(|info| info.2),
+            label,
         })
     }
 }
@@ -421,6 +446,7 @@ pub struct ValidatedUpload {
     fingerprint: Option<[u8; 32]>,
     dimensions: Option<(u32, u32)>,
     decoded_bytes: Option<usize>,
+    label: String,
 }
 
 impl ValidatedUpload {
@@ -444,6 +470,7 @@ pub struct ItemMetadata {
     pub expires_at_ms: i64,
     pub dimensions: Option<(u32, u32)>,
     pub decoded_bytes: Option<usize>,
+    pub label: String,
 }
 
 #[derive(Clone, Debug)]
@@ -624,6 +651,7 @@ impl Shelf {
             expires_at_ms,
             dimensions: upload.dimensions,
             decoded_bytes: upload.decoded_bytes,
+            label: upload.label,
         };
         while self.items.len() >= self.limits().max_items
             || self.stored_bytes + metadata.encoded_bytes > self.limits().max_stored_bytes

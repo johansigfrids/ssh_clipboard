@@ -158,6 +158,13 @@ fn schema_two_missing_required_fields_and_ambiguous_schema_one_are_preserved() {
     std::fs::write(store.path(), &bytes).unwrap();
     assert!(store.prepare(None, Configuration::default()).is_err());
     assert_eq!(std::fs::read(store.path()).unwrap(), bytes.as_bytes());
+    let mut ambiguous_endpoint: serde_json::Value = serde_json::from_str(SCHEMA_ONE).unwrap();
+    ambiguous_endpoint["profiles"][0]["endpoint"] =
+        serde_json::json!({"protocol":"shelf","max_item_bytes":1024,"max_decoded_bytes":1024});
+    let bytes = ambiguous_endpoint.to_string();
+    std::fs::write(store.path(), &bytes).unwrap();
+    assert!(store.load().is_err());
+    assert_eq!(std::fs::read(store.path()).unwrap(), bytes.as_bytes());
 }
 
 #[test]

@@ -56,6 +56,35 @@ fn png() -> Vec<u8> {
 }
 
 #[test]
+fn labels_are_bounded_local_previews_and_never_rewrite_the_item() {
+    let base = now();
+    let mut shelf = Shelf::new(ShelfLimits::default(), base).unwrap();
+    for (bytes, expected) in [
+        (
+            "\n  first\tline \nmore".as_bytes().to_vec(),
+            "firstline".to_owned(),
+        ),
+        (vec![], "Empty text".into()),
+        (
+            "世".repeat(80).into_bytes(),
+            format!("{}…", "世".repeat(60)),
+        ),
+    ] {
+        let item = share(&mut shelf, &bytes, base);
+        assert_eq!(item.metadata.label, expected);
+        assert!(item.metadata.label.len() <= 256);
+        assert_eq!(
+            shelf
+                .fetch(item.metadata.id, base)
+                .unwrap()
+                .unwrap()
+                .bytes(),
+            bytes
+        );
+    }
+}
+
+#[test]
 fn exact_bytes_and_server_order_survive_client_clock_skew() {
     let base = now();
     let mut shelf = Shelf::new(limits(), base).unwrap();

@@ -82,7 +82,7 @@ pub(super) fn upgrade_schema_one(value: &mut serde_json::Value) -> Result<(), Co
         .ok_or(ConfigError::Invalid)?
     {
         let profile = profile.as_object_mut().ok_or(ConfigError::Invalid)?;
-        if profile.contains_key("transport") {
+        if profile.contains_key("transport") || profile.contains_key("endpoint") {
             return Err(ConfigError::Invalid);
         }
         profile.insert(

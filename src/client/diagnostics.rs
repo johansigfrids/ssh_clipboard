@@ -194,6 +194,48 @@ impl ConnectionReport {
     }
 }
 
+/// New endpoint health has no payload or preview; retain the same evidence stages.
+pub async fn diagnose_shelf(
+    config: &ClientConfig,
+    policy: super::session::SessionPolicy,
+) -> ConnectionReport {
+    use super::session::{Action, SessionError};
+    use super::session_transport::{self, Operation, Outcome, RunError};
+    use crate::session_protocol::ErrorCode as ShelfCode;
+    match session_transport::run(&config.ssh, policy, Operation::Action(Action::Health), &[]).await
+    {
+        Ok(Outcome::Reply(_)) => ConnectionReport::from_response(Response {
+            request_id: 1,
+            kind: ResponseKind::Empty,
+        }),
+        Ok(_) => {
+            ConnectionReport::from_failure(&TransportFailure::new(FailureKind::InvalidResponse))
+        }
+        Err(RunError::Transport(failure)) => ConnectionReport::from_failure(&failure),
+        Err(RunError::Session(SessionError::Remote(code))) => {
+            ConnectionReport::from_response(Response {
+                request_id: 1,
+                kind: ResponseKind::Error {
+                    code: match code {
+                        ShelfCode::DaemonUnavailable => ErrorCode::DaemonNotRunning,
+                        ShelfCode::UnsupportedVersion => ErrorCode::VersionMismatch,
+                        _ => ErrorCode::InvalidRequest,
+                    },
+                    message: String::new(),
+                },
+            })
+        }
+        Err(error) => {
+            let kind = match error {
+                RunError::Session(SessionError::Timeout) => FailureKind::Timeout,
+                RunError::Session(SessionError::Local) => FailureKind::RequestEncoding,
+                _ => FailureKind::InvalidResponse,
+            };
+            ConnectionReport::from_failure(&TransportFailure::new(kind))
+        }
+    }
+}
+
 /// Ignore server-supplied error text: it can include private data or terminal controls.
 pub fn server_problem(code: &ErrorCode) -> (&'static str, &'static str) {
     match code {

@@ -1,6 +1,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
+export type Endpoint = { protocol: "legacy" } | { protocol: "shelf"; max_item_bytes: number; max_decoded_bytes: number };
+
 export interface Settings {
   profileId: string | null;
   profileName: string;
@@ -8,6 +10,7 @@ export interface Settings {
   port: number | null;
   identityFile: string;
   transport: TransportSettings;
+  endpoint: Endpoint;
   openShortcut: string;
   shortcutEnabled: boolean;
   directShortcutsEnabled: boolean;
@@ -36,7 +39,7 @@ export function cloneTransport(value: TransportSettings): TransportSettings {
 }
 
 export function cloneSettings(value: Settings): Settings {
-  return { ...value, transport: cloneTransport(value.transport) };
+  return { ...value, transport: cloneTransport(value.transport), endpoint: { ...value.endpoint } };
 }
 
 export interface ConnectionProfile {
@@ -46,6 +49,7 @@ export interface ConnectionProfile {
   port: number | null;
   identityFile: string;
   transport: TransportSettings;
+  endpoint: Endpoint;
 }
 
 export interface PanelView {
@@ -58,6 +62,11 @@ export interface PanelView {
     imageUrl: string | null;
     encodedBytes: number;
     createdAt: number;
+  };
+  history: null | {
+    epoch: string | null;
+    selectedId: string | null;
+    items: Array<{ id: string; label: string; kind: "text" | "image"; encodedBytes: number; source: string | null; receivedAt: string; expiresAt: string }>;
   };
   connected: boolean;
   clipboardChecked: boolean;
@@ -84,9 +93,10 @@ export interface ConnectionReport {
 }
 
 export const initialView: PanelView = {
-  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, directShortcutsEnabled: false, directShareShortcut: null, directCopyShortcut: null, showPreview: true, closeAfterCopy: false, notifications: "panel" },
-  profiles: [{ id: "default", name: "Default", target: "", port: null, identityFile: "", transport: defaultTransport() }],
+  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), endpoint: { protocol: "legacy" }, openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, directShortcutsEnabled: false, directShareShortcut: null, directCopyShortcut: null, showPreview: true, closeAfterCopy: false, notifications: "panel" },
+  profiles: [{ id: "default", name: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), endpoint: { protocol: "legacy" } }],
   item: null,
+  history: null,
   connected: false,
   clipboardChecked: false,
   shortcutStatus: "Waiting for the desktop app",

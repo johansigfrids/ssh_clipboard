@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Document the shared sequential client and explicit experimental CLI. The installed desktop still uses V2; this client targets `ssh_clipboard session-proxy` deliberately. No service, forced command, or clipboard changes happen merely by using List/Health.
+Document the shared sequential client and explicit experimental CLI. The installed desktop still uses V2; the rework panel now opts into this client per profile as described in [desktop history](desktop-history.md). This client targets `ssh_clipboard session-proxy` deliberately. No service, forced command, or clipboard changes happen merely by using List/Health.
 
 ## Key Files
 
@@ -51,6 +51,8 @@ Stream probes cover 20-item paging, exact Unicode/whitespace, deduplication, sel
 Native WSL probes run the real CLI through a synthetic SSH executable that execs the real session proxy against a disposable daemon. They verify exact text export, metadata-only list, no-clobber file export, missing-item cleanup, and epoch-guarded mutation with tracing enabled. Portable CLI preflight probes check explicit destinations/epochs and direct-target isolation from corrupt settings. These do not prove a new real SSH connection, desktop history controls, cross-platform clipboard ownership, persistent reconnect, or installation.
 
 ## Prevention Guidance
+
+- Item labels are bounded content previews inside metadata. List does not fetch full payloads, but its labels can contain private text; never log them or treat them as content-free diagnostics.
 
 - Validate response association before reserving/reading its payload, so wrong item IDs cannot make the client wait for untrusted bytes.
 - Poison a stream before an asynchronous exchange; dropped futures must not leave framing reusable.

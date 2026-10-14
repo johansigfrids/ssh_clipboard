@@ -94,6 +94,8 @@ The optional V2 shelf adapter is tested with mixed stream clients and both real 
 
 The [new session client](shelf-client.md#evidence-and-gaps) adds hostile reply, pagination, cancellation, and bounded SSH subprocess probes. A native WSL command test runs `shelf` through the real session proxy using a synthetic SSH shim; it proves exact stdout/file exports, no clobbering, metadata-only list, and epoch mutation guards with tracing enabled. It does not contact a real SSH server or the OS clipboard.
 
+Desktop [history evidence](desktop-history.md#evidence-and-remaining-acceptance) covers strict endpoint loading, private label projection, epoch/selection state, endpoint isolation, explicit preview commands, and confirmed removal. A synthetic browser layout check at the actual default/minimum window sizes proves bounded document width, inner scrolling, fixed footer, reachable shelf settings, and visible selection feedback. It does not prove native SSH/paste or live subscriptions. These checks join the combined daily-use native milestone rather than creating a manual gate per commit.
+
 ## Platform `cfg` Hygiene
 
 - Keep function/item `#[cfg(...)]` aligned with where it is used.

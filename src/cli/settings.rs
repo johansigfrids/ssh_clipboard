@@ -192,6 +192,7 @@ fn apply(config: &mut Configuration, command: SettingsCommand) -> Result<()> {
                 port,
                 identity_file: identity_file.unwrap_or_default(),
                 transport: TransportSettings::default(),
+                endpoint: Default::default(),
             });
         }
         SettingsCommand::SelectProfile { id } => {

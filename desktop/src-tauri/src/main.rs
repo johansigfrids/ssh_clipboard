@@ -2,6 +2,7 @@
 
 mod clipboard;
 mod connection;
+mod history;
 mod model;
 mod notifications;
 mod panel;

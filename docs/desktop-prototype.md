@@ -141,7 +141,12 @@ The probe requires an initially empty disposable daemon. It performs only `PeekM
 
 The 2026-10-13 run passed against the existing Linux 0.3.0 binary. The temporary daemon and directory were removed afterward. Socket selection uses a test-specific SSH invocation because the current shared transport fixes the remote command to `ssh_clipboard proxy`; this proves wire/server compatibility without claiming the desktop window was exercised.
 
+## Shelf Integration
+
+The rework panel now also supports an explicit new-server endpoint with [temporary history](desktop-history.md): profile-isolated rows, private labels/source/expiry, preview selection, selected-ID copy validation, and confirmed delete/clear. Existing profiles stay on the legacy server. The new integration has automated/browser evidence; its new-server SSH/native paste acceptance remains open. Persistent sessions/live refresh and signed packaging are later slices.
+
 ## Windows Resource Guardrail
+
 
 Linking the existing library into Tauri initially produced `CVT1100: duplicate resource` / `LNK1123`: both build scripts embedded a Windows VERSION resource. The prototype now opts into `external-resource-owner`, making the host the sole owner of executable resources. Normal CLI/agent builds retain their existing resource behavior. Future desktop hosts must use this feature rather than disabling all icon handling or patching linker flags around duplicate records.
 

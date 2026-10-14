@@ -25,6 +25,72 @@ fn service(limits: ServiceLimits) -> Arc<ShelfService> {
 }
 
 #[tokio::test]
+async fn expired_retry_deadlines_cannot_recreate_a_removed_item_after_dedup_expiry() {
+    let service = Arc::new(
+        ShelfService::new(
+            ShelfLimits {
+                retry_retention: Duration::from_millis(10),
+                ..ShelfLimits::default()
+            },
+            ServiceLimits::default(),
+        )
+        .unwrap(),
+    );
+    let (mut peer, task) = Peer::open(service.clone(), 1024).await;
+    let operation = Uuid::new_v4();
+    let request = Request::OperationStatus {
+        request_id: peer.id(),
+        epoch: peer.epoch,
+        device_id: Uuid::from_u128(7),
+        operation_id: operation,
+    };
+    let Response::Operation { epoch_time_ms, .. } = peer.exchange(request, &[]).await.0 else {
+        panic!("no clock");
+    };
+    let deadline = (epoch_time_ms.get() + 10).into();
+    let request = peer.share(operation, b"frozen");
+    peer.exchange(request, b"frozen").await;
+    let request = Request::Clear {
+        request_id: peer.id(),
+        epoch: peer.epoch,
+    };
+    peer.exchange(request, &[]).await;
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    let inner = peer.share(operation, b"frozen");
+    let reply = peer
+        .exchange(
+            Request::RetryShare {
+                share: Box::new(inner),
+                not_after_ms: deadline,
+            },
+            b"frozen",
+        )
+        .await
+        .0;
+    assert!(matches!(
+        reply,
+        Response::Error {
+            code: ErrorCode::RetryExpired,
+            ..
+        }
+    ));
+    let request = Request::List {
+        request_id: peer.id(),
+        epoch: peer.epoch,
+        offset: 0,
+        limit: 16,
+        expected_sequence: None,
+    };
+    assert!(matches!(
+        peer.exchange(request, &[]).await.0,
+        Response::Listed { total: 0, .. }
+    ));
+    assert_eq!(service.resident_bytes(), 0);
+    drop(peer);
+    task.await.unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn watch_wakes_on_mutation_coalesces_gaps_and_retains_request_association() {
     let service = service(ServiceLimits::default());
     let (mut observer, observer_task) = Peer::open(service.clone(), 1024).await;

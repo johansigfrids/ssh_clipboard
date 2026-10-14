@@ -47,6 +47,41 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("uncertain share recovery checks status without recapturing and displays acceptance", async () => {
+    state.settings.target="hub";
+    state.settingsRevision="5";
+    state.pendingShare={id:"original-operation",canRetry:true};
+    const normal=bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name,args)=>{
+      if(name==="recover_share") {state.pendingShare=null;state.operationNotice={id:"1",failed:false,message:"The earlier share was accepted. Your local clipboard was not read or changed."};}
+      return normal(name,args);
+    });
+    render(App);
+    await screen.findByRole("region",{name:"Share recovery"});
+    expect(screen.getByRole("button",{name:"Share current clipboard"}).hasAttribute("disabled")).toBe(true);
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+    await fireEvent.click(screen.getByRole("button",{name:"Check share status"}));
+    await screen.findByText("The earlier share was accepted. Your local clipboard was not read or changed.");
+    expect(bridge.invoke.mock.calls.find(([name])=>name==="recover_share")![1]).toEqual({operationId:"original-operation",retry:false,expectedRevision:"5"});
+    expect(screen.queryByRole("region",{name:"Share recovery"})).toBeNull();
+    expect(bridge.invoke.mock.calls.some(([name])=>["share_clipboard","copy_item"].includes(name))).toBe(false);
+  });
+
+  it("captured retries require an explicit click and expired captures can only be checked or discarded", async () => {
+    state.settings.target="hub";
+    state.pendingShare={id:"original-operation",canRetry:true};
+    render(App);
+    await fireEvent.click(await screen.findByRole("button",{name:"Retry captured share"}));
+    expect(bridge.invoke.mock.calls.find(([name])=>name==="recover_share")![1]).toEqual({operationId:"original-operation",retry:true,expectedRevision:null});
+    state.pendingShare.canRetry=false;
+    bridge.listen.mock.calls.find(([name])=>name==="settings-changed")![1]();
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Retry captured share"}).hasAttribute("disabled")).toBe(true));
+    expect(screen.getByRole("button",{name:"Check share status"}).hasAttribute("disabled")).toBe(false);
+    await fireEvent.click(screen.getByRole("button",{name:"Discard recovery data"}));
+    expect(bridge.invoke.mock.calls.find(([name])=>name==="discard_share")![1]).toEqual({operationId:"original-operation",expectedRevision:null});
+    expect(bridge.invoke.mock.calls.some(([name])=>["share_clipboard","copy_item"].includes(name))).toBe(false);
+  });
+
   it("background history changes update metadata without fetching, sharing, or copying", async () => {
     state.settings.target="hub";
     state.settings.endpoint={protocol:"shelf",max_item_bytes:1024,max_decoded_bytes:1024};

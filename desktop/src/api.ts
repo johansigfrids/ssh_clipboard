@@ -84,6 +84,7 @@ export interface PanelView {
   operationNotice: { id: string; message: string; failed: boolean } | null;
   notificationStatus: { available: boolean; detail: string };
   historyStatus: null | { phase: "connecting" | "live" | "reconnecting" | "needs_action"; detail: string; retryInMs: number | null };
+  pendingShare: null | {id:string;canRetry:boolean};
 }
 
 export interface OperationView {
@@ -119,6 +120,7 @@ export const initialView: PanelView = {
   operationNotice: null,
   notificationStatus: { available: false, detail: "Waiting for the desktop app" },
   historyStatus: null,
+  pendingShare: null,
 };
 
 export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {

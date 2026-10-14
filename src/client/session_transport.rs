@@ -89,6 +89,14 @@ async fn run_child(
     let mut executing_mutation = false;
     let mut epoch = uuid::Uuid::nil();
     let operation_id = match &operation {
+        Operation::Action(Action::RetryShare { share, .. })
+        | Operation::AtEpoch {
+            action: Action::RetryShare { share, .. },
+            ..
+        } => match share.as_ref() {
+            Action::Share { operation_id, .. } => Some(*operation_id),
+            _ => None,
+        },
         Operation::Action(Action::Share { operation_id, .. })
         | Operation::AtEpoch {
             action: Action::Share { operation_id, .. },
@@ -109,11 +117,18 @@ async fn run_child(
         epoch = session.epoch();
         executing_mutation = matches!(
             operation,
-            Operation::Action(Action::Share { .. } | Action::Delete { .. } | Action::Clear)
-                | Operation::AtEpoch {
-                    action: Action::Share { .. } | Action::Delete { .. } | Action::Clear,
-                    ..
-                }
+            Operation::Action(
+                Action::Share { .. }
+                    | Action::RetryShare { .. }
+                    | Action::Delete { .. }
+                    | Action::Clear
+            ) | Operation::AtEpoch {
+                action: Action::Share { .. }
+                    | Action::RetryShare { .. }
+                    | Action::Delete { .. }
+                    | Action::Clear,
+                ..
+            }
         );
         let result = match operation {
             Operation::Action(action) => session.execute(action, payload).await.map(Outcome::Reply),

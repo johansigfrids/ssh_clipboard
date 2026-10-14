@@ -132,7 +132,9 @@ fn negotiation_intersects_policy_and_never_advertises_pending_capabilities() {
             "delete",
             "clear",
             "deduplicated_share",
-            "watch"
+            "watch",
+            "operation_status",
+            "deadline_share"
         ]
     );
     let unsupported = Request::Hello {

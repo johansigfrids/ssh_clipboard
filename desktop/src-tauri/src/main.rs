@@ -7,6 +7,7 @@ mod model;
 mod notifications;
 mod operation;
 mod panel;
+mod pending;
 mod shortcuts;
 
 fn main() {

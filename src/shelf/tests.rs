@@ -188,6 +188,12 @@ fn retries_keep_identity_and_expiry_and_do_not_resurrect_deleted_or_cleared_item
     let operation = Uuid::from_u128(42);
     let prepared = upload(&shelf, b"item", Some(operation));
     let first = shelf.commit(shelf.epoch(), prepared, base).unwrap();
+    let status = shelf
+        .operation_status(origin().device_id, operation, base)
+        .unwrap()
+        .unwrap();
+    assert!(status.available);
+    assert_eq!(status.metadata, first.metadata);
     let prepared = upload(&shelf, b"item", Some(operation));
     let retry = shelf
         .commit(shelf.epoch(), prepared, later(base, 1))
@@ -201,6 +207,13 @@ fn retries_keep_identity_and_expiry_and_do_not_resurrect_deleted_or_cleared_item
         .commit(shelf.epoch(), prepared, later(base, 3))
         .unwrap();
     assert!(retry.duplicate && !retry.available);
+    assert!(
+        !shelf
+            .operation_status(origin().device_id, operation, later(base, 3))
+            .unwrap()
+            .unwrap()
+            .available
+    );
     assert!(shelf.snapshot(later(base, 3)).unwrap().items.is_empty());
     let other = Uuid::from_u128(43);
     let prepared = upload(&shelf, b"next", Some(other));
@@ -213,6 +226,36 @@ fn retries_keep_identity_and_expiry_and_do_not_resurrect_deleted_or_cleared_item
         .commit(shelf.epoch(), prepared, later(base, 6))
         .unwrap();
     assert!(retry.duplicate && !retry.available);
+}
+
+#[test]
+fn operation_lookup_does_not_renew_retry_retention_or_pin_payloads() {
+    let base = now();
+    let mut shelf = Shelf::new(limits(), base).unwrap();
+    let operation = Uuid::from_u128(80);
+    let prepared = upload(&shelf, b"item", Some(operation));
+    let first = shelf.commit(shelf.epoch(), prepared, base).unwrap();
+    let resident = shelf.upload_budget().resident_bytes();
+    assert!(
+        shelf
+            .operation_status(origin().device_id, operation, later(base, 9999))
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(shelf.upload_budget().resident_bytes(), resident);
+    assert!(
+        shelf
+            .operation_status(origin().device_id, operation, later(base, 10_000))
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        shelf
+            .fetch(first.metadata.id, later(base, 10_000))
+            .unwrap()
+            .is_some(),
+        "an unknown operation does not prove the upload failed"
+    );
 }
 
 #[test]

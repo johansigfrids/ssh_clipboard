@@ -147,11 +147,11 @@
     operationEpoch++;
     inform("");
     try {
-      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
+      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history", "recover_share", "discard_share"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
       confirmingHistory = null;
       view = await command<PanelView>(name, guardedArgs);
       if (name === "apply_settings" || name === "remove_profile") discardDraft();
-      inform(name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success);
+      inform(name === "recover_share" && view.operationNotice ? view.operationNotice.message : name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success);
       if (name === "select_item" && content) content.scrollTop = 0;
     } catch (cause) {
       inform(cause instanceof Error ? cause.message : String(cause), true);
@@ -290,9 +290,22 @@
 
       <div class="actions">
         <button class="primary" disabled={!ready || (!view.item && !selectedHistory) || busy} onclick={() => perform("copy_item", "Copied to this computer. You can paste it now.")}>Copy to this computer</button>
-        <button disabled={!ready || !configured || busy} onclick={() => perform("share_clipboard", "Shared your clipboard with the server.")}>Share current clipboard</button>
+        <button disabled={!ready || !configured || busy || view.pendingShare !== null} onclick={() => perform("share_clipboard", "Shared your clipboard with the server.")}>Share current clipboard</button>
         <button class="text-button" disabled={!ready || !configured || busy} onclick={() => perform("refresh_item", view.history ? "History refreshed." : "Shared clipboard refreshed.")}>{view.history ? "Refresh history" : "Refresh shared clipboard"}</button>
       </div>
+      {#if view.pendingShare}
+        <section class="share-recovery" aria-label="Share recovery">
+          <h2>Check an earlier share</h2>
+          <p>It may already have reached the server. Check its status first. Retry sends the saved capture without reading your current clipboard.</p>
+          <div class="recovery-actions">
+            <button type="button" disabled={!ready || busy} onclick={() => perform("recover_share", "Share status checked.", {operationId:view.pendingShare?.id,retry:false})}>Check share status</button>
+            <button type="button" disabled={!ready || busy || !view.pendingShare.canRetry} onclick={() => perform("recover_share", "Captured share checked.", {operationId:view.pendingShare?.id,retry:true})}>Retry captured share</button>
+            <button type="button" disabled={!ready || busy} onclick={() => perform("discard_share", "Recovery data discarded. The server's clipboard was not changed.", {operationId:view.pendingShare?.id})}>Discard recovery data</button>
+          </div>
+          {#if !view.pendingShare.canRetry}<p>The safe retry window has expired or the server changed. Status checks remain available.</p>{/if}
+          <p>Discarding does not undo a server share. Leaving this profile or quitting clears recovery data.</p>
+        </section>
+      {/if}
       {@render feedback()}
       {#if configured && view.history}
         <section class="history" aria-label="Temporary clipboard history">

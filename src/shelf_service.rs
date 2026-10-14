@@ -218,6 +218,13 @@ impl ShelfService {
         peer: &EffectiveLimits,
     ) -> Result<Outgoing, WireError> {
         let IncomingRequest { request, upload } = incoming;
+        let (request, retry_deadline) = match request {
+            Request::RetryShare {
+                share,
+                not_after_ms,
+            } => (*share, Some(not_after_ms)),
+            other => (other, None),
+        };
         let request_id = request.request_id();
         if let Request::Watch {
             epoch,
@@ -300,16 +307,25 @@ impl ShelfService {
                     Ok(error(request_id, ErrorCode::InvalidContent, shelf.epoch()))
                 });
             }
-            return self.with_shelf(|shelf, now| match shelf.commit(epoch, prepared, now) {
-                Ok(committed) => Ok(Outgoing::control(Response::Shared {
-                    request_id,
-                    epoch: shelf.epoch(),
-                    sequence: shelf.sequence().into(),
-                    item: wire::Item::try_from(&committed.metadata)?,
-                    duplicate: committed.duplicate,
-                    available: committed.available,
-                })),
-                Err(failure) => Ok(error(request_id, code(&failure), shelf.epoch())),
+            return self.with_shelf(|shelf, now| {
+                if retry_deadline.is_some_and(|deadline| {
+                    shelf
+                        .epoch_time_ms(now)
+                        .map_or(true, |current| current >= deadline.get())
+                }) {
+                    return Ok(error(request_id, ErrorCode::RetryExpired, shelf.epoch()));
+                }
+                match shelf.commit(epoch, prepared, now) {
+                    Ok(committed) => Ok(Outgoing::control(Response::Shared {
+                        request_id,
+                        epoch: shelf.epoch(),
+                        sequence: shelf.sequence().into(),
+                        item: wire::Item::try_from(&committed.metadata)?,
+                        duplicate: committed.duplicate,
+                        available: committed.available,
+                    })),
+                    Err(failure) => Ok(error(request_id, code(&failure), shelf.epoch())),
+                }
             });
         }
         self.with_shelf(|shelf, now| {
@@ -320,12 +336,33 @@ impl ShelfService {
                 | Request::Delete { epoch, .. }
                 | Request::Clear { epoch, .. }
                 | Request::Health { epoch, .. } => *epoch,
+                Request::OperationStatus { epoch, .. } => *epoch,
                 _ => return Err(WireError::InvalidState),
             };
             if epoch != shelf.epoch() {
                 return Ok(error(request_id, ErrorCode::EpochChanged, shelf.epoch()));
             }
             let reply = match request {
+                Request::OperationStatus {
+                    device_id,
+                    operation_id,
+                    ..
+                } => {
+                    let found = shelf.operation_status(device_id, operation_id, now)?;
+                    Response::Operation {
+                        request_id,
+                        epoch,
+                        sequence: shelf.sequence().into(),
+                        epoch_time_ms: shelf.epoch_time_ms(now)?.into(),
+                        device_id,
+                        operation_id,
+                        item: found
+                            .as_ref()
+                            .map(|found| wire::Item::try_from(&found.metadata))
+                            .transpose()?,
+                        available: found.is_some_and(|found| found.available),
+                    }
+                }
                 Request::List {
                     offset,
                     limit,

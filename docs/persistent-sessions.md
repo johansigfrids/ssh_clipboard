@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Document the Phase 5 SSH owners, explicit operation cancellation, and metadata-only history recovery. Pending-upload reconciliation remains subsequent work.
+Document the Phase 5 SSH owners, explicit operation cancellation, and metadata-only history recovery. Upload reconciliation and protected captured retries are documented in [share recovery](share-recovery.md).
 
 ## Key Files
 
@@ -34,7 +34,7 @@ Typed rejections can retain a healthy stream. Partial/malformed replies, timeout
 
 The diagnostic reader has its own abort-on-drop owner. Cancellation while cleanup temporarily holds its handle must still abort it: dropping a raw JoinHandle would detach the task. An unacknowledged mutation retains its original epoch and operation UUID where applicable in a typed uncertainty result after session cleanup. Validated acknowledgments remain authoritative. No action is automatically repeated or sent into a replacement epoch. Selected fetch/mutation checks compare loaded and negotiated epochs before sending anything.
 
-Pending payload retention/reconciliation remains open; this is not complete Phase 5 recovery.
+Uncertain shelf uploads now retain one frozen capture and support read-only operation reconciliation and explicit deadline-protected retry/discard; see [share recovery](share-recovery.md). Native acceptance remains open.
 
 ## Background History and Reconnection
 
@@ -54,7 +54,7 @@ The desktop publishes the active operation through a separate controller. `get_o
 
 Connection tests, refreshes, previews, shares, copies, and history mutations expose Cancel while waiting. Cancelling drops the awaited operation future, closes an owned in-flight shelf connection, clears cached content/connection evidence, and does not queue a replacement. Native clipboard work already running finishes on its owner thread under the admission guard above. No cancellation path posts a clipboard write or retries a server action.
 
-Copy atomically enters a non-cancellable finishing stage before posting its native write. Cancel wins first and prevents that write, or the write wins first and Cancel reports that it is already finishing. A validated shelf mutation acknowledgment similarly enters finishing before any later metadata refresh; a concurrent late Cancel must not turn a confirmed mutation into apparent cancellation. An unacknowledged mutation reports that the server may already have applied it and asks for an explicit refresh. Cancellation is not rollback. Pending captured bytes/operation reconciliation are not retained yet.
+Copy atomically enters a non-cancellable finishing stage before posting its native write. Cancel wins first and prevents that write, or the write wins first and Cancel reports that it is already finishing. A validated shelf mutation acknowledgment similarly enters finishing before any later metadata refresh; a concurrent late Cancel must not turn a confirmed mutation into apparent cancellation. An unacknowledged mutation reports that the server may already have applied it. Cancellation is not rollback. Shelf shares retain one bounded capture for an explicit acknowledgment check or protected retry; delete/clear and legacy transfers retain conservative refresh guidance.
 
 The Open panel shortcut uses the actual registered Open ID outside the transfer mutex, so it can reveal Cancel during a background operation. Direct Share/Copy still reserve the session immediately and never queue. Registration changes and rollback refresh this Open ID from actual inventory, not a settings draft.
 

@@ -251,11 +251,22 @@ pub enum Request {
         after_sequence: Number,
         wait_ms: u16,
     },
+    OperationStatus {
+        request_id: Number,
+        epoch: Uuid,
+        device_id: Uuid,
+        operation_id: Uuid,
+    },
+    RetryShare {
+        share: Box<Request>,
+        not_after_ms: Number,
+    },
 }
 
 impl Request {
     pub fn request_id(&self) -> Number {
         match self {
+            Self::RetryShare { share, .. } => share.request_id(),
             Self::Hello { request_id, .. }
             | Self::Share { request_id, .. }
             | Self::List { request_id, .. }
@@ -263,10 +274,17 @@ impl Request {
             | Self::Delete { request_id, .. }
             | Self::Clear { request_id, .. }
             | Self::Health { request_id, .. }
-            | Self::Watch { request_id, .. } => *request_id,
+            | Self::Watch { request_id, .. }
+            | Self::OperationStatus { request_id, .. } => *request_id,
         }
     }
     pub fn validate(&self, payload_bytes: usize) -> Result<(), WireError> {
+        if let Self::RetryShare { share, .. } = self {
+            if !matches!(share.as_ref(), Self::Share { .. }) {
+                return Err(WireError::InvalidMetadata);
+            }
+            return share.validate(payload_bytes);
+        }
         if self.request_id().get() == 0 {
             return Err(WireError::InvalidMetadata);
         }
@@ -328,9 +346,17 @@ impl Request {
             Self::Watch { wait_ms, .. } if *wait_ms > 10_000 => {
                 return Err(WireError::InvalidMetadata);
             }
+            Self::OperationStatus {
+                device_id,
+                operation_id,
+                ..
+            } if device_id.is_nil() || operation_id.is_nil() => {
+                return Err(WireError::InvalidMetadata);
+            }
             _ => {}
         }
         let epoch = match self {
+            Self::RetryShare { .. } => unreachable!(),
             Self::Hello { .. } => unreachable!(),
             Self::Share { epoch, .. }
             | Self::List { epoch, .. }
@@ -338,7 +364,8 @@ impl Request {
             | Self::Delete { epoch, .. }
             | Self::Clear { epoch, .. }
             | Self::Health { epoch, .. }
-            | Self::Watch { epoch, .. } => epoch,
+            | Self::Watch { epoch, .. }
+            | Self::OperationStatus { epoch, .. } => epoch,
         };
         if epoch.is_nil() {
             return Err(WireError::InvalidMetadata);
@@ -402,6 +429,7 @@ pub enum ErrorCode {
     InvalidContent,
     Busy,
     RetryWindowFull,
+    RetryExpired,
     OperationConflict,
     EpochChanged,
     NotFound,
@@ -469,6 +497,16 @@ pub enum Response {
         epoch: Uuid,
         sequence: Number,
     },
+    Operation {
+        request_id: Number,
+        epoch: Uuid,
+        sequence: Number,
+        epoch_time_ms: Number,
+        device_id: Uuid,
+        operation_id: Uuid,
+        item: Option<Item>,
+        available: bool,
+    },
     Error {
         request_id: Number,
         code: ErrorCode,
@@ -487,6 +525,7 @@ impl Response {
             | Self::Cleared { request_id, .. }
             | Self::Health { request_id, .. }
             | Self::Changed { request_id, .. }
+            | Self::Operation { request_id, .. }
             | Self::Error { request_id, .. } => *request_id,
         }
     }
@@ -521,13 +560,34 @@ impl Response {
             | Self::Deleted { epoch, .. }
             | Self::Cleared { epoch, .. }
             | Self::Health { epoch, .. }
-            | Self::Changed { epoch, .. } => Some(*epoch),
+            | Self::Changed { epoch, .. }
+            | Self::Operation { epoch, .. } => Some(*epoch),
             Self::Error { epoch, .. } => *epoch,
         };
         if epoch.is_some_and(|epoch| epoch.is_nil()) {
             return Err(WireError::InvalidMetadata);
         }
         match self {
+            Self::Operation {
+                device_id,
+                operation_id,
+                item,
+                available,
+                sequence,
+                ..
+            } => {
+                if device_id.is_nil() || operation_id.is_nil() || (*available && item.is_none()) {
+                    return Err(WireError::InvalidMetadata);
+                }
+                if let Some(item) = item {
+                    item.validate()?;
+                    if item.sequence.get() > sequence.get()
+                        || item.origin.as_ref().map(|origin| origin.device_id) != Some(*device_id)
+                    {
+                        return Err(WireError::InvalidMetadata);
+                    }
+                }
+            }
             Self::Welcome {
                 session_version,
                 server_version,
@@ -630,6 +690,8 @@ pub fn negotiate(
             "clear",
             "deduplicated_share",
             "watch",
+            "operation_status",
+            "deadline_share",
         ]
         .map(String::from)
         .to_vec(),

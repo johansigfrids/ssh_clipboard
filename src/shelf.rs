@@ -513,6 +513,7 @@ pub struct Shelf {
     budget: UploadBudget,
     epoch: Uuid,
     sequence: u64,
+    started: Instant,
     last_now: Instant,
     items: VecDeque<StoredItem>,
     retries: VecDeque<RetryRecord>,
@@ -537,6 +538,7 @@ impl Shelf {
             },
             epoch: Uuid::new_v4(),
             sequence: 0,
+            started: now.instant,
             last_now: now.instant,
             items,
             retries,
@@ -550,6 +552,13 @@ impl Shelf {
     pub fn sequence(&self) -> u64 {
         self.sequence
     }
+    pub fn epoch_time_ms(&self, now: Now) -> Result<u64, ShelfError> {
+        let elapsed = now
+            .instant
+            .checked_duration_since(self.started)
+            .ok_or(ShelfError::ClockReversed)?;
+        u64::try_from(elapsed.as_millis()).map_err(|_| ShelfError::Overflow)
+    }
     pub fn limits(&self) -> &ShelfLimits {
         &self.budget.limits
     }
@@ -558,6 +567,31 @@ impl Shelf {
     }
     pub fn stored_bytes(&self) -> usize {
         self.stored_bytes
+    }
+
+    /// Read retained retry metadata without acquiring a payload lease or renewing its TTL.
+    pub fn operation_status(
+        &mut self,
+        device: Uuid,
+        operation: Uuid,
+        now: Now,
+    ) -> Result<Option<CommitOutcome>, ShelfError> {
+        if device.is_nil() || operation.is_nil() {
+            return Err(ShelfError::InvalidOperation);
+        }
+        self.expire(now)?;
+        Ok(self
+            .retries
+            .iter()
+            .find(|record| record.key == (device, operation))
+            .map(|record| CommitOutcome {
+                metadata: record.metadata.clone(),
+                duplicate: true,
+                available: self
+                    .items
+                    .iter()
+                    .any(|item| item.item.metadata.id == record.metadata.id),
+            }))
     }
 
     /// Batch expiration is one sequence change. Monotonic time controls retention;

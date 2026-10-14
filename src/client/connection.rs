@@ -142,6 +142,10 @@ impl Connection {
             return Err(SessionError::Closed.into());
         }
         let operation_id = match &action {
+            Action::RetryShare { share, .. } => match share.as_ref() {
+                Action::Share { operation_id, .. } => Some(*operation_id),
+                _ => None,
+            },
             Action::Share { operation_id, .. } => Some(*operation_id),
             _ => None,
         };

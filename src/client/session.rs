@@ -79,6 +79,14 @@ pub enum Action {
     },
     Clear,
     Health,
+    OperationStatus {
+        device_id: Uuid,
+        operation_id: Uuid,
+    },
+    RetryShare {
+        share: Box<Action>,
+        not_after_ms: Number,
+    },
     Watch {
         after_sequence: Number,
         wait_ms: u16,
@@ -87,6 +95,13 @@ pub enum Action {
 impl Action {
     fn request(self, request_id: Number, epoch: Uuid) -> Request {
         match self {
+            Self::RetryShare {
+                share,
+                not_after_ms,
+            } => Request::RetryShare {
+                share: Box::new(share.request(request_id, epoch)),
+                not_after_ms,
+            },
             Self::Share {
                 operation_id,
                 origin,
@@ -124,6 +139,15 @@ impl Action {
             },
             Self::Clear => Request::Clear { request_id, epoch },
             Self::Health => Request::Health { request_id, epoch },
+            Self::OperationStatus {
+                device_id,
+                operation_id,
+            } => Request::OperationStatus {
+                request_id,
+                epoch,
+                device_id,
+                operation_id,
+            },
             Self::Watch {
                 after_sequence,
                 wait_ms,
@@ -258,12 +282,14 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Session<T> {
             return Err(SessionError::Local);
         }
         let capability = match &request {
+            Request::RetryShare { .. } => Some("deadline_share"),
             Request::Share { .. } => Some("deduplicated_share"),
             Request::List { .. } => Some("list"),
             Request::Fetch { .. } => Some("fetch"),
             Request::Delete { .. } => Some("delete"),
             Request::Clear { .. } => Some("clear"),
             Request::Watch { .. } => Some("watch"),
+            Request::OperationStatus { .. } => Some("operation_status"),
             _ => None,
         };
         if let (Some(capability), Response::Welcome { capabilities, .. }) =
@@ -272,7 +298,12 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Session<T> {
         {
             return Err(SessionError::Unsupported);
         }
-        if let Request::Share { representation, .. } = &request
+        let share_request = if let Request::RetryShare { share, .. } = &request {
+            share.as_ref()
+        } else {
+            &request
+        };
+        if let Request::Share { representation, .. } = share_request
             && representation
                 .decoded_bytes
                 .is_some_and(|bytes| bytes > self.limits.max_decoded_bytes)
@@ -283,7 +314,10 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Session<T> {
         self.ready = false;
         self.mutation_uncertain = matches!(
             request,
-            Request::Share { .. } | Request::Delete { .. } | Request::Clear { .. }
+            Request::Share { .. }
+                | Request::RetryShare { .. }
+                | Request::Delete { .. }
+                | Request::Clear { .. }
         );
         self.next_id = next;
         let result = timeout(
@@ -443,7 +477,8 @@ fn response_sequence(response: &Response) -> Option<Number> {
         | Response::Deleted { sequence, .. }
         | Response::Cleared { sequence, .. }
         | Response::Health { sequence, .. }
-        | Response::Changed { sequence, .. } => Some(*sequence),
+        | Response::Changed { sequence, .. }
+        | Response::Operation { sequence, .. } => Some(*sequence),
         Response::Error { .. } => None,
     }
 }
@@ -470,7 +505,25 @@ fn check_reply(
         }
         return Ok(());
     }
-    let matches = match (request, response) {
+    let inner_request = if let Request::RetryShare { share, .. } = request {
+        share.as_ref()
+    } else {
+        request
+    };
+    let matches = match (inner_request, response) {
+        (
+            Request::OperationStatus {
+                device_id,
+                operation_id,
+                ..
+            },
+            Response::Operation {
+                epoch: returned,
+                device_id: actual_device,
+                operation_id: actual_operation,
+                ..
+            },
+        ) => *returned == epoch && device_id == actual_device && operation_id == actual_operation,
         (
             Request::Watch { after_sequence, .. },
             Response::Changed {

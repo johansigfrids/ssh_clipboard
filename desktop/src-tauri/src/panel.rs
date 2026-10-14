@@ -5,6 +5,7 @@ use crate::model::{
 };
 use crate::notifications;
 use crate::operation::{Controller, Operation};
+use crate::pending::PendingShare;
 use crate::shortcuts::{Action, Bindings, Registry};
 use serde::Serialize;
 use ssh_clipboard::client::connection::Connection;
@@ -46,6 +47,7 @@ struct Session {
     notification_status: notifications::Status,
     history_status: Option<monitor::Status>,
     metadata_barrier: tokio::time::Instant,
+    pending_share: Option<PendingShare>,
 }
 
 #[derive(Clone, Serialize)]
@@ -91,6 +93,7 @@ struct PanelView {
     operation_notice: Option<OperationNotice>,
     notification_status: notifications::Status,
     history_status: Option<monitor::Status>,
+    pending_share: Option<crate::pending::View>,
 }
 
 impl Session {
@@ -230,6 +233,7 @@ impl Session {
             operation_notice: self.operation_notice.clone(),
             notification_status: self.notification_status.clone(),
             history_status: self.history_status.clone(),
+            pending_share: self.pending_share.as_ref().map(|pending|{let mut view=pending.view();view.can_retry &= self.history.epoch.is_none_or(|epoch|epoch==pending.epoch);view}),
             profiles: self.saved_config.as_ref().map_or_else(
                 || Configuration::default().profiles.iter().map(ConnectionProfile::from).collect(),
                 |c| c.profiles.iter().map(ConnectionProfile::from).collect(),
@@ -263,6 +267,9 @@ impl Session {
     ) {
         let profile_changed = loaded.as_ref().map(|c| &c.default_profile)
             != self.saved_config.as_ref().map(|c| &c.default_profile);
+        if profile_changed {
+            self.pending_share = None;
+        }
         let transport_changed = loaded
             .as_ref()
             .and_then(|c| c.selected_profile().ok())
@@ -354,6 +361,13 @@ fn watch_settings(app: AppHandle) {
             let Ok(mut session) = state.session.try_lock() else {
                 continue;
             };
+            if session
+                .pending_share
+                .as_mut()
+                .is_some_and(PendingShare::expire)
+            {
+                let _ = app.emit("settings-changed", ());
+            }
             let Some(store) = state.config_store.as_ref() else {
                 continue;
             };
@@ -854,11 +868,123 @@ async fn share_clipboard(
     session.view()
 }
 
+#[tauri::command]
+async fn discard_share(
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+    operation_id: Uuid,
+) -> Result<PanelView, String> {
+    let mut session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Wait for the current operation to finish.")?;
+    session.check_revision(expected_revision.as_deref())?;
+    let pending = session
+        .pending_share
+        .as_ref()
+        .ok_or("No share recovery is pending.")?;
+    pending.guard(operation_id, pending.epoch)?;
+    session.pending_share = None;
+    session.view()
+}
+
+#[tauri::command]
+async fn recover_share(
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+    operation_id: Uuid,
+    retry: bool,
+) -> Result<PanelView, String> {
+    let mut session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Another operation is running.")?;
+    session.check_revision(expected_revision.as_deref())?;
+    let operation = state.operations.begin(if retry {
+        "Retrying captured share"
+    } else {
+        "Checking earlier share"
+    })?;
+    let result = operation
+        .run(reconcile_share(
+            &mut session,
+            &operation,
+            operation_id,
+            retry,
+        ))
+        .await;
+    session.after_operation(&operation);
+    result?;
+    session.view()
+}
+
+async fn reconcile_share(
+    session: &mut Session,
+    operation: &Operation,
+    operation_id: Uuid,
+    retry: bool,
+) -> Result<(), String> {
+    let pending = session
+        .pending_share
+        .as_ref()
+        .ok_or("No share recovery is pending.")?;
+    pending.guard(operation_id, pending.epoch)?;
+    let mut connection = session.take_connection().await?;
+    let result=async {
+        let pending=session.pending_share.as_ref().unwrap();
+        pending.guard(operation_id,connection.epoch().ok_or("Reconnect before checking an earlier share.")?)?;
+        let reply=connection.execute(ShelfAction::OperationStatus {device_id:pending.origin.device_id,operation_id},&[]).await.map_err(|error|error.to_string())?;
+        let ShelfResponse::Operation {item,available,epoch,sequence,epoch_time_ms,..}=reply.response else {return Err("Unexpected operation status reply.".into());};
+        session.pending_share.as_mut().unwrap().expire_server(epoch_time_ms);
+        let (item,available,epoch,sequence)=if let Some(item)=item {(item,available,epoch,sequence)}
+        else {
+            if !retry {return Err("The server has no retained acknowledgment for this share. That does not prove it failed. You can retry the captured bytes only within the original safe retry window.".into());}
+            let pending=session.pending_share.as_mut().unwrap();
+            pending.expire();
+            let action=pending.action()?;
+            operation.mutation_started()?;
+            let reply=match connection.execute(action,&pending.value.as_ref().unwrap().data).await {
+                Ok(reply)=>reply,
+                Err(ssh_clipboard::client::session_transport::RunError::Session(ssh_clipboard::client::session::SessionError::Remote(ssh_clipboard::session_protocol::ErrorCode::RetryExpired)))=>{
+                    pending.expire_server(u64::MAX.into());
+                    return Err("The safe retry window expired. Check the earlier share's status or discard recovery data.".into());
+                }
+                Err(error)=>return Err(error.to_string()),
+            };
+            let ShelfResponse::Shared {item,available,epoch,sequence,..}=reply.response else {return Err("Unexpected captured-share reply.".into());};
+            (item,available,epoch,sequence)
+        };
+        operation.confirmed()?;
+        let pending=session.pending_share.take().unwrap();
+        let id=item.id;
+        session.history.accept_snapshot(ssh_clipboard::client::session::Snapshot {epoch,sequence,items:if available {vec![item]}else{vec![]}});
+        let _=session.history.refresh(&mut connection).await;
+        session.item=None;
+        if available && session.history.selected==Some(id) && let Some(value)=pending.value {
+            // A narrower current preview budget cannot turn confirmed acceptance into failure.
+            if let Ok(limit)=session.max_decoded() && let Ok(preview)=ItemPreview::from_value_with_limit(&value,session.settings.show_preview,limit) {session.history.preview=Some(preview);session.item=Some(value);}
+        }
+        session.connected=true;
+        session.clipboard_checked=true;
+        session.record_operation(Ok(()),true);
+        session.operation_notice.as_mut().unwrap().message=if available {"The earlier share was accepted. Your local clipboard was not read or changed."}else{"The earlier share was accepted, but the item has expired or been removed."}.into();
+        Ok(())
+    }.await;
+    session.keep_connection(connection);
+    result
+}
+
 async fn share_current(
     session: &mut Session,
     clipboard: &ClipboardWorker,
     operation: &Operation,
 ) -> Result<(), String> {
+    if session.pending_share.is_some() {
+        return Err(
+            "Check or discard the earlier uncertain share before capturing another clipboard."
+                .into(),
+        );
+    }
     session.settings.validate_connection()?;
     if let Some(policy) = session.shelf_policy()? {
         let device = &session
@@ -906,19 +1032,57 @@ async fn share_current(
         let mut connection = session.take_connection().await?;
         let result = async {
             session.connected = false;
+            let epoch = connection.epoch().ok_or("Reconnect before sharing.")?;
+            let retry_ms = connection
+                .limits()
+                .ok_or("Reconnect before sharing.")?
+                .retry_retention_ms;
+            let operation_id = Uuid::new_v4();
+            // Anchor the ORIGINAL retry deadline to a fresh server-monotonic sample.
+            let server_time = if connection.supports("deadline_share") {
+                let reply = connection
+                    .execute(
+                        ShelfAction::OperationStatus {
+                            device_id: origin.device_id,
+                            operation_id,
+                        },
+                        &[],
+                    )
+                    .await
+                    .map_err(|error| error.to_string())?;
+                match reply.response {
+                    ShelfResponse::Operation { epoch_time_ms, .. } => Some(epoch_time_ms),
+                    _ => return Err("Unexpected operation clock reply.".into()),
+                }
+            } else {
+                None
+            };
             operation.mutation_started()?;
-            let reply = connection
-                .execute(
-                    ShelfAction::Share {
-                        operation_id: Uuid::new_v4(),
-                        origin,
-                        representation,
-                        created_at_ms: Some(value.created_at.into()),
-                    },
-                    &value.data,
-                )
-                .await
-                .map_err(|error| error.to_string())?;
+            session.pending_share = Some(PendingShare::new(
+                epoch,
+                operation_id,
+                origin,
+                representation,
+                value.clone(),
+                retry_ms,
+                server_time,
+            ));
+            let pending = session.pending_share.as_ref().unwrap();
+            // Initial sends are permitted even if the negotiated retry window is too
+            // short to offer a retry. Retrying later uses PendingShare::action's deadline.
+            let action = pending.initial_action();
+            let reply = match connection.execute(action, &value.data).await {
+                Ok(reply) => reply,
+                Err(error) => {
+                    if !matches!(
+                        &error,
+                        ssh_clipboard::client::session_transport::RunError::Uncertain { .. }
+                    ) {
+                        session.pending_share = None;
+                    }
+                    return Err(error.to_string());
+                }
+            };
             let ShelfResponse::Shared {
                 epoch,
                 sequence,
@@ -929,6 +1093,7 @@ async fn share_current(
                 return Err("Unexpected share reply.".into());
             };
             operation.confirmed()?;
+            session.pending_share = None;
             let id = item.id;
             session
                 .history
@@ -1273,6 +1438,7 @@ pub fn run() {
                 notification_status: notifications::status(app.handle()),
                 history_status: None,
                 metadata_barrier: tokio::time::Instant::now(),
+                pending_share: None,
             };
             session.shortcut_status = if is_wayland() {
                 "Wayland: use the launcher or tray menu. Portal support is pending.".into()
@@ -1350,6 +1516,8 @@ pub fn run() {
             delete_item,
             clear_history,
             share_clipboard,
+            discard_share,
+            recover_share,
             copy_item,
             hide_panel,
             quit_app
@@ -1847,6 +2015,39 @@ mod tests {
         assert_eq!(writes.load(Ordering::SeqCst), 0);
         assert!(session.connection.is_none());
         assert!(session.item.is_none());
+        session.pending_share = Some(PendingShare::new(
+            Uuid::from_u128(1),
+            Uuid::from_u128(2),
+            ShelfOrigin {
+                device_id: Uuid::from_u128(3),
+                name: "Synthetic".into(),
+            },
+            ShelfRepresentation {
+                id: 0,
+                content_type: ShelfContent::Text,
+                encoded_bytes: 6,
+                dimensions: None,
+                decoded_bytes: None,
+            },
+            ClipboardValue {
+                content_type: ssh_clipboard::protocol::CONTENT_TYPE_TEXT.into(),
+                data: b"frozen".to_vec(),
+                created_at: 1,
+            },
+            10_000,
+            Some(0.into()),
+        ));
+        assert!(
+            share_current(&mut session, &clipboard, &operation)
+                .await
+                .unwrap_err()
+                .contains("earlier uncertain share")
+        );
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            1,
+            "pending recovery must block recapturing a newer clipboard"
+        );
         clipboard.stop();
     }
 
@@ -1871,6 +2072,7 @@ mod tests {
             },
             history_status: None,
             metadata_barrier: tokio::time::Instant::now(),
+            pending_share: None,
             item: Some(ClipboardValue {
                 content_type: ssh_clipboard::protocol::CONTENT_TYPE_TEXT.into(),
                 data: b"retained snapshot".to_vec(),

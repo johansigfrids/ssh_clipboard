@@ -172,7 +172,7 @@ pub async fn read_request_body(
     if matches!(request, Request::Hello { .. }) {
         return Err(WireError::InvalidState);
     }
-    let upload = if matches!(request, Request::Share { .. }) {
+    let upload = if matches!(request, Request::Share { .. } | Request::RetryShare { .. }) {
         let mut input = budget
             .restricted(limits.payload, limits.decoded)?
             .allocate(header.payload)

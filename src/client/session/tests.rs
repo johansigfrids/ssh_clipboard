@@ -13,6 +13,93 @@ fn policy() -> SessionPolicy {
 }
 
 #[tokio::test]
+async fn a_lost_share_ack_can_be_queried_and_retried_without_creating_another_item() {
+    async fn open(
+        service: Arc<ShelfService>,
+    ) -> (
+        Session<DuplexStream>,
+        tokio::task::JoinHandle<Result<(), wire::WireError>>,
+    ) {
+        let (client, server) = tokio::io::duplex(4096);
+        let task = tokio::spawn(async move { service.serve(server).await });
+        (Session::connect(client, policy()).await.unwrap(), task)
+    }
+    let service =
+        Arc::new(ShelfService::new(ShelfLimits::default(), ServiceLimits::default()).unwrap());
+    let (mut first, first_task) = open(service.clone()).await;
+    let operation = Uuid::from_u128(321);
+    let clock = first
+        .execute(
+            Action::OperationStatus {
+                device_id: Uuid::from_u128(99),
+                operation_id: operation,
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    let Response::Operation { epoch_time_ms, .. } = clock.response else {
+        panic!("no clock");
+    };
+    let deadline = (epoch_time_ms.get() + u64::from(first.limits().retry_retention_ms)).into();
+    let data = b"one frozen capture";
+    let request = Action::RetryShare {
+        share: Box::new(share(data, 321)),
+        not_after_ms: deadline,
+    }
+    .request(3.into(), first.epoch());
+    let limits = first.limits().frame_limits().unwrap();
+    framing::write_message(&mut first.stream, &request, data, limits)
+        .await
+        .unwrap();
+    timeout(Duration::from_secs(1), async {
+        while service.maintenance().unwrap().1 == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    // Deliberately drop without reading the acknowledgment.
+    drop(first);
+    first_task.await.unwrap().unwrap();
+    let (mut next, next_task) = open(service.clone()).await;
+    let status = next
+        .execute(
+            Action::OperationStatus {
+                device_id: Uuid::from_u128(99),
+                operation_id: operation,
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    let Response::Operation {
+        item: Some(item),
+        available: true,
+        ..
+    } = status.response
+    else {
+        panic!("not reconciled");
+    };
+    let retry = next
+        .execute(
+            Action::RetryShare {
+                share: Box::new(share(data, 321)),
+                not_after_ms: deadline,
+            },
+            data,
+        )
+        .await
+        .unwrap();
+    assert!(
+        matches!(retry.response,Response::Shared {item:actual,duplicate:true,..} if actual.id==item.id)
+    );
+    assert_eq!(next.snapshot().await.unwrap().items.len(), 1);
+    next.close().await.unwrap();
+    next_task.await.unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn metadata_watch_uses_correlated_bounded_replies_without_fetching_bytes() {
     let (mut session, task) = connected().await;
     let snapshot = session.snapshot().await.unwrap();
@@ -34,6 +121,62 @@ async fn metadata_watch_uses_correlated_bounded_replies_without_fetching_bytes()
         .execute(share(b"new item", 111), b"new item")
         .await
         .unwrap();
+    let status = session
+        .execute(
+            Action::OperationStatus {
+                device_id: Uuid::from_u128(99),
+                operation_id: Uuid::from_u128(111),
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(status.payload.is_empty());
+    assert!(matches!(
+        status.response,
+        Response::Operation {
+            item: Some(_),
+            available: true,
+            ..
+        }
+    ));
+    session.execute(Action::Clear, &[]).await.unwrap();
+    let status = session
+        .execute(
+            Action::OperationStatus {
+                device_id: Uuid::from_u128(99),
+                operation_id: Uuid::from_u128(111),
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        status.response,
+        Response::Operation {
+            item: Some(_),
+            available: false,
+            ..
+        }
+    ));
+    let status = session
+        .execute(
+            Action::OperationStatus {
+                device_id: Uuid::from_u128(99),
+                operation_id: Uuid::from_u128(999),
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        status.response,
+        Response::Operation {
+            item: None,
+            available: false,
+            ..
+        }
+    ));
     let reply = session
         .execute(
             Action::Watch {

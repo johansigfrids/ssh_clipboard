@@ -473,6 +473,19 @@ async fn reusable_connection_keeps_one_proxy_and_never_replays_into_a_restarted_
     };
     connection.execute(share, data).await.unwrap();
     let snapshot = connection.snapshot().await.unwrap();
+    let status = connection
+        .execute(
+            Action::OperationStatus {
+                device_id: Uuid::from_u128(901),
+                operation_id: Uuid::from_u128(900),
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(
+        matches!(status.response,Response::Operation {item:Some(item),available:true,..} if item.id==snapshot.items[0].id)
+    );
     assert!(connection.supports("watch"));
     let changed = connection
         .execute(

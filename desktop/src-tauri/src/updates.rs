@@ -19,6 +19,22 @@ pub struct View {
     pub total_bytes: Option<u64>,
 }
 
+impl View {
+    fn failed(&mut self, detail: &str) {
+        // A failed/cancelled check invalidates its offer. Failed downloads keep
+        // the admitted offer so retry remains possible without a new check.
+        if self.phase == "checking" {
+            self.offered_version = None;
+            self.notes.clear();
+        }
+        self.busy = false;
+        self.phase = "failed";
+        self.downloaded_bytes = 0;
+        self.total_bytes = None;
+        self.detail = detail.into();
+    }
+}
+
 #[derive(Default)]
 struct Cache {
     #[cfg(feature = "installed-desktop")]
@@ -107,8 +123,8 @@ impl Updates {
             cache.release = None;
             cache.verified = None;
             self.publish(app, |view| {
-                view.offered_version = None;
-                view.notes.clear();
+                // Keep the last card visible while checking; controls are busy
+                // and the cached install bytes/offer have already been dropped.
                 view.downloaded_bytes = 0;
                 view.total_bytes = None;
             });
@@ -276,6 +292,26 @@ mod tests {
         .unwrap();
         completion.await.unwrap();
     }
+
+    #[test]
+    fn failed_checks_clear_stale_offers_while_download_errors_preserve_retry_metadata() {
+        let mut view = Updates::new("1.0.0".into()).view();
+        view.offered_version = Some("2.0.0".into());
+        view.notes = "Retained release notes".into();
+        view.phase = "downloading";
+        view.busy = true;
+        view.failed("Interrupted");
+        assert_eq!(view.offered_version.as_deref(), Some("2.0.0"));
+        assert_eq!(view.notes, "Retained release notes");
+        assert!(!view.busy);
+        view.phase = "checking";
+        view.busy = true;
+        view.failed("Check cancelled");
+        assert!(view.offered_version.is_none());
+        assert!(view.notes.is_empty());
+        assert_eq!(view.phase, "failed");
+        assert!(!view.busy);
+    }
 }
 impl Progress {
     pub fn finish(&mut self) {
@@ -285,24 +321,16 @@ impl Progress {
     #[cfg(feature = "installed-desktop")]
     pub fn fail(&mut self, error: &str) {
         self.finished = true;
-        self.updates.publish(&self.app, |view| {
-            view.busy = false;
-            view.phase = "failed";
-            view.detail = error.into();
-        });
+        self.updates.publish(&self.app, |view| view.failed(error));
     }
 }
 impl Drop for Progress {
     fn drop(&mut self) {
         if !self.finished {
             self.updates.publish(&self.app, |view| {
-                view.busy = false;
-                view.phase = "failed";
-                view.downloaded_bytes = 0;
-                view.total_bytes = None;
-                view.detail =
-                    "Update operation stopped. Nothing was installed. Check or download again."
-                        .into();
+                view.failed(
+                    "Update operation stopped. Nothing was installed. Check or download again.",
+                );
             });
         }
     }

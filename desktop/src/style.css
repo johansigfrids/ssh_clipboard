@@ -56,6 +56,10 @@ nav { display: flex; margin-bottom: 24px; gap: 4px; }
 nav button { flex: 1; padding: 9px 5px; font-size: 12px; background: transparent; border-color: transparent; }
 nav button.active { background: var(--surface); border-color: var(--border); color: var(--accent); }
 .release-notes { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflow: auto; font: inherit; padding: 12px; background: var(--surface); border-radius: 8px; }
+.update-detail { min-height: 3.2em; }
+.check-updates { min-width: 11.5em; }
+.update-operation { min-height: 3.25rem; margin-top: 12px; }
+.update-operation .operation-progress { padding: 0; background: transparent; color: var(--muted); }
 label { display: block; font-size: 12px; font-weight: 600; margin: 18px 0 7px; }
 label span { color: var(--muted); font-weight: normal; }
 input:not([type=checkbox]), select, textarea { width: 100%; min-width: 0; padding: 10px 12px; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; font-size: 13px; }

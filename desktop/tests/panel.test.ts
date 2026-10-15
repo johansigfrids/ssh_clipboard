@@ -47,6 +47,37 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("rechecking an update keeps its card and settings header mounted with progress confined to Updates", async () => {
+    state.updateStatus={available:true,currentVersion:"0.3.2",offeredVersion:"0.3.3",notes:"Retained release notes",phase:"offered",detail:"An update is available.",busy:false,downloadedBytes:0,totalBytes:null};
+    const normal=bridge.invoke.getMockImplementation()!;
+    let finish!: (next: PanelView["updateStatus"]) => void;
+    bridge.invoke.mockImplementation((name,args)=>name==="check_updates"?new Promise(resolve=>{finish=resolve;}):normal(name,args));
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Updates"}));
+    const heading=document.querySelector("main")!.firstElementChild;
+    const notes=screen.getByText("Retained release notes");
+    const download=screen.getByRole("button",{name:"Download and verify"});
+    await fireEvent.click(screen.getByRole("button",{name:"Check for updates"}));
+    const update=bridge.listen.mock.calls.find(([name])=>name==="update-state")![1];
+    const operation=bridge.listen.mock.calls.find(([name])=>name==="operation-state")![1];
+    update({payload:{...state.updateStatus,phase:"checking",busy:true,detail:"Checking for updates…"}});
+    operation({payload:{generation:"1",active:{id:"1",label:"Checking for updates",cancellable:true,cancelling:false}}});
+    const cancel=await screen.findByRole("button",{name:"Cancel operation"});
+    expect(cancel.closest(".updates-panel")).toBeTruthy();
+    expect(document.querySelector("main")!.firstElementChild).toBe(heading);
+    expect(screen.getByText("Retained release notes")).toBe(notes);
+    expect(screen.getByRole("button",{name:"Download and verify"})).toBe(download);
+    expect(download.hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button",{name:"Check for updates"}).textContent).toBe("Checking…");
+    operation({payload:{generation:"2",active:null}});
+    finish(structuredClone(state.updateStatus));
+    await waitFor(()=>expect(download.hasAttribute("disabled")).toBe(false));
+    expect(screen.getByText("Retained release notes")).toBe(notes);
+    expect(bridge.invoke.mock.calls.some(([name])=>["download_update","install_update"].includes(name))).toBe(false);
+  });
+
   it("update notes are inert and a verified package still needs explicit install confirmation", async () => {
     state.updateStatus={available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",notes:"<script>never executed</script>",phase:"ready",detail:"Verified",busy:false,downloadedBytes:123,totalBytes:123};
     const normal=bridge.invoke.getMockImplementation()!;

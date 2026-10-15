@@ -254,6 +254,15 @@
   {:else if view.operationNotice}<div class:error={view.operationNotice.failed} class="feedback" role={view.operationNotice.failed ? "alert" : "status"}>{view.operationNotice.message}</div>{/if}
 {/snippet}
 
+{#snippet operationProgress()}
+  {#if operation.active}
+    <div class="feedback operation-progress" role="status">
+      <span>{operation.active.label}… {operation.active.cancelling ? "Stopping…" : !operation.active.cancellable ? "Finishing…" : ""}</span>
+      <button type="button" disabled={!operation.active.cancellable} onclick={cancelOperation}>Cancel operation</button>
+    </div>
+  {/if}
+{/snippet}
+
 <div class="app-shell">
   <header>
     <div class="brand-mark" aria-hidden="true">↔</div>
@@ -266,12 +275,7 @@
   </header>
 
   <main bind:this={content}>
-    {#if operation.active}
-      <div class="feedback operation-progress" role="status">
-        <span>{operation.active.label}… {operation.active.cancelling ? "Stopping…" : !operation.active.cancellable ? "Finishing…" : ""}</span>
-        <button type="button" disabled={!operation.active.cancellable} onclick={cancelOperation}>Cancel operation</button>
-      </div>
-    {/if}
+    {#if page !== "settings" || section !== "updates"}{@render operationProgress()}{/if}
     {#if view.settingsNotice}<div class="feedback error" role="alert">{view.settingsNotice}</div>{/if}
     {#if page === "panel"}
       <div class="status-line"><span class:connected={view.connected} class="status-dot"></span>{busy ? "Working…" : view.connected ? "Server reachable" : configured ? "Not connected" : "Setup needed"}<span class="mode">{view.settings.profileName}</span></div>
@@ -439,13 +443,14 @@
           <p class="field-help">To share: copy text or an image normally first, then press your Share shortcut. It sends what's already on this computer's clipboard; it doesn't copy selected text.</p>
           <p class="field-help">To receive: press your Copy shortcut to put the latest shared item on this computer's clipboard, then paste normally. It doesn't paste into the active app. Recording a shortcut never transfers content.</p>
         {:else if section === "updates"}
+          <section class="updates-panel" aria-label="Software updates">
           <h3>Updates</h3>
           <p>Current version: {view.updateStatus.currentVersion === "0.0.0" ? "Development prototype" : view.updateStatus.currentVersion}</p>
-          <p class="field-help" role="status">{view.updateStatus.detail}</p>
+          <p class="field-help update-detail" role="status">{view.updateStatus.detail}</p>
           {#if view.updateStatus.offeredVersion}<p>Available version: <strong>{view.updateStatus.offeredVersion}</strong></p>{/if}
           {#if view.updateStatus.notes}<pre class="release-notes">{view.updateStatus.notes}</pre>{/if}
           {#if view.updateStatus.phase === "downloading"}<p>{formatSize(view.updateStatus.downloadedBytes)}{view.updateStatus.totalBytes !== null ? ` of ${formatSize(view.updateStatus.totalBytes)}` : " downloaded"}</p>{/if}
-          <button type="button" disabled={!ready || busy || view.updateStatus.busy || !view.updateStatus.available} onclick={() => updateAction("check_updates")}>Check for updates</button>
+          <button type="button" class="check-updates" aria-label="Check for updates" disabled={!ready || busy || view.updateStatus.busy || !view.updateStatus.available} onclick={() => updateAction("check_updates")}>{view.updateStatus.busy && view.updateStatus.phase === "checking" ? "Checking…" : "Check for updates"}</button>
           {#if view.updateStatus.offeredVersion && view.updateStatus.phase !== "ready"}
             <button type="button" disabled={!ready || busy || view.updateStatus.busy} onclick={() => updateAction("download_update", view.updateStatus.offeredVersion!)}>Download and verify</button>
           {/if}
@@ -462,6 +467,8 @@
             {#if dirty}<p class="field-help">Apply or discard settings changes before installing.</p>{/if}
             {#if view.pendingShare}<p class="field-help">Resolve or discard the uncertain share before installing.</p>{/if}
           {/if}
+          <div class="update-operation">{@render operationProgress()}</div>
+          </section>
         {:else}
           <label class="toggle"><input type="checkbox" bind:checked={draft.showPreview} disabled={!ready || busy} />Show content previews</label>
           <p class="field-help">Hide text and image previews when sharing your screen.</p>

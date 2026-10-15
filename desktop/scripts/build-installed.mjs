@@ -4,6 +4,7 @@ import {createHash,randomUUID} from "node:crypto";
 import {copyFileSync,readFileSync,writeFileSync,mkdirSync,readdirSync,statSync,existsSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
+import {nativeOrigin} from "./native-update-config.mjs";
 
 const desktop=fileURLToPath(new URL("../",import.meta.url));
 const root=path.dirname(desktop);
@@ -12,9 +13,11 @@ const values=new Map();const flags=new Set();
 for(let i=2;i<process.argv.length;i++) {
   const key=process.argv[i];
   if(["--debug","--test-build"].includes(key)){flags.add(key);continue;}
-  if(!["--version","--public-key-file","--transition-from-public-key-file","--notes-file"].includes(key) || !process.argv[i+1])throw new Error("Unknown or incomplete installed-build argument.");
+  if(!["--version","--public-key-file","--transition-from-public-key-file","--notes-file","--native-test-origin"].includes(key) || !process.argv[i+1])throw new Error("Unknown or incomplete installed-build argument.");
   if(values.has(key))throw new Error("Duplicate installed-build argument.");values.set(key,process.argv[++i]);
 }
+if(process.env.SSH_CLIPBOARD_NATIVE_TEST_ORIGIN !== undefined)throw new Error("Never inherit a native test transport; pass --test-build --native-test-origin explicitly.");
+const nativeTestOrigin=nativeOrigin(values.get("--native-test-origin"),flags.has("--test-build"),flags.has("--debug"));
 const version=values.get("--version");
 const coreVersion=readFileSync(path.join(root,"Cargo.toml"),"utf8").match(/^version\s*=\s*"([^"]+)"/m)?.[1];
 if(!/^\d+\.\d+\.\d+$/.test(version??"") || version!==coreVersion || version==="0.0.0")throw new Error("Pass a stable --version matching the shared core's Cargo.toml.");
@@ -32,6 +35,7 @@ const feed=`https://github.com/johansigfrids/ssh_clipboard/releases/latest/downl
 const stage=path.join(desktop,"artifacts",`${flags.has("--test-build")?"TEST-only-":""}installed-${version}-${randomUUID()}`);mkdirSync(stage,{recursive:true});
 const targetDir=path.join(desktop,"src-tauri/target");
 const env={...process.env,CARGO_TARGET_DIR:targetDir,SSH_CLIPBOARD_UPDATE_PUBLIC_KEY:publicKey,SSH_CLIPBOARD_UPDATE_FEED:feed};
+if(nativeTestOrigin)env.SSH_CLIPBOARD_NATIVE_TEST_ORIGIN=nativeTestOrigin;
 if(existsSync(env.TAURI_SIGNING_PRIVATE_KEY))env.TAURI_SIGNING_PRIVATE_KEY=path.resolve(env.TAURI_SIGNING_PRIVATE_KEY);
 function run(command,args,cwd=desktop,taskEnv=env,capture=false) {
   const result=spawnSync(command,args,{cwd,env:taskEnv,stdio:capture?"pipe":"inherit",encoding:"utf8"});
@@ -70,10 +74,11 @@ run(process.execPath,[cli,"signer","sign","--app-version",version,output],deskto
 const candidate={version,platform,url:`https://github.com/johansigfrids/ssh_clipboard/releases/download/desktop-v${version}/${name}`,signature:readFileSync(`${output}.sig`,"utf8").trim()};
 const candidatePath=path.join(stage,"candidate.json");writeFileSync(candidatePath,JSON.stringify(candidate,null,2));
 const verifyKey=path.join(stage,"signing-public-key.pub");writeFileSync(verifyKey,signingPublicKey+"\n");
-run("cargo",["run","--locked","--manifest-path","src-tauri/Cargo.toml","--features","release-tools","--bin","verify_desktop_update","--",verifyKey,"0.0.0",candidatePath,output],desktop,env);
+const verifyEnv={...env};delete verifyEnv.SSH_CLIPBOARD_NATIVE_TEST_ORIGIN;
+run("cargo",["run","--locked","--manifest-path","src-tauri/Cargo.toml","--features","release-tools","--bin","verify_desktop_update","--",verifyKey,"0.0.0",candidatePath,output],desktop,verifyEnv);
 const notes=values.get("--notes-file")?readFileSync(values.get("--notes-file"),"utf8"):"";if(Buffer.byteLength(notes)>16384)throw new Error("Release notes exceed 16 KiB.");
 const manifest={version,notes,pub_date:new Date().toISOString(),platforms:{[platform]:{url:candidate.url,signature:candidate.signature}}};
 writeFileSync(path.join(stage,`desktop-stable-${keyId(signingPublicKey)}.json`),JSON.stringify(manifest,null,2)+"\n");
 writeFileSync(`${output}.sha256`,`${createHash("sha256").update(readFileSync(output)).digest("hex")}  ${name}\n`);
-writeFileSync(path.join(stage,"build-evidence.json"),JSON.stringify({testOnly:flags.has("--test-build"),version,platform,cliVersion:reported,embeddedPublicKeyId:keyId(publicKey),signingPublicKeyId:keyId(signingPublicKey),installed:false,published:false},null,2)+"\n");
+writeFileSync(path.join(stage,"build-evidence.json"),JSON.stringify({testOnly:flags.has("--test-build"),nativeTestOrigin:nativeTestOrigin??null,version,platform,cliVersion:reported,embeddedPublicKeyId:keyId(publicKey),signingPublicKeyId:keyId(signingPublicKey),installed:false,published:false},null,2)+"\n");
 process.stdout.write(`Staged verified ${flags.has("--test-build")?"TEST-ONLY ":""}desktop package: ${stage}\n`);

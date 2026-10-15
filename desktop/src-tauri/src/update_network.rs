@@ -28,18 +28,34 @@ pub async fn download(
     if !remote(&url) {
         return Err("Update location is not trusted HTTPS.".into());
     }
-    let client = reqwest::Client::builder()
-        .https_only(true)
+    let builder = reqwest::Client::builder()
         .timeout(deadline)
         .connect_timeout(Duration::from_secs(10))
+        .user_agent("SSHClipboard-Update");
+    #[cfg(native_update_test)]
+    let (url, builder) = {
+        let location = crate::native_update_test::resolve(
+            env!("SSH_CLIPBOARD_NATIVE_TEST_ORIGIN"),
+            url.as_str(),
+        )?;
+        (
+            url::Url::parse(&location).map_err(|_| "Invalid native fixture location.")?,
+            builder
+                .no_proxy()
+                .redirect(reqwest::redirect::Policy::none()),
+        )
+    };
+    #[cfg(not(native_update_test))]
+    let builder = builder
+        .https_only(true)
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 || !remote(attempt.url()) {
                 attempt.error("Update redirect rejected")
             } else {
                 attempt.follow()
             }
-        }))
-        .user_agent("SSHClipboard-Update")
+        }));
+    let client = builder
         .build()
         .map_err(|_| "Could not initialize update transport.")?;
     let mut response = client

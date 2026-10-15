@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Track Phase 6 implementation and distinguish package verification from installed update evidence. Strict verification, installed staging, explicit startup, bounded update discovery/download, guarded installer handoff, and a protected draft-release workflow are implemented. Production trust setup, native login, and installed upgrade acceptance remain open.
+Track Phase 6 implementation and distinguish package verification from installed update evidence. Strict verification, installed staging, explicit startup, bounded update discovery/download, guarded installer handoff, and a protected draft-release workflow are implemented. Isolated native Windows installation/manual upgrade/sign-in pass; protected production signing and built-in upgrade/key-transition acceptance remain open.
 
 ## Key Files
 
@@ -16,6 +16,8 @@ Track Phase 6 implementation and distinguish package verification from installed
 - `update_feed.rs`, `update_network.rs`, `updates.rs`: untrusted feed parsing, bounded HTTPS, cancellation, and independent update state.
 - `update_handoff.rs`, `tests/framework_handoff.rs`: one-use local metadata bridge and actual framework check with a mock runtime.
 - `.github/workflows/desktop-release.yml`: manual master-only validation and environment-gated signed draft creation.
+- `desktop/scripts/prepare-native-updater.mjs`, `native-update-server.mjs`: opt-in local native rehearsal packages and controlled feed faults.
+- `desktop/src-tauri/build-support/native_update_test.rs`: build-time identity/origin gate and canonical test routing.
 
 ## Runtime Update Path
 
@@ -62,6 +64,14 @@ The entry names the stable installed app and passes `--background`; startup/seco
 Native Windows acceptance on 2026-10-14 installed an isolated release-mode `SSH Clipboard Update Test` 0.3.0 with disposable trust. The owner confirmed launch and the saved connection; the actual per-user executable/installer registration reported 0.3.0. Enabling startup registered the installed test executable with `--background`. A launch with those exact arguments reached the tray, but the owner saw the panel flash before hiding. The configured window was visible during native creation, before setup could hide it. It now starts hidden and unfocused; setup explicitly shows normal launches, or a background launch whose tray failed. The embedded-context probe guards the initial configuration.
 
 On 2026-10-15, an isolated source snapshot of fix `7693935` was staged as test version 0.3.1 without changing the repository's release version. Its signed package passed admission against the original test public key/current 0.3.0. The owner manually upgraded without uninstalling, launched the installed app and confirmed 0.3.1. Read-only checks confirmed GUI/CLI/installer registration all reported 0.3.1 and the exact startup command survived. After Quit and a fresh background launch, the owner confirmed no panel flash; clicking the tray opened the panel with the saved connection. The owner then signed out of Windows and back in: the test app started automatically without a panel flash. Two tray icons were observed; read-only process/startup inspection identified one preserved legacy `ssh_clipboard_agent.exe --autostart` and one installed test `ssh_clipboard_desktop.exe --background`, each with its own existing registration. This is migration coexistence, not a duplicate desktop instance. Keep the old entry untouched until an explicit cutover or test cleanup, and distinguish icons by the legacy Push/Pull/Peek menu versus the desktop Open clipboard/Settings menu. These are native installer/manual-upgrade and actual sign-in results. The built-in download/install path, installed key transition and cleanup remain pending. No production installation, publication or production signing-key use occurred.
+
+## Isolated Native Updater Rehearsal
+
+`node desktop/scripts/prepare-native-updater.mjs --state-file <owned-test-acceptance-state>` stages four release-mode Windows test packages from isolated version-only source snapshots: a loopback-capable 0.3.2 bootstrap, same-key 0.3.3, old-key-signed 0.3.4 embedding the next test key, and next-key-signed 0.3.5. It requires the existing disposable test workspace/key, captures new signer output, and never installs, publishes, reads production signing material or changes the repository's release version. It leaves an owned loopback fixture and disposable keys for the supervised test, to be stopped/removed during cleanup.
+
+The fixture transport is compiled only when the explicit `--test-build --native-test-origin` staging options supply a literal `127.0.0.1` origin with an unprivileged port and random 128-bit route. Inherited fixture environment inputs are refused. The Rust build script independently requires the exact Update Test product/identifier and installed feature; production/prototype identities fail the build. Ordinary builds have no fixture dispatch compiled, including ordinary all-feature CI checks. Native fixture builds keep canonical GitHub candidate/feed selectors, signed version/filename checks, byte limits, progress/cancellation and the real framework installer handoff. Only transport resolution changes; it disables proxy/redirects and serves declared files under the owned fixture root. It adds no runtime override or production trust exception. This loopback rehearsal does not prove public GitHub/TLS delivery.
+
+The local `control.json` selects an exact offered test version and mode (`valid`, `slow`, `tampered`, `interrupted`, or `stop`). Feed routes are keyed by signing identity; choosing an older signed feed exercises the existing no-downgrade offer rule. Package modes let the owner cancel a real download or observe signature/interruption rejection before successful installation. Metadata-only request logs record route/mode/size, never clipboard content or private keys. Automated probes cover identity/origin refusal, owned-file routing, changed bytes, interruption and cancellation. A real production-identity build with a fixture input was rejected as expected. Installed built-in download/install and key transition remain unconfirmed until the owner exercises them.
 
 ## Package Policy
 

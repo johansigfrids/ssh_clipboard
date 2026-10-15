@@ -1,4 +1,28 @@
+#[path = "build-support/native_update_test.rs"]
+mod native_test;
+
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(native_update_test)");
+    const NATIVE_TEST_ENV: &str = "SSH_CLIPBOARD_NATIVE_TEST_ORIGIN";
+    println!("cargo:rerun-if-env-changed={NATIVE_TEST_ENV}");
+    println!("cargo:rerun-if-changed=build-support/native_update_test.rs");
+    if let Ok(origin) = std::env::var(NATIVE_TEST_ENV) {
+        let overlay: serde_json::Value = serde_json::from_str(
+            &std::env::var("TAURI_CONFIG").expect("native test requires an explicit Tauri overlay"),
+        )
+        .expect("invalid native test overlay");
+        native_test::validate(
+            &origin,
+            overlay["identifier"].as_str().unwrap_or(""),
+            overlay["productName"].as_str().unwrap_or(""),
+            std::env::var_os("CARGO_FEATURE_INSTALLED_DESKTOP").is_some(),
+        )
+        .expect("native updater test must never enter a production app");
+        // Exercise the same strict mapping code used by the compiled fixture.
+        native_test::resolve(&origin, "https://github.com/johansigfrids/ssh_clipboard/releases/latest/download/desktop-stable-0123456789abcdef.json").unwrap();
+        println!("cargo:rustc-cfg=native_update_test");
+        println!("cargo:rustc-env={NATIVE_TEST_ENV}={origin}");
+    }
     // Mock-runtime integration tests can link TaskDialogIndirect through Tauri.
     // Scope to integration tests: app binaries already have a manifest resource.
     if std::env::var("TARGET").is_ok_and(|target| target.ends_with("windows-msvc")) {

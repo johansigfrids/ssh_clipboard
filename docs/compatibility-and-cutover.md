@@ -55,7 +55,7 @@ The installed rework and legacy agent can otherwise both own startup/shortcuts. 
 ## Release Gates Still Open
 
 - Owner signing-key/password retention and protected environment setup are complete, with metadata/public-key consistency verified. Actual protected signing, trusted first-installation admission and complete draft review remain required before publication.
-- Isolated Windows clean install, manual and built-in upgrades, retained startup, actual sign-in, download cancellation, tamper rejection and an installed signing-key transition pass with disposable trust/private delivery. Exact production-package admission/public delivery, interrupted installation and final native configuration/transfer acceptance remain open; macOS/Linux desktop packages remain unverified.
+- Isolated Windows clean install, manual and built-in upgrades, retained startup, actual sign-in, download cancellation, tamper rejection and an installed signing-key transition pass with disposable trust/private delivery. Saved connection retention and a post-update text Share/Copy/Notepad round trip also pass. Exact production-package admission/public delivery, interrupted installation and the separate shelf/recovery acceptance remain open; macOS/Linux desktop packages remain unverified.
 - Disposable real user-systemd runtime acceptance passes with signed debug fixtures. The exact production server package, persistent install/login/boot, existing unit-directory permission review, and separately authorized legacy service/SSH cutover with released clients remain open.
 - Combined native daily-use check for shelf history, remote changes, cancellation/reconnect and private feedback. The earlier user-confirmed direct Windows Share result covers only that behavior/build.
 

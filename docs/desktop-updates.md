@@ -73,6 +73,8 @@ The fixture transport is compiled only when the explicit `--test-build --native-
 
 The local `control.json` selects an exact offered test version and mode (`valid`, `slow`, `tampered`, `interrupted`, or `stop`). Feed routes are keyed by signing identity; choosing an older signed feed exercises the existing no-downgrade offer rule. Package modes let the owner cancel a real download or observe signature/interruption rejection before successful installation. Metadata-only request logs record route/mode/size, never clipboard content or private keys. Automated probes cover identity/origin refusal, owned-file routing, changed bytes, interruption and cancellation. A real production-identity build with a fixture input was rejected as expected. Installed built-in download/install and key transition remain unconfirmed until the owner exercises them.
 
+Windows native staging verifies Cargo with `where.exe` and prepends that existing directory only inside the rehearsal process. Native CLI discovery failed after sign-in when an unmatched quote in the inherited PATH hid later Rust entries, although direct Cargo invocation worked. The scoped prefix restored tool discovery without editing Windows environment settings or installing tools.
+
 ## Package Policy
 
 The chosen updater remains Tauri's supported installer/update path. The current pinned plugin exposes required signed-version verification, and the installed CLI's signer supports `--app-version`. Keep those enabled rather than accepting older signatures without a signed version.

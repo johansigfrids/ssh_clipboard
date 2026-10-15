@@ -6,6 +6,14 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 if(process.platform!=='win32'||process.argv.length!==4||process.argv[2]!=='--state-file')throw new Error('Pass --state-file <existing isolated native acceptance state> on Windows.');
+// A malformed quoted PATH entry can hide later Rust tools from the native CLI
+// even when Node/where.exe can find them. Scope the verified tool directory to
+// this rehearsal process; never edit the user's persisted environment.
+const cargoLookup=spawnSync('where.exe',['cargo.exe'],{encoding:'utf8'});
+const cargo=cargoLookup.stdout?.split(/\r?\n/).find(file=>path.isAbsolute(file)&&existsSync(file));
+if(cargoLookup.status!==0||!cargo)throw new Error('Existing Cargo installation required.');
+const pathKey=Object.keys(process.env).find(key=>key.toLowerCase()==='path')??'Path';
+process.env[pathKey]=path.dirname(cargo)+';'+(process.env[pathKey]??'');
 const statePath=path.resolve(process.argv[3]);
 const artifacts=path.join(root,'desktop/artifacts');
 const prior=path.dirname(statePath);

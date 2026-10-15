@@ -120,6 +120,9 @@ impl Default for Device {
 pub struct LegacyImport {
     pub source: PathBuf,
     pub backup: PathBuf,
+    /// Existing schema 2 receipts have not yet been reviewed in the desktop.
+    #[serde(default)]
+    pub reviewed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -418,6 +421,7 @@ impl ConfigStore {
         next.legacy_import = Some(LegacyImport {
             source: legacy_path.into(),
             backup: backup.clone(),
+            reviewed: false,
         });
         let pending = self.prepare(None, next)?;
         create_backup(&backup, &bytes)?;

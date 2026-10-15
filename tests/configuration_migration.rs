@@ -54,6 +54,26 @@ fn legacy_import_is_backed_up_losslessly_idempotent_and_preserves_connection_pol
 }
 
 #[test]
+fn older_schema_two_import_receipts_default_to_unreviewed_without_rewriting() {
+    let directory = tempfile::tempdir().unwrap();
+    let legacy = directory.path().join("agent.toml");
+    let store = ConfigStore::new(directory.path().join("settings.json"));
+    std::fs::write(&legacy, LEGACY).unwrap();
+    let imported = store.initialize_from_legacy(&legacy).unwrap().unwrap();
+    let mut value = serde_json::to_value(&imported).unwrap();
+    value["legacy_import"]
+        .as_object_mut()
+        .unwrap()
+        .remove("reviewed");
+    let bytes = serde_json::to_vec(&value).unwrap();
+    std::fs::write(store.path(), &bytes).unwrap();
+    let loaded = store.load().unwrap().unwrap();
+    assert_eq!(loaded, imported);
+    assert!(!loaded.legacy_import.unwrap().reviewed);
+    assert_eq!(std::fs::read(store.path()).unwrap(), bytes);
+}
+
+#[test]
 fn schema_one_reads_without_writes_and_first_save_keeps_an_exact_backup() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("settings-v1.json");
@@ -189,6 +209,14 @@ fn executable_migration_and_advanced_settings_edits_preserve_imported_preference
     );
     let imported: Configuration = serde_json::from_slice(&output.stdout).unwrap();
     assert!(imported.legacy_import.is_some());
+    let store = ConfigStore::new(path.clone());
+    let mut reviewed = imported.clone();
+    reviewed.legacy_import.as_mut().unwrap().reviewed = true;
+    let reviewed = store
+        .prepare(Some(&imported), reviewed)
+        .unwrap()
+        .commit()
+        .unwrap();
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
         .arg("settings")
         .arg("--settings-file")
@@ -220,7 +248,7 @@ fn executable_migration_and_advanced_settings_edits_preserve_imported_preference
     assert_eq!(edited.device.id, imported.device.id);
     assert_eq!(edited.device.name, "Test computer");
     assert_eq!(edited.preferences, imported.preferences);
-    assert_eq!(edited.legacy_import, imported.legacy_import);
+    assert_eq!(edited.legacy_import, reviewed.legacy_import);
     assert_eq!(edited.profiles[0].transport.ssh_options, ["BatchMode=yes"]);
     assert_eq!(edited.profiles[0].transport.timeout_ms, 7000);
     assert_eq!(edited.profiles[0].transport.max_size, 10485760);

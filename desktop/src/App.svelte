@@ -148,10 +148,10 @@
     operationEpoch++;
     inform("");
     try {
-      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history", "recover_share", "discard_share", "set_start_at_login"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
+      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history", "recover_share", "discard_share", "set_start_at_login", "acknowledge_migration_summary"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
       confirmingHistory = null;
       view = await command<PanelView>(name, guardedArgs);
-      if (name === "apply_settings" || name === "remove_profile" || name === "set_start_at_login") discardDraft();
+      if (name === "apply_settings" || name === "remove_profile" || name === "set_start_at_login" || name === "acknowledge_migration_summary") discardDraft();
       inform(name === "recover_share" && view.operationNotice ? view.operationNotice.message : name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success);
       if (name === "select_item" && content) content.scrollTop = 0;
     } catch (cause) {
@@ -277,6 +277,23 @@
   <main bind:this={content}>
     {#if page !== "settings" || section !== "updates"}{@render operationProgress()}{/if}
     {#if view.settingsNotice}<div class="feedback error" role="alert">{view.settingsNotice}</div>{/if}
+    {#if view.migrationSummary}
+      <section class="migration-summary" aria-labelledby="migration-heading">
+        <h2 id="migration-heading">Review imported settings</h2>
+        <p>Your existing settings were imported and a recovery backup was saved. These are your current saved choices.</p>
+        <dl>
+          <dt>Connection</dt><dd>{view.settings.profileName} — {view.settings.target || "Setup needed"}</dd>
+          <dt>This computer</dt><dd>{view.migrationSummary.deviceName}</dd>
+          <dt>Open panel</dt><dd>{displayShortcut(view.settings.openShortcut)}{!view.settings.shortcutEnabled ? " (disabled)" : ""}</dd>
+          <dt>Saved start-at-login choice</dt><dd>{view.migrationSummary.startAtLogin ? "On" : "Off"}. Review Behavior to change this app's startup entry.</dd>
+          <dt>Direct shortcuts</dt><dd>{view.settings.directShortcutsEnabled ? "Enabled" : "Disabled"}. Share: {view.settings.directShareShortcut ? displayShortcut(view.settings.directShareShortcut) : "Not set"}; Copy: {view.settings.directCopyShortcut ? displayShortcut(view.settings.directCopyShortcut) : "Not set"}.</dd>
+        </dl>
+        <p>Your old agent and its startup entry were left in place. Quit it before enabling direct shortcuts here; keep only one app enabled at login when you switch.</p>
+        <details><summary>Recovery backup</summary><p>{view.migrationSummary.backupPath}</p></details>
+        <button type="button" disabled={!ready || busy || dirty || !view.settingsWritable} onclick={() => perform("acknowledge_migration_summary", "Import summary dismissed.")}>Got it</button>
+        {#if dirty}<p class="field-help">Apply or discard edits before dismissing this summary.</p>{/if}
+      </section>
+    {/if}
     {#if page === "panel"}
       <div class="status-line"><span class:connected={view.connected} class="status-dot"></span>{busy ? "Working…" : view.connected ? "Server reachable" : configured ? "Not connected" : "Setup needed"}<span class="mode">{view.settings.profileName}</span></div>
       {#if view.historyStatus}
@@ -352,7 +369,6 @@
       <p class="quiet-note">{view.history ? "History updates automatically. Sharing and copying happen only when you ask." : "Sharing and copying happen only when you ask."}</p>
     {:else}
       <div class="settings-title"><h2>Settings</h2><span>{view.settingsSaved ? "Saved on this computer" : "Apply to save"}</span></div>
-      {#if view.migrationSummary}<p class="field-help">{view.migrationSummary}</p>{/if}
       <nav aria-label="Settings sections">
         {#each [["connection", "Connection"], ["shortcuts", "Shortcuts"], ["behavior", "Behavior"], ["updates", "Updates"]] as [id, label]}
           <button class:active={section === id} aria-current={section === id ? "page" : undefined} onclick={() => selectSection(id)}>{label}</button>

@@ -11,6 +11,7 @@ Move existing agent/prototype settings into the shared schema without losing con
 - `src/cli/settings.rs`: explicit migration and advanced settings edits.
 - `tests/configuration_migration.rs`: temporary-file and executable migration contracts.
 - `desktop/src-tauri/src/panel.rs`: startup discovery, migrated transport, import summary, and reload isolation.
+- `desktop/src-tauri/src/migration_review.rs`: local review projection and coordinated acknowledgment.
 
 ## Source Selection
 
@@ -42,6 +43,16 @@ Autostart choice and legacy push/pull bindings are retained in schema 2. Direct 
 
 Schema 2 also carries a device display name, a device UUID assigned once at the first durable save/import, and a disabled-by-default future automatic-update preference. These do not enable device announcements, updater traffic, or OS startup. Basic desktop preference edits preserve all of these fields.
 
+## One-Time Import Review
+
+An unreviewed legacy import shows a summary in the panel and Settings. It identifies the current saved connection, device display name, panel shortcut and retained direct bindings/startup choice, with the recovery-backup path in a disclosure. The summary explains that the original agent/startup entry remain in place and that shortcut/startup ownership must be reviewed before switching. It describes current saved choices, not an immutable snapshot of the original import. Text and paths remain inert and wrap inside the scrolling content area.
+
+`Got it` persists `legacy_import.reviewed = true` through the normal coordinated store; it does not delete the source, backup or import provenance. Earlier schema 2 receipts without this optional-on-read boolean default to unreviewed, and reading does not rewrite them. This extends the unreleased schema 2 receipt; older rework builds that reject unknown fields are not a supported downgrade path for the extended receipt.
+
+Acknowledgment checks both the displayed revision and the complete saved snapshot under the writer lock. It changes only the receipt and revision, retaining active settings, clipboard/history snapshots, pending shares and shortcut registration. It neither registers startup nor accesses SSH/the clipboard. Unsaved edits must be applied or discarded before dismissal; failed/stale writes leave the summary visible and report the failure. The summary stays dismissed after reload/relaunch; a deliberate new import has its own unreviewed receipt. Existing configurations without legacy-import provenance show no import summary.
+
+Guardrail: showing a migration summary must never perform the proposed cutover. Keep acknowledgment separate from settings application and native registration, retain exact recovery bytes, and test external-write races before adding further migration actions.
+
 ## Backups and Failure Recovery
 
 - Backups preserve source bytes, including comments/formatting. Use a same-directory private temporary file, flush, and persist without overwriting an existing backup.
@@ -54,6 +65,8 @@ Schema 2 also carries a device display name, a device UUID assigned once at the 
 Automatic startup migration only writes configuration/backups; it does not install, restart a server, register startup, share a clipboard, or replay a clipboard write.
 
 ## Evidence
+
+On 2026-10-15, rendered frontend and temporary-store/backend tests pass for discoverability before opening Settings, retained binding/startup explanations, inert names/paths, dirty-draft blocking, guarded explicit dismissal, failure retention, reload persistence, idempotency and stale-write refusal. A desktop session probe confirms acknowledgment preserves the active setup and clipboard snapshot; exact source/backup bytes remain unchanged. The shared CLI lockfile also reads older receipts without rewriting them. This slice has automated evidence; native import-summary acceptance joins the next combined migration pass.
 
 On 2026-10-14, temporary-file/executable probes pass for exact backup bytes, current-agent serialization, missing/invalid sources, idempotency, backup conflicts/retry, shared-file precedence, schema 1 read-only upgrade/backup, strict schema 2 fields, stable device IDs, advanced-option overrides, and preserved preferences. Desktop probes confirm migrated transport values, forced GUI batch mode, and snapshot clearing when advanced connection options change. Existing version 2 wire fixtures and PNG pixel/ownership contracts still pass.
 

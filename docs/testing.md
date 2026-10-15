@@ -84,6 +84,8 @@ The standalone shelf core has synthetic [resource/behavior probes](shelf-core.md
 
 Manual Windows testing is grouped at larger milestones: daily clipboard/settings/reconnect use, OS integration/installation, and signed updates/recovery. Continue automated implementation and commit usable slices between these passes. Individual advanced-settings and diagnostic UI checks are deferred into the next daily-use pass; do not ask for a new manual check after every small commit. Focused repeats are appropriate when a native failure needs confirmation. Other platforms still need their own supported-platform evidence.
 
+The one-time [import review](configuration-migration.md#one-time-import-review) adds rendered discoverability/inert-content/dirty-draft/failure checks and temporary-store acknowledgment probes. These verify retained settings and exact recovery bytes, old receipt compatibility, stale-writer rejection, idempotent dismissal and reload persistence without touching user settings or OS registrations. Native import-summary acceptance belongs to the next combined migration pass.
+
 Optional direct shortcuts join the daily-use pass. [Shortcut evidence](desktop-shortcuts.md#evidence-and-remaining-checks) separates automated registry/recorder probes from native background transfers, focus suppression, and occupied-key checks.
 
 ## Transport and Diagnostic Faults

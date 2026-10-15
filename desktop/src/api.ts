@@ -79,7 +79,7 @@ export interface PanelView {
   settingsNotice: string | null;
   activeShortcut: string | null;
   settingsRevision: string | null;
-  migrationSummary: string | null;
+  migrationSummary: { deviceName: string; backupPath: string; startAtLogin: boolean } | null;
   connectionReport: ConnectionReport | null;
   operationNotice: { id: string; message: string; failed: boolean } | null;
   notificationStatus: { available: boolean; detail: string };

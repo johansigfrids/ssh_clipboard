@@ -38,6 +38,8 @@ Legacy agent TOML imports only when the new shared file is missing, with an exac
 
 The installed rework and legacy agent can otherwise both own startup/shortcuts. During cutover, explicitly quit the old agent, review its startup registration and enable the new installed registration only after the new app works. Keep the old executable/configuration for a return path. Restoring an old configuration backup restores that snapshot, not subsequent edits. See [migration recovery](configuration-migration.md).
 
+Imported settings now have a one-time review in the panel and Settings showing the saved connection/device, panel/direct shortcuts, retained startup choice and recovery backup. Explicit dismissal saves only a guarded receipt; it never stops the old agent or changes native registration. Automated persistence/race/rendered checks pass; native review acceptance remains separate from the installed updater tests.
+
 ## Server-First Sequence
 
 1. Record target UID, actual service/unit and executable, socket paths/limits, client SSH routes and forced commands. Preserve the old executable/unit/configuration and a return command. Establish independent signing trust and a verified new package first.

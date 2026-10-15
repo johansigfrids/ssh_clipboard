@@ -3,6 +3,7 @@
 mod clipboard;
 mod connection;
 mod history;
+mod migration_review;
 mod model;
 mod notifications;
 mod operation;

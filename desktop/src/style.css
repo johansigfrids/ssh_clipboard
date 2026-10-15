@@ -51,6 +51,13 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 190px; overflo
 .history-detail { font-size: 10px; font-weight: normal; color: var(--muted); overflow-wrap: anywhere; }
 .settings-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .settings-title h2 { margin: 0; }
+.migration-summary { min-width: 0; margin-bottom: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow-wrap: anywhere; }
+.migration-summary h2 { font-size: 16px; }
+.migration-summary p { font-size: 12px; }
+.migration-summary dl { margin: 16px 0; font-size: 12px; }
+.migration-summary dt { font-weight: 600; margin-top: 10px; }
+.migration-summary dd { margin: 3px 0 0; color: var(--muted); }
+.migration-summary details { margin-bottom: 16px; }
 .settings-title span { font-size: 10px; color: var(--muted); }
 nav { display: flex; margin-bottom: 24px; gap: 4px; }
 nav button { flex: 1; padding: 9px 5px; font-size: 12px; background: transparent; border-color: transparent; }

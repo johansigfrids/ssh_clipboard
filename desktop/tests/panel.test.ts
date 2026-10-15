@@ -19,6 +19,10 @@ beforeEach(() => {
   bridge.listen.mockReset().mockResolvedValue(() => {});
   bridge.invoke.mockImplementation(async (name: string, args?: { settings?: PanelView["settings"]; profileId?: string }) => {
     if (name === "get_operation") return { generation: "0", active: null };
+    if (name === "acknowledge_migration_summary") {
+      state.migrationSummary = null;
+      state.settingsRevision = String(Number(state.settingsRevision ?? "0") + 1);
+    }
     if (name === "apply_settings") {
       state.settings = { ...args!.settings!, profileId: args!.settings!.profileId ?? "new-profile" };
       const profile = { id: state.settings.profileId!, name: state.settings.profileName, target: state.settings.target, port: state.settings.port, identityFile: state.settings.identityFile, transport: cloneTransport(state.settings.transport), endpoint: { ...state.settings.endpoint } };
@@ -718,13 +722,47 @@ describe("quick panel contracts", () => {
     state.settings.target = "legacy-hub";
     state.settingsSaved = true;
     state.settingsRevision = "1";
-    state.migrationSummary = "Imported your existing connection and preferences and saved a backup.";
+    state.settings.directShareShortcut = "Ctrl+Alt+C";
+    state.settings.directCopyShortcut = "Ctrl+Alt+V";
+    state.migrationSummary = { deviceName: "My laptop", backupPath: "saved/agent.pre-shared.bak", startAtLogin: true };
     render(App);
-    await screen.findByText("legacy-hub");
+    await screen.findByRole("region", { name: "Review imported settings" });
+    expect(screen.getByText("My laptop")).toBeTruthy();
+    expect(screen.getByText("saved/agent.pre-shared.bak")).toBeTruthy();
+    expect(screen.getByText(/On. Review Behavior/)).toBeTruthy();
+    expect(screen.getByText(/Disabled. Share: Ctrl/)).toBeTruthy();
+    expect(screen.getByText(/Your old agent and its startup entry were left in place/)).toBeTruthy();
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    expect(screen.getByText(state.migrationSummary)).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Review imported settings" })).toBeTruthy();
     await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "edited-hub" } });
     expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByRole("button", { name: "Got it" }).hasAttribute("disabled")).toBe(true);
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Review imported settings" })).toBeNull());
+    expect(bridge.invoke.mock.calls.find(([name]) => name === "acknowledge_migration_summary")![1]).toEqual({ expectedRevision: "1" });
+    expect(state.settings.target).toBe("legacy-hub");
+    expect(bridge.invoke.mock.calls.some(([name]) => ["apply_settings", "set_start_at_login", "share_clipboard", "copy_item"].includes(name))).toBe(false);
+    // The next settings edit uses the updated revision, rather than a stale draft.
+    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "edited-hub" } });
+    expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("a failed import acknowledgement retains the summary and displays the error", async () => {
+    state.settingsSaved = true;
+    state.settingsRevision = "4";
+    state.migrationSummary = { deviceName: "<img src=x onerror=alert(1)>", backupPath: "backup/<script>inert</script>", startAtLogin: false };
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => name === "acknowledge_migration_summary" ? Promise.reject(new Error("Saved settings changed. Reload the panel before continuing.")) : normal(name, args));
+    render(App);
+    await screen.findByRole("region", { name: "Review imported settings" });
+    expect(screen.getByText("<img src=x onerror=alert(1)>").tagName).toBe("DD");
+    expect(document.querySelector(".migration-summary img, .migration-summary script")).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+    await screen.findByRole("alert");
+    expect(screen.getByRole("region", { name: "Review imported settings" })).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Got it" }).hasAttribute("disabled")).toBe(false));
   });
 
   it("a failed subscription removes the listeners already installed and still loads the panel", async () => {

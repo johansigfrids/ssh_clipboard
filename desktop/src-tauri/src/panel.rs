@@ -91,7 +91,7 @@ struct PanelView {
     settings_notice: Option<String>,
     active_shortcut: Option<String>,
     settings_revision: Option<String>,
-    migration_summary: Option<&'static str>,
+    migration_summary: Option<crate::migration_review::View>,
     connection_report: Option<ConnectionReport>,
     operation_notice: Option<OperationNotice>,
     notification_status: notifications::Status,
@@ -233,24 +233,47 @@ impl Session {
     fn view(&self) -> Result<PanelView, String> {
         Ok(PanelView {
             settings: self.settings.clone(),
-            history: (!matches!(self.settings.endpoint, ssh_clipboard::configuration::Endpoint::Legacy {})).then(|| self.history.view(self.settings.show_preview)),
+            history: (!matches!(
+                self.settings.endpoint,
+                ssh_clipboard::configuration::Endpoint::Legacy {}
+            ))
+            .then(|| self.history.view(self.settings.show_preview)),
             connection_report: self.connection_report.clone(),
             operation_notice: self.operation_notice.clone(),
             notification_status: self.notification_status.clone(),
             startup_status: self.startup_status.clone(),
             update_status: self.updates.view(),
             history_status: self.history_status.clone(),
-            pending_share: self.pending_share.as_ref().map(|pending|{let mut view=pending.view();view.can_retry &= self.history.epoch.is_none_or(|epoch|epoch==pending.epoch);view}),
+            pending_share: self.pending_share.as_ref().map(|pending| {
+                let mut view = pending.view();
+                view.can_retry &= self
+                    .history
+                    .epoch
+                    .is_none_or(|epoch| epoch == pending.epoch);
+                view
+            }),
             profiles: self.saved_config.as_ref().map_or_else(
-                || Configuration::default().profiles.iter().map(ConnectionProfile::from).collect(),
+                || {
+                    Configuration::default()
+                        .profiles
+                        .iter()
+                        .map(ConnectionProfile::from)
+                        .collect()
+                },
                 |c| c.profiles.iter().map(ConnectionProfile::from).collect(),
             ),
             clipboard_checked: self.clipboard_checked,
-            item: if matches!(self.settings.endpoint, ssh_clipboard::configuration::Endpoint::Shelf {..}) {self.history.item_preview(self.settings.show_preview)} else {self
-                .item
-                .as_ref()
-                .map(|value| ItemPreview::from_value(value, self.settings.show_preview))
-                .transpose()?},
+            item: if matches!(
+                self.settings.endpoint,
+                ssh_clipboard::configuration::Endpoint::Shelf { .. }
+            ) {
+                self.history.item_preview(self.settings.show_preview)
+            } else {
+                self.item
+                    .as_ref()
+                    .map(|value| ItemPreview::from_value(value, self.settings.show_preview))
+                    .transpose()?
+            },
             shortcut_status: self.shortcut_status.clone(),
             tray_status: self.tray_status.clone(),
             shortcut_available: !is_wayland(),
@@ -261,8 +284,10 @@ impl Session {
             settings_notice: self.settings_notice.clone(),
             active_shortcut: self.shortcuts.open_label(),
             settings_revision: self.saved_config.as_ref().map(|c| c.revision.to_string()),
-            migration_summary: self.saved_config.as_ref().and_then(|c| c.legacy_import.as_ref())
-                .map(|_| "Imported your existing connection and preferences and saved a backup. Review retained direct shortcuts and start-at-login before enabling them here."),
+            migration_summary: self
+                .saved_config
+                .as_ref()
+                .and_then(crate::migration_review::view),
         })
     }
 
@@ -640,6 +665,43 @@ async fn apply_settings(
     save_configuration(&mut session, store, next_config, |session, settings| {
         configure_shortcut(&app, session, settings)
     })?;
+    sync_monitor(&state, &mut session);
+    session.view()
+}
+
+fn acknowledge_import(
+    session: &mut Session,
+    store: &ConfigStore,
+    expected_revision: Option<&str>,
+) -> Result<(), String> {
+    session.check_revision(expected_revision)?;
+    if let Some(notice) = &session.settings_notice {
+        return Err(notice.clone());
+    }
+    let expected = session
+        .saved_config
+        .as_ref()
+        .ok_or("No saved import to review.")?;
+    // Only the receipt changes: keep snapshots, pending shares and active shortcuts.
+    let saved = crate::migration_review::acknowledge(store, expected)?;
+    session.saved_config = Some(saved);
+    Ok(())
+}
+
+#[tauri::command]
+async fn acknowledge_migration_summary(
+    state: State<'_, Desktop>,
+    expected_revision: Option<String>,
+) -> Result<PanelView, String> {
+    let mut session = state
+        .session
+        .try_lock()
+        .map_err(|_| "Wait for the current operation to finish.")?;
+    let store = state
+        .config_store
+        .as_ref()
+        .ok_or("The settings location is unavailable.")?;
+    acknowledge_import(&mut session, store, expected_revision.as_deref())?;
     sync_monitor(&state, &mut session);
     session.view()
 }
@@ -1693,6 +1755,7 @@ pub fn run() {
             set_shortcut_recording,
             test_notification,
             apply_settings,
+            acknowledge_migration_summary,
             set_start_at_login,
             remove_profile,
             test_connection,
@@ -1860,6 +1923,45 @@ mod tests {
         session.settings = SessionSettings::from_configuration(&saved).unwrap();
         session.saved_config = Some(saved);
         (directory, store, session)
+    }
+
+    #[test]
+    fn reviewing_an_import_preserves_active_setup_and_clipboard_state() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("agent.toml");
+        std::fs::write(
+            &source,
+            include_bytes!("../../../tests/fixtures/legacy-agent.toml"),
+        )
+        .unwrap();
+        let store = ConfigStore::new(directory.path().join("settings.json"));
+        let config = store.initialize_from_legacy(&source).unwrap().unwrap();
+        let mut session = session();
+        session.settings = SessionSettings::from_configuration(&config).unwrap();
+        session.saved_config = Some(config.clone());
+        let revision = config.revision.to_string();
+        let settings = serde_json::to_value(&session.settings).unwrap();
+        let shortcuts = session.shortcuts.open_label();
+        let barrier = session.metadata_barrier;
+        assert!(session.view().unwrap().migration_summary.is_some());
+        assert!(acknowledge_import(&mut session, &store, Some("999")).is_err());
+        assert!(session.view().unwrap().migration_summary.is_some());
+        session.settings_notice = Some("Repair saved settings first.".into());
+        assert!(acknowledge_import(&mut session, &store, Some(&revision)).is_err());
+        assert_eq!(store.load().unwrap(), Some(config.clone()));
+        session.settings_notice = None;
+        acknowledge_import(&mut session, &store, Some(&revision)).unwrap();
+        assert!(session.view().unwrap().migration_summary.is_none());
+        assert_eq!(serde_json::to_value(&session.settings).unwrap(), settings);
+        assert_eq!(session.shortcuts.open_label(), shortcuts);
+        assert_eq!(session.metadata_barrier, barrier);
+        assert_eq!(session.item.as_ref().unwrap().data, b"retained snapshot");
+        assert!(session.connected);
+        assert_eq!(
+            session.saved_config.as_ref().unwrap().preferences,
+            config.preferences
+        );
+        assert!(session.check_revision(Some(&revision)).is_err());
     }
 
     #[test]

@@ -20,7 +20,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/desktop-shortcuts.md](desktop-shortcuts.md): Optional direct transfers, safe recording, grouped registration, and recovery.
 - [docs/desktop-notifications.md](desktop-notifications.md): Feedback preferences, private native messages, capability fallback, and retained outcomes.
 - [docs/shared-configuration.md](shared-configuration.md): Shared store, desktop profiles/advanced policy, CLI overrides, live reload, and save/recovery contracts.
-- [docs/configuration-migration.md](configuration-migration.md): Legacy/prototype migration, exact backups, schema 2 settings, preserved preferences, and recovery.
+- [docs/configuration-migration.md](configuration-migration.md): Legacy/prototype migration, one-time import review, exact backups, schema 2 settings, preserved preferences, and recovery.
 - [docs/compatibility-and-cutover.md](compatibility-and-cutover.md): Client/server protocol matrix, forced-command boundaries, upgrade order, return paths, and remaining release gates.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
 - [docs/shelf-core.md](shelf-core.md): New bounded shelf state, upload reservations, expiry, retry contracts, and pending server integration.

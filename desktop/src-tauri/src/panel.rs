@@ -1654,8 +1654,8 @@ pub fn run() {
                     .arg("--background").build())?;
                 app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             }
-            let (config_store, loaded, settings_notice) = match ConfigStore::user() {
-                Ok(store) => match store.initialize() {
+            let (config_store, loaded, settings_notice) = match crate::configuration::store() {
+                Ok(store) => match crate::configuration::initialize(&store) {
                     Ok(config) => (Some(store), config, None),
                     Err(error) => {
                         let notice = format!("{error} Settings were left untouched at {}. Repair or move the file, then quit and reopen.", store.path().display());

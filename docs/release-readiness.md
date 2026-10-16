@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Keep the release candidate's automated evidence, prepared material, and remaining approval/platform gates in one place. The 0.4.0 rework is merged with verified signed drafts and a Windows production text round trip. Desktop 0.4.1 is merged, signed, verified and installed with retained settings and native startup off/on acceptance. Publication and live server migration remain separate.
+Keep the release evidence, prepared material, and remaining approval/platform gates in one place. Desktop 0.4.1 is published, with installed upgrade, retained settings, native startup off/on and anonymous public-delivery verification. The independently signed server 0.4.0 draft and live server migration remain separate.
 
 ## Key Files
 
-- `CHANGELOG.md`: versioned 0.4.0 candidate notes; assign the actual publication date at release time.
+- `CHANGELOG.md`: published desktop 0.4.1 and unreleased server/rework 0.4.0 notes.
 - `.github/workflows/desktop-release.yml`, `server-release.yml`: master-only protected draft staging.
 - `desktop/scripts/build-installed.mjs`, `release-source.mjs`: desktop source/package evidence.
 - `desktop/tests/desktop-release.test.mjs`, `release-source.test.mjs`: source admission and actual draft-handoff refusal tests.
@@ -18,7 +18,7 @@ The rework candidate **0.4.0** was implemented on `codex/ssh-clipboard-rework` a
 
 PR #1 merged at `766f6e2659ecf984fdb568da10b8d941d07486d9`; merged-master CI passed all seven jobs. Both protected workflows passed after owner approval, creating verified `desktop-v0.4.0` and `server-v0.4.0` drafts from that exact source. The owner installed the Windows production package and confirmed a native text round trip; the exact Linux artifact passed isolated SSH, released-client and runtime-service checks. See [production artifact acceptance](release-0.4.0-acceptance.md) for immutable hashes, run links and boundaries.
 
-The notes retain 0.4.0 and 0.4.1 sections explicitly marked Unreleased, with no publication dates. The three drafts are unpublished; latest remains v0.3.0. Desktop 0.4.1 supersedes the held 0.4.0 desktop candidate; the independently verified server draft remains 0.4.0. Synthetic updater versions and the pinned published v0.3.0 compatibility fixture remain unchanged; they are evidence inputs, not current application versions.
+Desktop `desktop-v0.4.1` was published as latest on 2026-10-16 after separate owner approval; anonymous installer/feed/signature/checksum delivery verification passes. It supersedes the held 0.4.0 desktop draft. The independently verified server-v0.4.0 draft remains unpublished, with its notes marked Unreleased. The actual legacy archives remain at v0.3.0. Synthetic updater versions and the pinned v0.3.0 compatibility fixture remain evidence inputs, not current application versions.
 
 The initial protected workflows stage Windows x64 desktop and Linux x64 server packages. The existing legacy CLI/agent release pipeline remains separate. macOS/Linux desktop compilation is not native GUI/package acceptance, so do not advertise those rework installers as validated releases.
 
@@ -52,10 +52,10 @@ The second login also failed after quoting. Windows' registry provider saw no ne
 
 **Desktop 0.4.1 correction accepted:** PR #2 merged at `80051ad` with reviewed-tree parity and all seven PR/master CI jobs green. Owner-approved protected signing and independent package verification passed. The owner completed a real-profile overwrite upgrade, confirmed version 0.4.1 and the saved connection, then exercised startup off/on. Read-only Windows services verified the installed versions, startup removal/recreation, quoted command and absent legacy entry. Reuse the previous successful login with that exact path/command; no further sign-out is required. See [0.4.1 acceptance](release-0.4.1-acceptance.md) for hashes, run links and automation-view boundaries. Do not publish or overwrite the 0.4.0 desktop draft. Keep the already-verified server-v0.4.0 draft separate.
 
-1. Merge, exact-source CI, protected draft signing, independent artifact verification, Windows installation/text paste and Linux isolated runtime admission are complete; retain both releases as drafts.
+1. Merge, exact-source CI, protected signing, independent artifact verification, Windows installation/text paste and Linux isolated runtime admission are complete. Desktop 0.4.1 publication and anonymous public-delivery verification are complete; retain desktop-v0.4.0 and server-v0.4.0 as drafts.
 2. The owner authorized full removal of the legacy Windows agent after the production text check; binaries/startup/PATH/obsolete configuration were removed with the new shared settings preserved. Real-profile production startup registration and actual login launch now pass. Review Linux persistent-service permissions/login/boot plus the concrete live server/socket/SSH transition and return path before separately authorizing them; explain in-memory shelf loss on restart. Retained configuration backups and the published legacy package provide the client return path.
-3. Reuse the [completed native session](native-history-acceptance.md) and installed updater evidence. Public production delivery, interrupted installation, omitted native recovery paths and other desktop platforms remain explicit gaps; do not repeat unchanged synthetic micro-checks.
-4. Publication is another separate action. Server/legacy releases must not displace the desktop keyed-feed latest release. Retain the legacy client/V2 route throughout the 0.4 series; choose any removal date after accepted migration.
+3. Reuse the [completed native session](native-history-acceptance.md) and installed updater evidence. Interrupted installation, omitted native recovery paths and other desktop platforms remain explicit gaps; do not repeat unchanged synthetic micro-checks.
+4. Server publication and live migration require their separate review. Server/legacy releases must not displace the published desktop keyed-feed latest release. Retain the legacy client/V2 route throughout the 0.4 series; choose any removal date after accepted migration.
 
 The authorized Windows production installation and text clipboard check are complete. No live Linux service or SSH restriction has changed. The legacy Windows startup entry was removed at the owner's explicit request. The new entry is enabled and its command was repaired after the failed login check; Windows' service view verifies it and actual login launch passed. The manual history session is closed.
 

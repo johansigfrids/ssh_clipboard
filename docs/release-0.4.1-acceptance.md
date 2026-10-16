@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Record the signed desktop correction, real-profile Windows upgrade and startup setter acceptance. Publication and the Linux live transition remain separate actions.
+Record the signed desktop correction, real-profile Windows upgrade, startup setter acceptance and separately authorized public delivery. The Linux live transition remains separate.
 
 ## Key Files
 
@@ -33,11 +33,19 @@ The owner confirmed Start at login remained enabled after upgrade, then disabled
 
 Guardrail: automation-child registry and filesystem views can differ from the ordinary Windows desktop, even with an escalated tool. Human-launch installers and installed apps through Run/Explorer/Start, and verify native records through read-only Windows services. Never write through a provider to work around this boundary. Keep this environment issue separate from the valid startup quoting correction.
 
+## Publication and Public Delivery
+
+The acceptance record merged through PR [#3](https://github.com/johansigfrids/ssh_clipboard/pull/3) at `7548dadca900448c9f51e57277ee63663a49fdba`; [its CI](https://github.com/johansigfrids/ssh_clipboard/actions/runs/38905972681) passed all seven jobs and the merge tree matches the reviewed head. This documentation commit does not change package source `80051ad`.
+
+After separate owner approval, [desktop-v0.4.1](https://github.com/johansigfrids/ssh_clipboard/releases/tag/desktop-v0.4.1) was published as the repository's latest release on 2026-10-16 at 13:19:33 UTC. The draft description and unsigned feed notes were prepared for the Windows scope before publication; only the feed's notes field changed, with its original retained locally. Installer, detached signature, checksum, candidate and build-evidence asset IDs/digests were unchanged.
+
+Anonymous HTTPS requests verified the public latest-release API, repository-wide latest keyed feed, canonical installer, detached signature and checksum. The six public asset names/digests/sizes match the admitted draft; downloaded feed and package/signature/checksum bytes match the retained copies. Independent public-key package/release-identity admission passed again. This closes public Windows delivery, without claiming another native update installation or other platforms.
+
 ## Remaining Boundaries
 
-- Desktop 0.4.1 is installed and accepted for the bounded upgrade/startup checks. It remains an unpublished draft pending separate publication review. Retain the immutable 0.4.0 desktop draft as evidence; do not publish or overwrite it.
+- Desktop 0.4.1 is published and accepted for the bounded upgrade/startup and public-delivery checks. Retain the immutable 0.4.0 desktop draft as evidence; do not publish or overwrite it.
 - The independent signed `server-v0.4.0` draft and existing Linux service are unchanged. Persistent-service/login/boot and the concrete legacy service/socket/SSH transition need their own review and authorization.
-- Reuse the closed native history and installed updater/key-transition sessions. Public production delivery, interrupted native installation, omitted native recovery paths and macOS/Linux desktop installers retain their explicit gaps. No repetitive history, paste or sign-out session was added for this startup-only correction.
+- Reuse the closed native history and installed updater/key-transition sessions. Interrupted native installation, omitted native recovery paths and macOS/Linux desktop installers retain their explicit gaps. No repetitive history, paste or sign-out session was added for this startup-only correction.
 - Evidence-only follow-up commits do not change the source of either signed artifact.
 
 ## Update Triggers

@@ -4,13 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.4.1] - Unreleased
+## [0.4.1] - 2026-10-16
 
 ### Fixed
 - Quote the installed Windows startup executable independently of its arguments, including paths with spaces or Unicode. Keep startup enablement in the current user profile.
 
 ### Release status
-- Signed desktop draft independently verified and installed on Windows; the owner confirmed version 0.4.1, the saved connection and startup off/on. No publication date yet. The immutable 0.4.0 desktop draft is retained as acceptance evidence and will not be overwritten or published. The separately verified server-v0.4.0 draft remains under its own release gates.
+- Windows desktop published as `desktop-v0.4.1` after independent signature verification and installed upgrade/startup acceptance. Anonymous public installer/feed verification passes. The immutable 0.4.0 desktop draft is retained as acceptance evidence and will not be overwritten or published. The separately verified server-v0.4.0 draft remains under its own release gates.
 
 ## [0.4.0] - Unreleased
 

@@ -14,7 +14,7 @@ Record acceptance of the immutable signed 0.4.0 drafts, separately from source t
 
 On 2026-10-16, PR [#1](https://github.com/johansigfrids/ssh_clipboard/pull/1) merged at `766f6e2659ecf984fdb568da10b8d941d07486d9`. Its tree matches the reviewed feature head. The [merged-master CI run](https://github.com/johansigfrids/ssh_clipboard/actions/runs/38889968185) passed all seven jobs.
 
-The owner approved both protected environments. [Desktop run 38890224506](https://github.com/johansigfrids/ssh_clipboard/actions/runs/38890224506) and [server run 38890227589](https://github.com/johansigfrids/ssh_clipboard/actions/runs/38890227589) passed validation and production signing from that exact commit. Both releases remain drafts: `desktop-v0.4.0` and `server-v0.4.0`. The latest public release remains `v0.3.0`.
+The owner approved both protected environments. [Desktop run 38890224506](https://github.com/johansigfrids/ssh_clipboard/actions/runs/38890224506) and [server run 38890227589](https://github.com/johansigfrids/ssh_clipboard/actions/runs/38890227589) passed validation and production signing from that exact commit. Both 0.4.0 releases remain drafts: `desktop-v0.4.0` and `server-v0.4.0`. The separate [desktop 0.4.1 correction](release-0.4.1-acceptance.md) is now published as latest; legacy archives remain at `v0.3.0`.
 
 Independent verification used retained public trust with SHA-256 `08c20604ca8fb74860ff1441426e3aa1d85f2ebf6acdbf44ef890d077bdcaab7` (key ID `08c20604ca8fb748`). Production private keys/passwords were consumed only inside the protected jobs; the assistant did not read them.
 

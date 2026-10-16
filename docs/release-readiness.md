@@ -48,6 +48,8 @@ Guardrail: checking source only at workflow checkout does not bind the eventual 
 
 ## Remaining Release Sequence
 
+The second login also failed after quoting. Windows' registry provider sees no new startup/uninstall registration and still sees the old agent startup command, despite opposite results inside the automation process. Reinstallation from the owner's normal Windows desktop and authoritative registry verification are required before another sign-in check. Prior automation-view registry results do not close installation/startup/legacy-registration cleanup gates; see the [acceptance correction](release-0.4.0-acceptance.md#remaining-gates).
+
 **Blocking desktop defect:** the production login check failed despite an enabled registry entry. Its spaced executable path was unquoted. The installed entry is repaired and the source adapter has a quoting fix; real repaired-login confirmation and a newly versioned signed fixed installer are pending. Do not publish or overwrite the 0.4.0 desktop draft. See [the acceptance report](release-0.4.0-acceptance.md#remaining-gates).
 
 1. Merge, exact-source CI, protected draft signing, independent artifact verification, Windows installation/text paste and Linux isolated runtime admission are complete; retain both releases as drafts.

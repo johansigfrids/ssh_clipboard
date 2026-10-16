@@ -38,7 +38,7 @@ Describe legacy releases, staged signed desktop releases, key operations, and ve
 
 ## Signed Desktop Drafts
 
-The current rework candidate is **0.4.0**. Refreshed automated evidence and remaining review/merge/signing/platform gates are tracked in [release readiness](release-readiness.md). The versioned unreleased notes do not imply publication or authorize a tag.
+The current desktop candidate is **0.4.1**; the independently signed server candidate remains **0.4.0**. Both have protected signing and exact-package evidence; the Windows correction also has real-profile upgrade/startup acceptance. See [release readiness](release-readiness.md) and [0.4.1 acceptance](release-0.4.1-acceptance.md). The versioned unreleased notes do not imply publication or authorize a tag. Retain the superseded 0.4.0 desktop draft without publishing or replacing its bytes.
 
 The new workflow does not run on legacy `v*` tags. It accepts manual dispatch from `master`, validates the exact commit/core version, and requires the `desktop-release` environment before a Windows x64 signed build. It creates a **draft** `desktop-v<version>` with package/signature/checksum, candidate JSON, keyed feed, and evidence. The owner has configured production signing inputs; both 0.4.0 protected builds have now passed and created drafts. Independent package verification and Windows production installation/text paste pass; see [exact-artifact acceptance](release-0.4.0-acceptance.md). Installed/native acceptance is still required; source/cryptographic and debug package proofs do not waive it.
 

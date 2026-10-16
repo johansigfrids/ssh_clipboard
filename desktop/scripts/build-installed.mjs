@@ -6,6 +6,7 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 import {nativeOrigin} from "./native-update-config.mjs";
 import {releaseSource} from "./release-source.mjs";
+import {verifyMacPackage} from "./verify-macos-package.mjs";
 
 const desktop=fileURLToPath(new URL("../",import.meta.url));
 const root=path.dirname(desktop);
@@ -62,6 +63,9 @@ const sidecars=path.join(desktop,"src-tauri/binaries");mkdirSync(sidecars,{recur
 const overlay={version,plugins:{updater:{pubkey:publicKey,endpoints:[],dangerousInsecureTransportProtocol:true,requireSignedVersion:true,allowDowngrades:false,windows:{installMode:"passive"}}}};
 if(flags.has("--test-build")){overlay.productName="SSH Clipboard Update Test";overlay.identifier="io.github.johansigfrids.sshclipboard.update-test";}
 if(!platform.startsWith("windows"))overlay.bundle={targets:[platform.startsWith("darwin")?"app":"appimage"]};
+// Updater signatures remain separate from Apple's publisher identity. The free
+// Mac delivery uses an explicit ad-hoc code signature, including its sidecar.
+if(platform.startsWith("darwin"))overlay.bundle.macOS={signingIdentity:"-"};
 const overlayPath=path.join(stage,"build-config.json");writeFileSync(overlayPath,JSON.stringify(overlay,null,2));
 const started=Date.now();
 run(process.execPath,[cli,"build",...(flags.has("--debug")?["--debug"]:[]),"--features","custom-protocol,installed-desktop","--config","src-tauri/tauri.installed.conf.json","--config",overlayPath]);
@@ -88,4 +92,5 @@ writeFileSync(`${output}.sha256`,`${sha256}  ${name}\n`);
 // receive successful package evidence even if compilation/signing completed.
 const finalSource=releaseSource(root,{testOnly:flags.has("--test-build"),expectedSource:sourceProof.source});
 writeFileSync(path.join(stage,"build-evidence.json"),JSON.stringify({...sourceProof,sourceDirty:sourceProof.sourceDirty||finalSource.sourceDirty,profile,bytes:statSync(output).size,sha256,testOnly:flags.has("--test-build"),nativeTestOrigin:nativeTestOrigin??null,version,platform,cliVersion:reported,embeddedPublicKeyId:keyId(publicKey),signingPublicKeyId:keyId(signingPublicKey),installed:false,published:false},null,2)+"\n");
+if(platform.startsWith("darwin"))verifyMacPackage(stage,JSON.parse(readFileSync(path.join(stage,"build-evidence.json"),"utf8")));
 process.stdout.write(`Staged verified ${flags.has("--test-build")?"TEST-ONLY ":""}desktop package: ${stage}\n`);

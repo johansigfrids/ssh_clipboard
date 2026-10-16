@@ -36,6 +36,8 @@ At the initial dependency-split checkpoint on 2026-10-14, Windows headless (42 u
 
 Subsequent 2026-10-14 evidence closes the headless Linux compilation gap: the existing Ubuntu WSL Rust 1.97.1 toolchain runs native unit, migration, settings/doctor, and real shelf/legacy daemon-proxy process probes without GUI libraries. Output uses `target/linux-wsl` to avoid mixing Windows artifacts. See [native evidence and limits](shelf-server.md#evidence-and-remaining-work). This does not establish a Linux desktop GUI session or a remote-host rollout.
 
+Mac packaging has a separate CI probe: `npm run test:package -- --release` builds installed features with a disposable updater key and test app identifier, then inspects the archived app/CLI and their code signatures without launching or installing the GUI. It needs no production signing secrets or build tools on the owner's Mac. See [Mac cutover](macos-cutover.md) for scope and pending native gates.
+
 ## Update Triggers
 
 - A shared type/module gains an OS dependency.

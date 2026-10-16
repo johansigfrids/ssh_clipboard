@@ -6,7 +6,7 @@ Document the GitHub Actions setup for tests and releases, including build varian
 ## Key Files
 - `.github/workflows/ci.yml` (PR/push checks)
 - `.github/workflows/release.yml` (tagged release builds)
-- `.github/workflows/desktop-release.yml` (manual environment-gated Windows signed drafts)
+- `.github/workflows/desktop-release.yml` (manual environment-gated Windows and Apple Silicon signed drafts)
 - `.github/workflows/server-release.yml` (manual environment-gated Linux x64 signed drafts)
 - `docs/testing.md` (local test commands and Linux deps)
 
@@ -51,6 +51,10 @@ The `desktop` job checks the isolated Phase 1 prototype on Windows, macOS, and L
 ## Desktop Release Staging
 
 Desktop CI also lints/tests installed features without release credentials and builds a synthetic-key NSIS package on Windows without installing it. The mock framework handoff and bounded download probes run as tests. The separate manual desktop workflow pins actions/toolchain, validates an immutable master commit, and exposes signing credentials only in its protected packaging step. It creates drafts; the owner has configured environment protections/signing inputs, while actual protected signing, publishing and installed/native acceptance remain separate. See [release operations](releasing.md).
+
+The macOS PR job now also builds a release-profile test app with disposable updater trust and an explicit ad-hoc code signature, then checks the extracted bundle identity/version, app/CLI architecture, code signatures and CLI version without starting the GUI. The public package/inspection evidence is retained for seven days after private test-key cleanup. The first probe and all seven jobs passed in [run 38919474529](https://github.com/johansigfrids/ssh_clipboard/actions/runs/38919474529) for PR head `4a05401` (synthetic merge `3c8897a`). A later private actual-Mac CLI/import probe also passed; see [Mac evidence](macos-cutover.md#status). This does not establish GUI installation, paste, startup or updater replacement, and subsequent candidate changes need fresh exact-head CI.
+
+Protected desktop staging validates Windows/macOS without credentials, then builds on both native runners behind the same reviewer environment. Only the final draft job receives release-write permission; it downloads artifacts from its own workflow run and invokes `desktop/scripts/desktop-draft.mjs`. Both platforms must match immutable source, production identity and the independently pinned public trust. One shared keyed feed contains both admitted platform entries. A partial-platform, inconsistent-notes/key/version or existing-tag result cannot create a draft. The expanded production workflow still needs its own successful run.
 
 Frontend Node tests now also execute the desktop draft handoff with inert filesystem/GitHub adapters, rejecting wrong/dirty source, debug/test identity, wrong CLI/platform/version, changed bytes/checksums, missing assets, ambiguous stages and existing releases. A temporary Git repository checks clean/dirty/staged/untracked/source-change admission. The Windows synthetic installer checks its public evidence against the exact newly verified package and removes its disposable private key. See [release readiness](release-readiness.md).
 

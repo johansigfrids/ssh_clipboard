@@ -16,7 +16,7 @@ required-features = ["release-tools"]
 [features]
 custom-protocol = ["tauri/custom-protocol"]
 # Enabled by the future installer build, never by timestamped portable prototypes.
-installed-desktop = ["dep:tauri-plugin-updater", "dep:tauri-plugin-autostart", "dep:reqwest", "dep:rustls"]
+installed-desktop = ["dep:tauri-plugin-updater", "dep:tauri-plugin-autostart", "dep:auto-launch", "dep:reqwest", "dep:rustls"]
 release-tools = []
 
 [dependencies]
@@ -44,6 +44,9 @@ rustls = { version = "0.23", default-features = false, features = ["ring"], opti
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+auto-launch = { version = "0.6", optional = true }
 
 [dev-dependencies]
 tempfile = "3"

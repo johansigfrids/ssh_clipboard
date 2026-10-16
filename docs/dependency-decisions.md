@@ -40,6 +40,10 @@ Capture high-impact dependency choices, their rationale, and guardrails for futu
 
 ## Desktop Foundation Candidate (2026-10)
 
+### Windows Startup Command Boundary (2026-10-16)
+
+The installed desktop uses a direct, Windows-only optional `auto-launch` dependency under `installed-desktop`, at the same 0.6.0 version already pinned transitively by Tauri. No package version changed in the lockfile. The pinned Tauri wrapper passes an unquoted executable into that backend's literal command concatenation. The Windows adapter now supplies a quoted absolute path and explicit current-user enable mode; other platforms keep the Tauri manager. Keep the native Windows argument-parser regression, saved-settings rollback tests and actual login evidence separate. A dependency upgrade must recheck the generated command rather than assuming that registry presence proves launchability. See [startup evidence](desktop-updates.md#start-at-login).
+
 ### Provisional Decision
 
 Evaluate Tauri 2 with Svelte/TypeScript in an isolated `desktop/` project before replacing the old agent. This provides a real settings/panel surface with the existing Rust transfer code, while keeping the framework choice reversible. The new project has separate lockfiles and a distinct application identifier. Phase 2 can migrate configuration with exact backups; installed executables and OS startup registrations remain untouched.

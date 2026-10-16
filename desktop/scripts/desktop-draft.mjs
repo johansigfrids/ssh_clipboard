@@ -27,7 +27,9 @@ export function admitDesktopStage({version,source,repository,keyId,platform},rea
     if(inspection.source!==source||inspection.version!==version||inspection.platform!==platform||inspection.testOnly!==false||inspection.sha256!==sha256||inspection.bytes!==bytes.length||inspection.application!=="SSH Clipboard.app"||inspection.identifier!=="io.github.johansigfrids.sshclipboard"||inspection.architecture!=="arm64"||inspection.archiveInspected!==true||inspection.codeSignaturesVerified!==true||inspection.cliVersionVerified!==true||inspection.installed!==false)throw Error("Mac package lacks native archive inspection evidence");
     assets.push({from:"macos-package-inspection.json",to:"macos-package-inspection.json"});
   }
-  return {platform,version,keyId,notes:feed.notes,asset:{url,signature},assets};
+  // Windows Git checkouts may use CRLF while the same Mac source uses LF.
+  // Compare the actual notes text without rejecting that platform difference.
+  return {platform,version,keyId,notes:feed.notes.replace(/\r\n/g,"\n"),asset:{url,signature},assets};
 }
 
 export function combineDesktopFeed(stages) {

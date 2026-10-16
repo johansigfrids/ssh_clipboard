@@ -68,6 +68,13 @@ test("combined feed preserves both platforms and refuses missing, duplicate or i
   for(const stages of [[mac],[windows,windows],[windows,{...mac,version:"0.4.3"}],[windows,{...mac,keyId:"another-key"}],[windows,{...mac,notes:"Different notes"}]])assert.throws(()=>combineDesktopFeed(stages));
 });
 
+test("same release notes from Windows CRLF and Mac LF checkouts combine without losing text",()=>{
+  const windows=fixture(),mac=fixture("darwin-aarch64");
+  windows.edit(`desktop-stable-${keyId}.json`,{notes:"Reviewed\r\nrelease notes\r\n"});
+  mac.edit(`desktop-stable-${keyId}.json`,{notes:"Reviewed\nrelease notes\n"});
+  assert.equal(combineDesktopFeed([windows.admit(),mac.admit()]).notes,"Reviewed\nrelease notes\n");
+});
+
 function handoff({existing=false,stages=[`installed-${version}-stage`],fault}={}) {
   const calls=[],writes=[],copies=[],fixtures=new Map(desktopPlatforms.map(platform=>[platform,fixture(platform)]));
   if(fault)fault(fixtures);

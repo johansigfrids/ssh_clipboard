@@ -4,9 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.2] - Unreleased candidate
+
 ### Added
 - Apple Silicon application archive/signature inspection and a release-profile package probe using disposable trust, with a documented clean migration from the legacy Mac client.
 - Protected Windows/macOS desktop staging with a shared update feed that requires both platform packages before draft creation. Native Mac installation/update acceptance is pending.
+
+### Release status
+- Candidate only. Production signing, native Mac cutover and publication are pending. Published Windows desktop 0.4.1 and Linux server 0.4.0 assets are unchanged; no server release is scheduled by this desktop addition.
 
 ## [0.4.1] - 2026-10-16
 

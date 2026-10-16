@@ -195,6 +195,8 @@ On 2026-10-16, Windows core/desktop, frontend, headless Linux and pinned release
 
 ## Cross-Cutting Verification
 
+**Desktop correction acceptance, 2026-10-16:** the 0.4.1 startup quoting correction is merged, signed, independently verified and installed. The owner confirmed version and saved connection, then disabled/re-enabled startup; Windows services verified the quoted command and legacy entry removal. This supersedes the pending 0.4.1 package status above without changing either immutable 0.4.0 artifact. See [0.4.1 acceptance](release-0.4.1-acceptance.md). Publication, public delivery and reviewed live Linux migration remain separate; the closed manual history session is not reopened.
+
 - Keep current Rust formatting, clippy-with-warnings-denied, protocol fixtures, and agent/server test variants green during transition. Update commands and CI as workspace targets change; add frontend type/build checks when the frontend is introduced.
 - Test observable contracts: preserved clipboard bytes, native paste availability, configuration recovery, bounded resource use, no accidental upload/copy, profile isolation, and cryptographic rejection before installation.
 - Distinguish unit/process tests, real SSH tests, native desktop tests, and installed-artifact upgrade tests. Record what was actually run on each platform and any unverified gap.

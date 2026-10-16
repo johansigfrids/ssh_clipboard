@@ -95,6 +95,8 @@ Cleanup guardrail: verify the exact test product, process command and owned fixt
 
 ## Isolated Native Updater Rehearsal
 
+The [Mac updater rehearsal](macos-updater-acceptance.md) stages two disposable release-mode packages on CI without production credentials. Mac fixture builds use their own settings directory and skip legacy discovery; this compile-time choice survives framework relaunch and cannot redirect production settings. The normal Mac 0.4.2 installation stays separate. Actual Mac replacement/restart is still pending; the following results describe the completed Windows campaign.
+
 `node desktop/scripts/prepare-native-updater.mjs --state-file <owned-test-acceptance-state>` stages four release-mode Windows test packages from isolated version-only source snapshots: a loopback-capable 0.3.2 bootstrap, same-key 0.3.3, old-key-signed 0.3.4 embedding the next test key, and next-key-signed 0.3.5. It requires the existing disposable test workspace/key, captures new signer output, and never installs, publishes, reads production signing material or changes the repository's release version. It leaves an owned loopback fixture and disposable keys for the supervised test, to be stopped/removed during cleanup.
 
 Add `--refresh` to stage a revised 0.3.3/0.3.4/0.3.5 sequence for that same disposable fixture. It retains the installed bootstrap/origin/test trust, writes new immutable revision directories, and switches only the local test routing atomically after every revised package verifies. Failed refreshes leave the existing fixture routing intact. Recheck in the installed test app to load the revised candidate signature before downloading. This is a mutable private rehearsal feed, never permission to overwrite a published tag or signed release asset.

@@ -30,7 +30,7 @@ Out of scope (for now):
 ### 1. Per-user daemon (default)
 Run the daemon as the intended user so the socket is owned by that user and has strict permissions (`0600`).
 
-Current-source daemons use a stable ownership lock, preserve active sockets, reject unsafe parent/replacement paths, and verify peer UID. The experimental shelf proxy also checks the daemon peer's UID. See [socket and process guardrails](shelf-server.md#socket-ownership-and-permissions). These source changes have not been deployed to an installed host.
+Current-source daemons use a stable ownership lock, preserve active sockets, reject unsafe parent/replacement paths, and verify peer UID. The shelf proxy also checks the daemon peer's UID. See [socket and process guardrails](shelf-server.md#socket-ownership-and-permissions) and the [accepted signed live deployment](linux-cutover-acceptance.md).
 
 ### 2. Forced command in `authorized_keys` (optional but recommended)
 Restrict a dedicated key so it can only run the proxy:
@@ -46,6 +46,12 @@ Notes:
 
 ### 3. Avoid “insecure convenience” defaults
 Do not disable host key checking by default. If a user wants that behavior, it should be explicit via SSH config or `--ssh-option`.
+
+## Signed Package Trust
+
+The stable production verification key is [update-signing-public-key.pub](update-signing-public-key.pub). SHA-256 of its trimmed UTF-8 value is `08c20604ca8fb74860ff1441426e3aa1d85f2ebf6acdbf44ef890d077bdcaab7` (key ID `08c20604ca8fb748`). This public file matches the independently retained owner-approved key used by the signed desktop/server builds; it contains no private signing input or SSH key.
+
+Establish first-install trust through a reviewed checkout or independent owner confirmation of that key/fingerprint. A replacement key supplied only by a package or update feed does not establish trust. Installed desktop updates retain embedded trust; managed server installation pins the selected key. Key rotation requires the [reviewed transition/recovery procedure](releasing.md#key-rotation-and-recovery), not silently replacing this file for existing installations.
 
 ## Logging & Sensitive Data
 - Avoid logging clipboard contents.

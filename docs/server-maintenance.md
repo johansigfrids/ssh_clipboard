@@ -38,6 +38,8 @@ Linux exposes `ssh_clipboard server-maintenance verify --version <version> --pub
 
 These commands require a user systemd manager and run as the target user. No sudo, global installation change, SSH-key change, or linger configuration is performed. The first key must be obtained independently; package-supplied keys cannot establish trust.
 
+The production [public verification key and fingerprint](security.md#signed-package-trust) are available in this repository for reviewed first installation. Existing managed installations keep their saved key. The public key file contains no private credential.
+
 ```sh
 ssh_clipboard server-maintenance install --version <version> \
   --public-key <trusted.pub> --package <signed-binary> --signature <signed-binary.sig> \

@@ -19,7 +19,7 @@ cargo build --release --no-default-features
 
 The resulting binary is `target/release/ssh_clipboard`.
 
-The rework exposes explicit signed `server-maintenance install|update|status|recover|verify` commands. They retain per-user versioned executables, create a stable launcher and actual `ssh_clipboard-shelf.service`, pin trust/socket/limits, and restore the previous executable if proxy protocol health fails. Disposable real user-systemd runtime acceptance passes; production artifacts and persistent install/login acceptance remain pending. This is a separate reviewed migration from the legacy installer below; see [commands, evidence and remaining gates](server-maintenance.md).
+The rework exposes explicit signed `server-maintenance install|update|status|recover|verify` commands. They retain per-user versioned executables, create a stable launcher and actual `ssh_clipboard-shelf.service`, pin trust/socket/limits, and restore the previous executable if proxy protocol health fails. Signed production 0.4.0 installation and clean live migration now pass; actual reboot/last-session logout and public server delivery remain separate. This is a separately reviewed migration from the legacy installer below; see [commands](server-maintenance.md), [public verification trust](security.md#signed-package-trust) and [live acceptance](linux-cutover-acceptance.md).
 
 ## Run the Daemon
 

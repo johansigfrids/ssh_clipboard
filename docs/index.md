@@ -43,6 +43,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/client-setup.md`: Windows/macOS client usage and SSH troubleshooting.
 - `docs/linux-client.md`: Linux desktop client notes (Wayland/X11, tray, hotkeys).
 - `docs/security.md`: Security model and recommended SSH hardening.
+- [docs/update-signing-public-key.pub](update-signing-public-key.pub): Public production verification key; pin its reviewed [fingerprint and trust procedure](security.md#signed-package-trust).
 - `docs/cli.md`: CLI command and flag reference.
 - `docs/ci.md`: CI workflows, build variants, and release packaging.
 - `docs/releasing.md`: How to tag releases and validate artifacts.

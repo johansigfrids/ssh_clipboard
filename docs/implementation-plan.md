@@ -197,6 +197,8 @@ Desktop **0.4.1** merged at `80051ad`, passed exact-source CI/protected signing/
 
 The legacy client and V2 route remain supported throughout the 0.4 series. The existing Linux service/SSH route is unchanged; persistent-service and concrete live migration review remain open. Interrupted native installation, omitted native recovery paths and other-platform desktop packaging retain their stated gaps. The manual Windows history session is closed; no repeat paste/history/sign-out session is required for the startup-only correction. See [release readiness](release-readiness.md).
 
+The owner clarified that the Linux endpoint must also become a clean 0.4 installation. Once the managed shelf and SSH routes pass, retire the old service definition/enablement, obsolete installed binaries/archive and obsolete global link, retaining one separate private recovery backup. The new V2 compatibility adapter remains; the old daemon does not. See [cleanup boundaries](compatibility-and-cutover.md#owner-requested-clean-server-replacement). The live transition is still pending.
+
 ## Cross-Cutting Verification
 
 - Keep current Rust formatting, clippy-with-warnings-denied, protocol fixtures, and agent/server test variants green during transition. Update commands and CI as workspace targets change; add frontend type/build checks when the frontend is introduced.

@@ -58,6 +58,14 @@ Imported settings now have a one-time review in the panel and Settings showing t
 2. Explicitly handle old-agent startup/shortcut ownership, then test the new installed start-at-login choice across login. Do not remove the retained old client yet.
 3. Perform the separately reviewed server transition above; switch the chosen profile to shelf only after that endpoint and SSH route pass. Settings changes do not deploy a server or widen a forced-command key.
 
+## Owner-Requested Clean Server Replacement
+
+The owner requested a clean Linux 0.4 upgrade on 2026-10-16, including removal of the old installation from active use. After admitting the exact new package and live routes, remove the disabled legacy unit/enablement links, obsolete installed binaries/download archive and obsolete global command link, after verifying each belongs to this installation. Preserve an exact, private rollback copy separately from active installation paths. Do not treat a source checkout, unrelated configuration or a shared global command as disposable without inspecting ownership, contents and references first.
+
+The new shelf's explicit V2 adapter provides the retained 0.4 compatibility commitment; keeping the protocol does not require retaining the old daemon or executable on an active route. Verify the user-scoped SSH route before removing an obsolete global link, and check fixed absolute forced-command references without exposing key material. Never widen key restrictions to make cleanup succeed. Root-owned link cleanup and linger may require a human sudo command; do not collect passwords. Finish health/routing acceptance before retiring the old files, and document when post-cleanup rollback requires restoring a privileged link.
+
+This request defines the intended installed state, not evidence that the live transition has completed. Windows desktop 0.4.1 is already published; server installation/publication and reboot evidence retain their separate status.
+
 ## Release Gates Still Open
 
 - Owner signing-key/password retention and protected environment setup are complete, with metadata/public-key consistency verified. Protected 0.4.0 signing, independent downloaded-artifact admission and Windows production installation/text paste now pass; see [production acceptance](release-0.4.0-acceptance.md). Windows desktop 0.4.1 is now published with anonymous public-delivery verification; the server and remaining gates below still require review.

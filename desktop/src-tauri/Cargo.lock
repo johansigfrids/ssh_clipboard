@@ -4063,6 +4063,7 @@ name = "ssh_clipboard_desktop_prototype"
 version = "0.0.0"
 dependencies = [
  "arboard",
+ "auto-launch",
  "base64 0.22.1",
  "eyre",
  "image",

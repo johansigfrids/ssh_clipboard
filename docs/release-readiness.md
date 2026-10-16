@@ -48,12 +48,14 @@ Guardrail: checking source only at workflow checkout does not bind the eventual 
 
 ## Remaining Release Sequence
 
+**Blocking desktop defect:** the production login check failed despite an enabled registry entry. Its spaced executable path was unquoted. The installed entry is repaired and the source adapter has a quoting fix; real repaired-login confirmation and a newly versioned signed fixed installer are pending. Do not publish or overwrite the 0.4.0 desktop draft. See [the acceptance report](release-0.4.0-acceptance.md#remaining-gates).
+
 1. Merge, exact-source CI, protected draft signing, independent artifact verification, Windows installation/text paste and Linux isolated runtime admission are complete; retain both releases as drafts.
 2. The owner authorized full removal of the legacy Windows agent after the production text check; binaries/startup/PATH/obsolete configuration were removed with the new shared settings preserved. Enable and verify production desktop startup next. Review Linux persistent-service permissions/login/boot plus the concrete live server/socket/SSH transition and return path before separately authorizing them; explain in-memory shelf loss on restart. Retained configuration backups and the published legacy package provide the client return path.
 3. Reuse the [completed native session](native-history-acceptance.md) and installed updater evidence. Public production delivery, interrupted installation, omitted native recovery paths and other desktop platforms remain explicit gaps; do not repeat unchanged synthetic micro-checks.
 4. Publication is another separate action. Server/legacy releases must not displace the desktop keyed-feed latest release. Retain the legacy client/V2 route throughout the 0.4 series; choose any removal date after accepted migration.
 
-The authorized Windows production installation and text clipboard check are complete. No live Linux service or SSH restriction has changed. The legacy Windows startup entry was removed at the owner's explicit request; the new desktop entry is not enabled yet. The manual history session is closed.
+The authorized Windows production installation and text clipboard check are complete. No live Linux service or SSH restriction has changed. The legacy Windows startup entry was removed at the owner's explicit request. The new entry is enabled and its command was repaired after the failed login check; actual repaired-login evidence remains pending. The manual history session is closed.
 
 ## Update Triggers
 

@@ -47,7 +47,9 @@ Owned processes, runtime unit and temporary data were removed. The installed leg
 
 ## Remaining Gates
 
-- Enable and verify the production desktop's start-at-login registration. The owner authorized removal of the legacy agent; its startup entry/executable are gone, with prior configuration recovery bytes retained outside the active installation. Reinstalling the published legacy release is now the client return path.
+**Desktop publication blocked:** the owner's production sign-in check failed after startup was enabled. Read-only inspection found no desktop process or related application crash, with the entry enabled but its spaced executable path unquoted. An exact-path background launch succeeded. The installed Run command was repaired to quote the executable; actual repaired-login confirmation is pending. The source adapter now quotes the path explicitly. Stage a newly versioned signed fixed desktop package after CI/review; retain the immutable 0.4.0 draft bytes as evidence and do not publish that desktop draft.
+
+- The production desktop startup registration is enabled and repaired, but successful login remains unverified. The owner authorized removal of the legacy agent; its startup entry/executable are gone, with prior configuration recovery bytes retained outside the active installation. Reinstalling the published legacy release is now the client return path.
 - Review persistent Linux unit-directory ownership/permissions (the earlier probe found group-writable mode `0775`), installation/login/boot and the concrete legacy-service/socket/SSH transition before separately authorizing live migration. Restart loses in-memory clipboard items.
 - Public production delivery, interrupted native installation and omitted native recovery paths remain explicit gaps. macOS/Linux desktop installers are not accepted platforms.
 - Publication is separate. Do not overwrite signed draft bytes or create a legacy `v0.4.0` tag. Server publication must use `--latest=false`; only the reviewed desktop keyed-feed release may become latest.

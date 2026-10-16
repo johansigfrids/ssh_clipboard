@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Document the panel's explicit shelf endpoint and history controls, with legacy behavior preserved. This is source implementation and automated/browser evidence; it does not install the new server or complete native SSH/clipboard acceptance.
+Document the panel's explicit shelf endpoint and history controls, with legacy behavior preserved. Automated/browser checks and a bounded Windows native pass provide separate evidence; neither installs the new server or completes production cutover.
 
 ## Key Files
 
@@ -46,7 +46,7 @@ Automated checks cover strict endpoint loading, no-write defaults, invalid/futur
 
 A synthetic browser harness (ignored under `desktop/artifacts/history-preview`) exercises 20 rows and long labels without SSH, OS clipboard, or user settings. At 440x670 and 340x440, document width stays within the viewport, the content area scrolls, and the footer stays at the viewport bottom. Advanced shelf settings also fit at the minimum size. Selection moves to the preview; feedback appears before history so a long list does not hide transfer outcomes. This is browser layout evidence, not a native WebView/SSH/paste test.
 
-The combined daily-use native pass still needs a deliberately configured new server/session key: select older text/image, copy and paste elsewhere, delete/expire it before copy and verify the local clipboard survives, restart/refresh and confirm epoch change, test direct Copy uses newest rather than an old selection, and verify hidden previews. It joins the already queued advanced-settings/diagnostics/direct-shortcut checks; do not request a fresh manual pass for every small commit. No installed server, startup registration, or release was changed here.
+The [2026-10-16 Windows native pass](native-history-acceptance.md) confirmed older selected text in Notepad, 480 x 240 PNG in Paint, explicit Share, passive remote changes without changing selection/clipboard, delete confirmation/cancellation, hidden-preview Copy, legacy/shelf switching and direct Copy of newest. Import review/relaunch, reconnect and cancelled-Share acknowledgment recovery also passed in the isolated portable build over real SSH. Clear confirmation, removed/expired selected-Copy refusal and server-restart epoch UI were not manually exercised. The session is closed; use automated fault evidence next and keep installed cutover/other platforms separate.
 
 ## Prevention Guidance
 

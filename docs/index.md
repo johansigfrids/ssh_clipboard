@@ -30,6 +30,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/shelf-server.md](shelf-server.md): Experimental Linux endpoint commands, safe socket ownership, bounded stdio bridge, and native process evidence.
 - [docs/shelf-client.md](shelf-client.md): Item-aware session validation, explicit CLI inputs/exports, epoch guards, and bounded SSH lifecycle.
 - [docs/desktop-history.md](desktop-history.md): Explicit endpoint profiles, history selection/mutations, safe copy, private labels, and layout evidence.
+- [docs/native-history-acceptance.md](native-history-acceptance.md): Closed Windows shelf/migration/cancellation session, observed native results, fixture cleanup, and explicit remaining gaps.
 - [docs/persistent-sessions.md](persistent-sessions.md): Reused SSH ownership, explicit Cancel, bounded metadata Watch/recovery, and no-replay guards.
 - [docs/share-recovery.md](share-recovery.md): Frozen uncertain shares, read-only acknowledgment lookup, explicit retry/discard, and server-enforced deadlines.
 - [docs/desktop-updates.md](desktop-updates.md): Installed staging/startup, bounded signed updater, framework handoff, protected drafts, and native/release gates.

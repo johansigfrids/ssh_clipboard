@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Track Phase 7's signed package policy, per-user installation/update commands, and release recovery. The commands integrate bounded downloads, pinned trust, a stable launcher/unit, and user-systemd/proxy health. Protected production signing and isolated real-service acceptance pass, including the exact optimized 0.4.0 artifact. Persistent installation/login and reviewed legacy migration remain open; see [production acceptance](release-0.4.0-acceptance.md).
+Track Phase 7's signed package policy, per-user installation/update commands, and release recovery. The commands integrate bounded downloads, pinned trust, a stable launcher/unit, and user-systemd/proxy health. Protected production signing and isolated real-service acceptance pass, including the exact optimized 0.4.0 artifact. The later owner-authorized persistent live installation/legacy retirement also passes; actual reboot/last-session logout remains separate. See [production artifact acceptance](release-0.4.0-acceptance.md) and [live cutover acceptance](linux-cutover-acceptance.md).
 
 ## Key Files
 
@@ -72,7 +72,7 @@ On 2026-10-14 this passed over real SSH on the supplied Ubuntu host: user-unit e
 
 The rate-limit probe first reproduced a real bug: restoring the previous executable could still leave systemd refusing its restart. Maintenance now queries failed state and clears it before an explicit restart. It avoids blindly resetting unloaded inactive units, which systemd rejects. Keep this fault in acceptance; a successful process restart alone or a short default rate window does not prove rollback.
 
-The first fixture attempt also confirmed that the existing persistent user-unit directory has mode `0775`; the installer correctly refuses group-writable directories. No permissions were changed. A live migration needs an explicit ownership/permission review before installing there. Later exact-artifact 0.4.0 checks pass optimized production-package verification, isolated runtime service behavior and released-client protocol compatibility; see [production acceptance](release-0.4.0-acceptance.md). Runtime fixtures still do not prove persistent installation, boot/login behavior, public HTTPS asset availability or live released-client migration. Those remain gates before live cutover.
+The first fixture attempt also confirmed that the existing persistent user-unit directory has mode `0775`; the installer correctly refuses group-writable directories. No permissions were changed. A live migration needs an explicit ownership/permission review before installing there. Later exact-artifact 0.4.0 checks pass optimized production-package verification, isolated runtime service behavior and released-client protocol compatibility; see [production acceptance](release-0.4.0-acceptance.md). Runtime fixtures alone do not prove a live migration. The separate [live cutover](linux-cutover-acceptance.md) now establishes persistent installation, reviewed permissions, fresh SSH routes and old-installation retirement. Actual reboot/last-session logout and public server delivery remain open.
 
 ## Update Triggers
 

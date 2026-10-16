@@ -35,6 +35,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/share-recovery.md](share-recovery.md): Frozen uncertain shares, read-only acknowledgment lookup, explicit retry/discard, and server-enforced deadlines.
 - [docs/desktop-updates.md](desktop-updates.md): Installed staging/startup, bounded signed updater, framework handoff, protected drafts, and native/release gates.
 - [docs/server-maintenance.md](server-maintenance.md): Signed user installation/update, stable launcher/unit, bounded proxy health, crash-limit rollback/recovery, and disposable real-service evidence.
+- [docs/linux-cutover-acceptance.md](linux-cutover-acceptance.md): Signed live 0.4.0 server, persistent unit/SSH health, old-installation retirement and separate rollback backup.
 - [docs/connection-diagnostics.md](connection-diagnostics.md): Desktop/CLI metadata health, safe per-step failures, one-shot SSH deadlines/drainage, and fault evidence.
 - `docs/dependency-decisions.md`: Rationale and guardrails for high-impact dependency choices.
 - [docs/build-variants.md](build-variants.md): Headless, clipboard-only, agent, and desktop dependency boundaries and validation evidence.

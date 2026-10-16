@@ -5,6 +5,7 @@ import {copyFileSync,readFileSync,writeFileSync,mkdirSync,readdirSync,statSync,e
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 import {nativeOrigin} from "./native-update-config.mjs";
+import {releaseSource} from "./release-source.mjs";
 
 const desktop=fileURLToPath(new URL("../",import.meta.url));
 const root=path.dirname(desktop);
@@ -20,7 +21,9 @@ if(process.env.SSH_CLIPBOARD_NATIVE_TEST_ORIGIN !== undefined)throw new Error("N
 const nativeTestOrigin=nativeOrigin(values.get("--native-test-origin"),flags.has("--test-build"),flags.has("--debug"));
 const version=values.get("--version");
 const coreVersion=readFileSync(path.join(root,"Cargo.toml"),"utf8").match(/^version\s*=\s*"([^"]+)"/m)?.[1];
-if(!/^\d+\.\d+\.\d+$/.test(version??"") || version!==coreVersion || version==="0.0.0")throw new Error("Pass a stable --version matching the shared core's Cargo.toml.");
+if(!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(version??"") || version!==coreVersion || version==="0.0.0")throw new Error("Pass a stable --version matching the shared core's Cargo.toml.");
+if(flags.has("--debug")&&!flags.has("--test-build"))throw new Error("Debug desktop packages require --test-build.");
+const sourceProof=releaseSource(root,{testOnly:flags.has("--test-build"),expectedSource:process.env.GITHUB_SHA});
 if(!values.get("--public-key-file"))throw new Error("An explicit public signing key file is required.");
 if(!process.env.TAURI_SIGNING_PRIVATE_KEY || process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD===undefined)throw new Error("Set protected signing key/password environment variables before staging packages.");
 if(!flags.has("--test-build") && existsSync(process.env.TAURI_SIGNING_PRIVATE_KEY)) {
@@ -79,6 +82,10 @@ run("cargo",["run","--locked","--manifest-path","src-tauri/Cargo.toml","--featur
 const notes=values.get("--notes-file")?readFileSync(values.get("--notes-file"),"utf8"):"";if(Buffer.byteLength(notes)>16384)throw new Error("Release notes exceed 16 KiB.");
 const manifest={version,notes,pub_date:new Date().toISOString(),platforms:{[platform]:{url:candidate.url,signature:candidate.signature}}};
 writeFileSync(path.join(stage,`desktop-stable-${keyId(signingPublicKey)}.json`),JSON.stringify(manifest,null,2)+"\n");
-writeFileSync(`${output}.sha256`,`${createHash("sha256").update(readFileSync(output)).digest("hex")}  ${name}\n`);
-writeFileSync(path.join(stage,"build-evidence.json"),JSON.stringify({testOnly:flags.has("--test-build"),nativeTestOrigin:nativeTestOrigin??null,version,platform,cliVersion:reported,embeddedPublicKeyId:keyId(publicKey),signingPublicKeyId:keyId(signingPublicKey),installed:false,published:false},null,2)+"\n");
+const sha256=createHash("sha256").update(readFileSync(output)).digest("hex");
+writeFileSync(`${output}.sha256`,`${sha256}  ${name}\n`);
+// Check again after building: a changed ref or dirty production source cannot
+// receive successful package evidence even if compilation/signing completed.
+const finalSource=releaseSource(root,{testOnly:flags.has("--test-build"),expectedSource:sourceProof.source});
+writeFileSync(path.join(stage,"build-evidence.json"),JSON.stringify({...sourceProof,sourceDirty:sourceProof.sourceDirty||finalSource.sourceDirty,profile,bytes:statSync(output).size,sha256,testOnly:flags.has("--test-build"),nativeTestOrigin:nativeTestOrigin??null,version,platform,cliVersion:reported,embeddedPublicKeyId:keyId(publicKey),signingPublicKeyId:keyId(signingPublicKey),installed:false,published:false},null,2)+"\n");
 process.stdout.write(`Staged verified ${flags.has("--test-build")?"TEST-ONLY ":""}desktop package: ${stage}\n`);

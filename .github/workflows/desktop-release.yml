@@ -107,17 +107,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $stages = @(Get-ChildItem desktop/artifacts -Directory -Filter "installed-$env:RELEASE_VERSION-*")
-          if ($stages.Count -ne 1) { throw 'Expected exactly one verified package stage' }
-          $stage = $stages[0].FullName
-          $evidence = Get-Content (Join-Path $stage 'build-evidence.json') -Raw | ConvertFrom-Json
-          if ($evidence.testOnly -or $evidence.version -ne $env:RELEASE_VERSION -or $evidence.platform -ne 'windows-x86_64') { throw 'Unexpected package identity' }
-          $tag = "desktop-v$env:RELEASE_VERSION"
-          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
-          if ($LASTEXITCODE -eq 0) { throw 'Release already exists; never overwrite a signed release' }
-          $assets = @(Get-ChildItem -LiteralPath $stage -File | Where-Object { $_.Name -match '^SSHClipboard-.*\.(exe|sig|sha256)$|^desktop-stable-[a-f0-9]{16}\.json$|^(build-evidence|candidate)\.json$' } | Select-Object -ExpandProperty FullName)
-          if ($assets.Count -ne 6) { throw 'Incomplete desktop release assets' }
-          gh release create $tag @assets --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --draft --title "SSH Clipboard $env:RELEASE_VERSION" --notes-file CHANGELOG.md
+          @'
+          import {readFileSync,readdirSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          import path from 'node:path';
+          import {execFileSync,spawnSync} from 'node:child_process';
+          const version=process.env.RELEASE_VERSION,base='desktop/artifacts';
+          const stages=readdirSync(base).filter(name=>name.startsWith(`installed-${version}-`));
+          if(stages.length!==1)throw Error('Expected exactly one verified desktop stage');
+          const stage=path.join(base,stages[0]);
+          const proof=JSON.parse(readFileSync(path.join(stage,'build-evidence.json'),'utf8'));
+          if(proof.testOnly!==false||proof.sourceDirty!==false||proof.profile!=='release'||proof.nativeTestOrigin!==null||proof.installed!==false||proof.published!==false||proof.platform!=='windows-x86_64'||proof.version!==version||proof.source!==process.env.GITHUB_SHA||proof.cliVersion!==`ssh_clipboard ${version}`||!/^[a-f0-9]{16}$/.test(proof.signingPublicKeyId??''))throw Error('Unexpected desktop package identity');
+          const name=`SSHClipboard-stable-windows-x86_64-${version}-setup.exe`;
+          const packageBytes=readFileSync(path.join(stage,name));
+          const sha256=createHash('sha256').update(packageBytes).digest('hex');
+          if(proof.bytes!==packageBytes.length||proof.sha256!==sha256||readFileSync(path.join(stage,`${name}.sha256`),'utf8')!==`${sha256}  ${name}\n`)throw Error('Desktop package differs from verified evidence');
+          const tag=`desktop-v${version}`,repo=process.env.GITHUB_REPOSITORY;
+          if(spawnSync('gh',['release','view',tag,'--repo',repo],{stdio:'ignore'}).status===0)throw Error('Never overwrite an existing signed release');
+          const assets=[name,`${name}.sig`,`${name}.sha256`,`desktop-stable-${proof.signingPublicKeyId}.json`,'candidate.json','build-evidence.json'].map(name=>path.join(stage,name));
+          for(const file of assets)readFileSync(file);
+          execFileSync('gh',['release','create',tag,...assets,'--repo',repo,'--target',process.env.GITHUB_SHA,'--draft','--title',`SSH Clipboard ${version}`,'--notes-file','CHANGELOG.md'],{stdio:'inherit'});
+          '@ | node --input-type=module
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()

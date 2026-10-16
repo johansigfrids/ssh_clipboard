@@ -47,6 +47,8 @@ The new workflow is manual, master-only, checks the immutable dispatch SHA/versi
 
 ## Package Staging
 
+Production desktop stages require clean source before and after the build and record immutable source SHA, dirty state, release profile, matching CLI and package size/SHA-256. Debug packages require explicit test identity. The workflow checks this evidence and canonical assets before creating a draft; source/profile/byte substitution and overwrite refusals have executable tests. See [release readiness](release-readiness.md#desktop-draft-admission).
+
 `cd desktop; npm run build:installed -- --version <core-version> --public-key-file <public-key>` builds the matching native CLI and desktop installer. The helper requires protected `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` inputs. Production private key files must be outside the checkout. It never installs, tags, pushes, or publishes. Release builds require explicit public-key/feed inputs; ordinary portable prototypes have no updater or startup registration.
 
 Windows uses a per-user NSIS installer with stable desktop executable and bundled `ssh_clipboard.exe`. The CLI version must equal the chosen core version before packaging. Configuration remains in the existing separate shared-settings location. This does not add the CLI to the user's PATH. macOS/app and Linux/AppImage staging paths exist but have not been built or accepted on those platforms.

@@ -45,6 +45,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/cli.md`: CLI command and flag reference.
 - `docs/ci.md`: CI workflows, build variants, and release packaging.
 - `docs/releasing.md`: How to tag releases and validate artifacts.
+- [docs/release-readiness.md](release-readiness.md): Rework candidate notes, refreshed automated evidence, desktop draft admission, and remaining release gates.
 - `docs/troubleshooting.md`: Common errors and fixes.
 - `docs/testing.md`: How to run tests and what’s covered.
 - `docs/icon.md`: Icon assets and regeneration steps.

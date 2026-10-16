@@ -189,6 +189,10 @@ Offer a one-time migration summary for preserved connection settings, device nam
 
 **Exit checks:** a user can install, connect, share, copy, change settings, and update without remembering a keybind or editing configuration; another machine sees shelf changes; offline/reconnect behavior is understandable; all supported upgrade combinations pass. Publication and live rollout remain separate explicitly authorized actions.
 
+## Release Preparation Status
+
+On 2026-10-16, Windows core/desktop, frontend, headless Linux and pinned released-client checks were refreshed. Desktop staging now binds source/profile/package bytes through the draft handoff, with executable refusal probes and a real synthetic installer verification. A shared test-only process limit fixes cross-module fault-fixture contention without changing production deadlines. Unreleased notes and the remaining version/merge/protected-signing/artifact/cutover gates are recorded in [release readiness](release-readiness.md). The manual history session is closed; this preparation does not choose a version, merge, publish or deploy.
+
 ## Cross-Cutting Verification
 
 - Keep current Rust formatting, clippy-with-warnings-denied, protocol fixtures, and agent/server test variants green during transition. Update commands and CI as workspace targets change; add frontend type/build checks when the frontend is introduced.

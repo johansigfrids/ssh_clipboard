@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Keep the release candidate's automated evidence, prepared material, and remaining approval/platform gates in one place. Version 0.4.0 is chosen for review; preparation does not publish, merge, or replace the installed client/server.
+Keep the release candidate's automated evidence, prepared material, and remaining approval/platform gates in one place. Version 0.4.0 is merged with verified signed drafts and an accepted Windows production installation/text round trip. Publication, startup ownership and live server migration remain separate.
 
 ## Key Files
 
@@ -14,9 +14,11 @@ Keep the release candidate's automated evidence, prepared material, and remainin
 
 ## Candidate Scope
 
-The rework candidate is **0.4.0** on `codex/ssh-clipboard-rework` in PR #1. The owner authorized choosing a sensible version and preparing the PR for merge on 2026-10-16. A minor pre-1.0 increment reflects the substantial desktop/history/update additions while the existing V2 route remains available; it does not claim the broader platform/operational maturity of 1.0. The shared core and both dependency lockfiles carry 0.4.0. The desktop frontend/prototype packages retain their internal 0.0.0 versions; installed staging overrides the app version from the matching core version.
+The rework candidate **0.4.0** was implemented on `codex/ssh-clipboard-rework` and merged through PR #1. The owner authorized choosing a sensible version and preparing the PR for merge on 2026-10-16. A minor pre-1.0 increment reflects the substantial desktop/history/update additions while the existing V2 route remains available; it does not claim the broader platform/operational maturity of 1.0. The shared core and both dependency lockfiles carry 0.4.0. The desktop frontend/prototype packages retain their internal 0.0.0 versions; installed staging overrides the app version from the matching core version.
 
-The notes have a 0.4.0 section explicitly marked Unreleased, with no publication date. No tag or production release has been created. Synthetic updater versions and the pinned published v0.3.0 compatibility fixture remain unchanged; they are evidence inputs, not current application versions.
+PR #1 merged at `766f6e2659ecf984fdb568da10b8d941d07486d9`; merged-master CI passed all seven jobs. Both protected workflows passed after owner approval, creating verified `desktop-v0.4.0` and `server-v0.4.0` drafts from that exact source. The owner installed the Windows production package and confirmed a native text round trip; the exact Linux artifact passed isolated SSH, released-client and runtime-service checks. See [production artifact acceptance](release-0.4.0-acceptance.md) for immutable hashes, run links and boundaries.
+
+The notes retain a 0.4.0 section explicitly marked Unreleased, with no publication date. Neither draft is published; latest remains v0.3.0. Synthetic updater versions and the pinned published v0.3.0 compatibility fixture remain unchanged; they are evidence inputs, not current application versions.
 
 The initial protected workflows stage Windows x64 desktop and Linux x64 server packages. The existing legacy CLI/agent release pipeline remains separate. macOS/Linux desktop compilation is not native GUI/package acceptance, so do not advertise those rework installers as validated releases.
 
@@ -30,11 +32,11 @@ The initial protected workflows stage Windows x64 desktop and Linux x64 server p
 | Headless Linux | Existing WSL toolchain passes warnings-as-errors/all-target lint and full tests, including eight real private daemon/proxy cases for mixed modes, restart/no replay, selected exports and cleanup. This does not install a service. |
 | Published compatibility | Seven archive/lifecycle guards and eight pinned actual v0.3.0 Linux protocol checks pass again, with private process/directory cleanup. |
 | Synthetic Windows package | A disposable-key debug installer builds and verifies exact bytes/release identity. Its evidence matches source, explicit test/debug identity, size and SHA-256. Nothing was installed; the temporary private key was removed. This is not a production signed artifact. |
-| Protected environment metadata | Reviewer gates, master-only branch rules, both expected secret names and matching desktop/server public-key fingerprints were rechecked. Private keys/passwords were not read; actual protected signing is still unproven. |
+| Protected production builds | Reviewer gates, master-only branch rules and public trust were rechecked; both approved 0.4.0 workflows signed successfully. Independent downloaded-package verification passed without reading private inputs. See the exact-artifact report above. |
 
 The synthetic package was built from the in-progress preparation tree and is explicitly marked `testOnly:true`, `profile:debug`, `sourceDirty:true`. It cannot qualify for a production draft. Its initial local build attempt failed to find Cargo in Tauri's child environment; retrying with a process-local normalized PATH succeeded without modifying saved environment variables.
 
-Local validation and GitHub CI remain separate evidence. The preceding `cbd05ff` CI run covers the native acceptance documentation; new changes require their own PR checks. Do not reuse an older green SHA as current-head evidence.
+Local validation and GitHub CI remain separate evidence. PR-head `04446f4` and merged-master `766f6e2` CI both passed all seven jobs. Documentation-only acceptance follow-ups do not change the recorded artifact source. Do not reuse an older green SHA as current-head evidence for new implementation changes.
 
 ## Desktop Draft Admission
 
@@ -46,12 +48,12 @@ Guardrail: checking source only at workflow checkout does not bind the eventual 
 
 ## Remaining Release Sequence
 
-1. Finish reviewing PR #1 for version 0.4.0 and obtain exact-head green CI after the version/lockfile/notes changes. Retain the legacy client and V2 route throughout the 0.4 series; choose any removal/end-of-support date separately after an accepted installed migration. Merge is a separate authorized action; protected staging accepts only master.
-2. Run the protected desktop/server draft workflows from the reviewed master SHA. Required environment approval is the configured owner gate. Check the resulting signatures against independently retained public trust and inspect exact source, version, platform and package evidence. Keep both releases as drafts.
-3. Admit the exact production artifacts: verify the Windows production installation/update identity and Linux runtime/persistent-service behavior, with any required manual checks scoped and estimated in advance. Reuse the [completed native session](native-history-acceptance.md) and installed updater evidence; do not repeat unchanged synthetic micro-checks. Interrupted installation, omitted native recovery paths and other desktop platforms remain explicit gaps.
-4. Review a concrete live server/SSH/startup transition and return path before separately authorizing it. Preserve the legacy service/client and explain in-memory shelf loss on restart. Publication is another separate action; server/legacy releases must not displace the desktop keyed-feed latest release.
+1. Merge, exact-source CI, protected draft signing, independent artifact verification, Windows installation/text paste and Linux isolated runtime admission are complete; retain both releases as drafts.
+2. The owner authorized full removal of the legacy Windows agent after the production text check; binaries/startup/PATH/obsolete configuration were removed with the new shared settings preserved. Enable and verify production desktop startup next. Review Linux persistent-service permissions/login/boot plus the concrete live server/socket/SSH transition and return path before separately authorizing them; explain in-memory shelf loss on restart. Retained configuration backups and the published legacy package provide the client return path.
+3. Reuse the [completed native session](native-history-acceptance.md) and installed updater evidence. Public production delivery, interrupted installation, omitted native recovery paths and other desktop platforms remain explicit gaps; do not repeat unchanged synthetic micro-checks.
+4. Publication is another separate action. Server/legacy releases must not displace the desktop keyed-feed latest release. Retain the legacy client/V2 route throughout the 0.4 series; choose any removal date after accepted migration.
 
-No current service, SSH restriction, user clipboard or installed startup entry is changed by this preparation. The manual history session is closed.
+The authorized Windows production installation and text clipboard check are complete. No live Linux service or SSH restriction has changed. The legacy Windows startup entry was removed at the owner's explicit request; the new desktop entry is not enabled yet. The manual history session is closed.
 
 ## Update Triggers
 

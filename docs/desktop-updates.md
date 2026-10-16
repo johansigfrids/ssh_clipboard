@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Track Phase 6 implementation and distinguish package verification from installed update evidence. Strict verification, installed staging, explicit startup, bounded update discovery/download, guarded installer handoff, and a protected draft-release workflow are implemented. Isolated native Windows installation, sign-in, built-in upgrades, download cancellation, tamper rejection and an installed signing-key transition pass. Protected production signing and public delivery remain open.
+Track Phase 6 implementation and distinguish package verification from installed update evidence. Strict verification, installed staging, explicit startup, bounded update discovery/download, guarded installer handoff, and a protected draft-release workflow are implemented. Isolated native Windows installation, sign-in, built-in upgrades, download cancellation, tamper rejection and an installed signing-key transition pass. Protected production signing, independent package verification and Windows production installation/text paste now pass; public delivery remains open. See [0.4.0 acceptance](release-0.4.0-acceptance.md).
 
 ## Key Files
 

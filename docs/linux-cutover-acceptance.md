@@ -36,7 +36,7 @@ Pinned policy: 20 items, one-hour retention, 64 MiB encoded item, 256 MiB decode
 
 ## Remaining Boundaries
 
-- The installed Windows 0.4.1 connection still needs its explicit Server features change to Temporary history (new server); the completed native history/paste session is not repeated.
+- The owner confirmed selecting Temporary history (new server) and saving the installed Windows 0.4.1 connection. This records the actual profile change; the completed native history/paste session was not repeated.
 - `server-v0.4.0` remains an unpublished draft. Any later publication needs separate review and `--latest=false`; the published desktop-v0.4.1 remains latest.
 - Actual reboot/last-session logout, interrupted installation and previously omitted native recovery/platform checks retain their explicit gaps. No reboot or unrelated service change was performed.
 

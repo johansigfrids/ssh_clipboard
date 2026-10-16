@@ -64,7 +64,7 @@ The owner requested a clean Linux 0.4 upgrade on 2026-10-16, including removal o
 
 The new shelf's explicit V2 adapter provides the retained 0.4 compatibility commitment; keeping the protocol does not require retaining the old daemon or executable on an active route. Verify the user-scoped SSH route before removing an obsolete global link, and check fixed absolute forced-command references without exposing key material. Never widen key restrictions to make cleanup succeed. Root-owned link cleanup and linger may require a human sudo command; do not collect passwords. Finish health/routing acceptance before retiring the old files, and document when post-cleanup rollback requires restoring a privileged link.
 
-The owner-authorized live transition is now complete: signed persistent 0.4.0 installation, fresh session/V2 SSH routes, and removal of the old active installation pass. See [live evidence and return-path limits](linux-cutover-acceptance.md). The Windows history-profile choice, server publication and actual reboot/last-session logout remain separate.
+The owner-authorized live transition is now complete: signed persistent 0.4.0 installation, fresh session/V2 SSH routes, and removal of the old active installation pass. The owner also confirmed selecting and saving the installed Windows history endpoint. See [live evidence and return-path limits](linux-cutover-acceptance.md). Server publication and actual reboot/last-session logout remain separate.
 
 ## Release Gates Still Open
 

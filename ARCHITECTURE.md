@@ -4,7 +4,7 @@
 
 Describe the current implementation and the target architecture agreed during the October 2026 redesign discussion. SSH remains the transport and account boundary. The target is a small desktop clipboard utility with a discoverable quick panel, usable settings, and signed updates.
 
-**Status: Windows desktop 0.4.1 published; Linux 0.4.0 server cut over.** The new desktop supports explicit transfers, saved settings, history and signed updates. The signed managed shelf now serves history and the legacy compatibility socket. The installed desktop profile must explicitly select the history endpoint. [The implementation plan](docs/implementation-plan.md) defines the remaining acceptance and cutover checks. The [Phase 1 prototype guide](docs/desktop-prototype.md) retains source-build context.
+**Status: Windows desktop 0.4.1 published; Linux 0.4.0 server cut over.** The new desktop supports explicit transfers, saved settings, history and signed updates. The signed managed shelf now serves history and the legacy compatibility socket. The owner selected and saved the installed desktop's history endpoint. [The implementation plan](docs/implementation-plan.md) defines the remaining acceptance and cutover checks. The [Phase 1 prototype guide](docs/desktop-prototype.md) retains source-build context.
 
 The owner-authorized clean Linux 0.4.0 replacement is complete: the old daemon, unit links, extracted installation and obsolete global launcher are retired, with recovery copies kept separately. Fresh SSH session/V2 health and exact-byte transfers pass. Legacy compatibility is supplied by the new shelf adapter. See [live cutover acceptance](docs/linux-cutover-acceptance.md).
 

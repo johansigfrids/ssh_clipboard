@@ -197,7 +197,7 @@ Desktop **0.4.1** merged at `80051ad`, passed exact-source CI/protected signing/
 
 The legacy client and V2 route remain supported throughout the 0.4 series. The signed Linux 0.4.0 managed service and user SSH route now pass live acceptance, with the old active installation removed. Actual reboot/last-session logout and public server delivery remain open; see [live cutover acceptance](linux-cutover-acceptance.md). Interrupted native installation, omitted native recovery paths and other-platform desktop packaging retain their stated gaps. The manual Windows history session is closed; no repeat paste/history/sign-out session is required for the startup-only correction. See [release readiness](release-readiness.md).
 
-The owner-requested clean Linux 0.4 installation is complete: managed shelf and fresh SSH routes pass; the old daemon/unit links, extracted binaries/archive and obsolete global link are retired, with one separate private recovery backup. The new V2 compatibility adapter remains. The installed Windows profile still needs its explicit history endpoint choice. See [cleanup boundaries](compatibility-and-cutover.md#owner-requested-clean-server-replacement).
+The owner-requested clean Linux 0.4 installation is complete: managed shelf and fresh SSH routes pass; the old daemon/unit links, extracted binaries/archive and obsolete global link are retired, with one separate private recovery backup. The new V2 compatibility adapter remains. The owner confirmed selecting and saving the installed Windows history endpoint. See [cleanup boundaries](compatibility-and-cutover.md#owner-requested-clean-server-replacement).
 
 ## Cross-Cutting Verification
 

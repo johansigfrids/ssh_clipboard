@@ -6,6 +6,81 @@ on:
   pull_request:
 
 jobs:
+  desktop:
+    name: Desktop prototype (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential pkg-config libwebkit2gtk-4.1-dev \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev \
+            librsvg2-dev libwayland-dev
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache prototype Cargo build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/src-tauri/target
+          key: ${{ runner.os }}-desktop-cargo-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check and build frontend
+        run: npm run build
+
+      - name: Frontend interaction tests
+        run: npm test
+
+      - name: Format desktop Rust
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+
+      - name: Lint desktop Rust
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: Desktop Rust tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+
+      - name: Installed-feature Rust checks without release credentials
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-features --all-targets -- -D warnings
+
+      - name: Bounded updater and framework handoff tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --all-features
+
+      - name: Test-only signed Windows installer, never installed
+        if: runner.os == 'Windows'
+        run: npm run test:package
+
+      - name: Build standalone prototype
+        run: npm run build:prototype
+
   test:
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -71,6 +146,15 @@ jobs:
       - name: Format
         run: cargo fmt -- --check
 
+      - name: Guard headless dependency graph
+        if: matrix.features != 'agent'
+        shell: bash
+        run: |
+          tree="$(cargo tree --locked --no-default-features --edges normal --prefix none --format '{p}')"
+          if printf '%s\n' "$tree" | grep -E '^(arboard|tao|tray-icon|global-hotkey|gtk|gdk|x11rb|x11-dl|wayland-client|libappindicator|notify-rust|winreg) '; then
+            exit 1
+          fi
+
       - name: Clippy
         run: |
           if [ "${{ matrix.features }}" = "agent" ]; then
@@ -97,3 +181,19 @@ jobs:
             cargo build --release --no-default-features
           fi
         shell: bash
+
+      - name: Released-client compatibility guards and real binary probe
+        if: matrix.name == 'linux-server'
+        timeout-minutes: 3
+        run: |
+          python3 -m unittest discover -s scripts -p test_released_compatibility.py -v
+          python3 scripts/released_compatibility.py --current-binary target/release/ssh_clipboard --evidence-file "$RUNNER_TEMP/released-compatibility.json"
+
+      - name: Retain released-client compatibility evidence
+        if: always() && matrix.name == 'linux-server'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: released-v0.3.0-compatibility
+          path: ${{ runner.temp }}/released-compatibility.json
+          if-no-files-found: ignore
+          retention-days: 14

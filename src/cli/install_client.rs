@@ -1397,8 +1397,11 @@ mod tests {
         assert_eq!(reg_value.vtype, RegType::REG_EXPAND_SZ);
         let words = reg_value
             .bytes
-            .chunks_exact(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .copied()
+            .map(u16::from_le_bytes)
             .collect::<Vec<_>>();
         assert_eq!(words.last().copied(), Some(0));
         let decoded = String::from_utf16(&words[..words.len() - 1]).unwrap();

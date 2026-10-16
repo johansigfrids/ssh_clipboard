@@ -30,6 +30,8 @@ Out of scope (for now):
 ### 1. Per-user daemon (default)
 Run the daemon as the intended user so the socket is owned by that user and has strict permissions (`0600`).
 
+Current-source daemons use a stable ownership lock, preserve active sockets, reject unsafe parent/replacement paths, and verify peer UID. The experimental shelf proxy also checks the daemon peer's UID. See [socket and process guardrails](shelf-server.md#socket-ownership-and-permissions). These source changes have not been deployed to an installed host.
+
 ### 2. Forced command in `authorized_keys` (optional but recommended)
 Restrict a dedicated key so it can only run the proxy:
 ```
@@ -40,6 +42,7 @@ ssh-ed25519 AAAA... your-key-comment
 Notes:
 - If `ssh_clipboard` is not on `PATH` for that user, use an absolute path in `command="..."`.
 - `no-pty` helps ensure the proxy’s binary protocol isn’t corrupted by terminal behavior.
+- A fixed `proxy` key remains V2. The new shelf endpoint needs a separately reviewed absolute `session-proxy` forced command and matching custom socket arguments. Use separate routes/keys for fixed legacy/new endpoints during migration. Transfer keys never gain maintenance permissions; see [compatibility and cutover](compatibility-and-cutover.md#ssh-route-and-privilege-boundary).
 
 ### 3. Avoid “insecure convenience” defaults
 Do not disable host key checking by default. If a user wants that behavior, it should be explicit via SSH config or `--ssh-option`.

@@ -12,6 +12,8 @@ Document the protocol framing and message types used between:
 - `src/daemon.rs`
 
 ## Framing
+
+This page describes the current version 2 endpoint. The new [shelf core](shelf-core.md) is implemented separately and has not changed these serialized enums or endpoint bytes. Its separate [session/bootstrap contract and codec fixtures](session-protocol.md) now exist; daemon/proxy/client integration remains pending.
 Each request/response is **one-shot** per connection/session.
 
 Wire format:
@@ -74,6 +76,8 @@ Proxy process exit codes (Linux):
 ### Proxy exit status vs protocol response
 The proxy may exit non-zero while still writing a valid `Response::Error` frame to stdout.
 Clients should treat the framed `Response` as the primary signal and use the process exit status only as a secondary hint (or for logging).
+
+The rework one-shot client verifies the request ID and expected reply kind before accepting any response. Stderr is drained concurrently with bounded retention, and one operation deadline covers stream work and process completion. A framed error can survive a nonzero proxy exit; success requires successful completion. These client lifecycle changes preserve the version 2 wire bytes; see [transport guardrails](connection-diagnostics.md#one-shot-lifecycle-guardrails).
 
 ## Update Triggers
 - Any changes to `MAGIC`, `VERSION`, message enums, or size limits.

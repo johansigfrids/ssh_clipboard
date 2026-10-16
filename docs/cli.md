@@ -9,8 +9,46 @@ Concise command/flag reference for the `ssh_clipboard` CLI.
 
 ## Commands
 
+### Experimental Linux Shelf
+
+The cross-platform `shelf` namespace provides `list`, `health`, `share --file|--stdin`, `fetch <id> --stdout|--output`, `delete <id> --epoch <epoch>`, and `clear --epoch <epoch>`. It explicitly selects the new endpoint, uses JSON metadata and exact byte exports, and never reads/writes the OS clipboard. See [client commands and safety contracts](shelf-client.md).
+
+`shelf-daemon [--socket-path <private-path>]` serves the new item-aware protocol. `session-proxy` bridges it over binary stdio. Add `--legacy-socket-path <private-path>` to the shelf daemon to serve the same store to V2 clients; `--legacy-max-frame-bytes` defaults to 10 MiB. Existing `proxy` clients use that compatibility socket, while new sessions use the separate shelf socket. Startup refuses an occupied socket. This does not install or replace the current server. See [endpoint policy and native evidence](shelf-server.md).
+
+### `server-maintenance` (Linux Rework Branch)
+
+`verify --version <version> --public-key <trusted.pub> --package <binary> --signature <binary.sig>` authenticates bounded files without executing/installing them.
+
+`install --version <version> --public-key <trusted.pub> --acknowledge-clipboard-loss` creates a separate per-user signed shelf installation and accepts the `shelf-daemon` socket/limit options. `update --version <newer-version> --acknowledge-clipboard-loss` retains pinned trust/options and restores the previous executable after failed service/protocol health. Both accept paired `--package` / `--signature` local inputs; omit both to download the exact GitHub `server-v<version>` asset. Production server assets are not published yet.
+
+`status` prints saved selection/recovery metadata, without asserting live health. `recover --acknowledge-clipboard-loss` resolves an unfinished transition by restoring the retained predecessor or disabling a failed first installation. These four commands accept `--root <absolute-path>`; default storage is the user's data directory under `ssh_clipboard/server`. Restart/rollback loses in-memory items. Existing global/legacy installs are not adopted. See [maintenance and migration gates](server-maintenance.md).
+
+### `settings` (Rework Branch)
+
+Edit the versioned configuration shared with the desktop prototype. This command is available without the old agent feature; the existing `config` command still edits the legacy agent file.
+
+```powershell
+ssh_clipboard settings path
+ssh_clipboard settings show
+ssh_clipboard settings set --target clipboard-hub --show-preview false
+ssh_clipboard settings add-profile --id second --name "Second server" --target other-hub
+ssh_clipboard settings select-profile second
+```
+
+`settings set` changes supplied fields only: `--target`, `--name`, `--port`, `--identity-file`, `--clear-port`, `--clear-identity-file`, `--show-preview true|false`, `--close-after-copy true|false`. `--settings-file <path>` selects a separate file for these commands. Corrupt or concurrently modified settings are preserved and reported; Show never creates a default file.
+
+`settings remove-profile <id>` removes a local connection profile. Removing the selected profile selects the first remaining profile in saved order; removing an inactive profile keeps the current selection. Missing or last-profile removal fails without writing. Servers and clipboard contents are untouched.
+
+Advanced Set flags are `--ssh-option` (repeatable, appended), `--clear-ssh-options`, `--ssh-bin`, `--clear-ssh-bin`, `--max-size`, `--timeout-ms`, `--resync-frames true|false`, `--resync-max-bytes`, and `--device-name`. Connection policy must remain valid; a settings-file size/timeout/resync budget of zero is rejected.
+
+`settings migrate-agent [--legacy-file <path>]` initializes only missing shared settings and saves an exact legacy backup. Existing shared settings win. Default desktop startup/target-less CLI discovery can do this automatically; custom files require the explicit command. Schema 1 prototype settings upgrade in memory and get an exact backup before schema 2 is saved. See [migration/recovery](configuration-migration.md) before returning to an older prototype binary.
+
+Rework push/pull/peek/doctor commands accept `--profile <id>` and `--settings-file <path>`. Without a destination, they use the selected saved profile. An explicit profile allows command-line target/host/port/key overrides. With an explicit destination and no profile flag, they use an independent connection and do not inherit another profile's port/key. The desktop reloads CLI edits approximately every two seconds, deferring them during a transfer. It preserves edited drafts and blocks stale saves/transfers. See [shared configuration](shared-configuration.md) for the complete precedence and recovery rules.
+
 ### `push`
 Send local clipboard to server (text or PNG).
+
+In a headless `--no-default-features` build, use `--stdin`; OS clipboard requests fail before SSH with exit code 6. Normal agent/client builds retain clipboard support. A clipboard-only CLI can use `--no-default-features --features system-clipboard`.
 
 Common usage:
 ```
@@ -27,10 +65,13 @@ Flags:
 - `--timeout-ms <ms>`
 - `--max-size <bytes>`
 - `--strict-frames`: disable framing resync (strict MAGIC at byte 0)
+- `--resync-frames true|false`: override a saved resync choice (conflicts with `--strict-frames`)
 - `--resync-max-bytes <bytes>`: max bytes to discard before MAGIC (default 8192)
 
 ### `pull`
 Fetch from server and write to clipboard (default), or output to stdout/file.
+
+Headless builds require `--stdout`/`--output`, or `--peek` for metadata. They do not fetch a payload before reporting missing OS clipboard support.
 
 Common usage:
 ```
@@ -83,7 +124,8 @@ Flags:
 - `--timeout-ms <ms>` (default 7000)
 
 Notes:
-- If `--target`/`--host` is omitted, `doctor` will try the saved agent config target (when the agent feature is enabled).
+- On the rework branch, `doctor` uses the same shared settings/migration discovery as transfers, including saved transport policy. It does not use the old default-creating agent loader. Explicit destinations do not inherit profile defaults. Corrupt settings produce an error rather than silently selecting another target. Probes force batch mode so diagnostics remain non-interactive even when an imported option requests prompts.
+- Doctor sends only `PeekMeta` through the clipboard proxy, so proxy-only forced-command keys do not need permission for `true` or `--help`. Empty clipboard is healthy. Failed checks return exit status 2, including a missing daemon; later unverified steps are shown as warnings. Reports include static next steps and exclude raw SSH/server output. See [connection diagnostics](connection-diagnostics.md).
 
 ### `agent` (Windows/macOS/Linux)
 Run the background agent (tray icon + hotkeys).

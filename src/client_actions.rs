@@ -1,9 +1,12 @@
+#[cfg(feature = "system-clipboard")]
 use crate::client::clipboard;
 use crate::client::image;
 use crate::protocol::{
     CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardValue, Response, ResponseKind,
 };
-use eyre::{Result, eyre};
+use eyre::Result;
+#[cfg(any(feature = "system-clipboard", test))]
+use eyre::eyre;
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
@@ -14,19 +17,21 @@ pub struct ClipboardBuildError {
 
 pub trait ClipboardAccess {
     fn read_text(&mut self) -> Result<String>;
-    fn read_image(&mut self) -> Result<arboard::ImageData<'static>>;
+    fn read_image(&mut self) -> Result<image::ImageData<'static>>;
     fn write_text(&mut self, text: &str) -> Result<()>;
-    fn write_image(&mut self, image: arboard::ImageData<'static>) -> Result<()>;
+    fn write_image(&mut self, image: image::ImageData<'static>) -> Result<()>;
 }
 
+#[cfg(feature = "system-clipboard")]
 struct SystemClipboard;
 
+#[cfg(feature = "system-clipboard")]
 impl ClipboardAccess for SystemClipboard {
     fn read_text(&mut self) -> Result<String> {
         clipboard::read_text()
     }
 
-    fn read_image(&mut self) -> Result<arboard::ImageData<'static>> {
+    fn read_image(&mut self) -> Result<image::ImageData<'static>> {
         clipboard::read_image()
     }
 
@@ -34,7 +39,7 @@ impl ClipboardAccess for SystemClipboard {
         clipboard::write_text(text)
     }
 
-    fn write_image(&mut self, image: arboard::ImageData<'static>) -> Result<()> {
+    fn write_image(&mut self, image: image::ImageData<'static>) -> Result<()> {
         clipboard::write_image(image)
     }
 }
@@ -57,6 +62,7 @@ pub struct PullApplyError {
     pub message: String,
 }
 
+#[cfg(feature = "system-clipboard")]
 pub fn build_clipboard_value_from_clipboard(
     max_size: usize,
 ) -> Result<ClipboardValue, ClipboardBuildError> {
@@ -96,6 +102,7 @@ pub fn build_clipboard_value_with_clipboard(
     }
 }
 
+#[cfg(feature = "system-clipboard")]
 pub fn apply_pull_response_to_clipboard(
     response: Response,
     max_decoded_bytes: usize,
@@ -105,6 +112,7 @@ pub fn apply_pull_response_to_clipboard(
         .map_err(|err| eyre!(err.message))
 }
 
+#[cfg(feature = "system-clipboard")]
 pub fn apply_pull_response_with_system_clipboard(
     response: Response,
     max_decoded_bytes: usize,
@@ -195,7 +203,7 @@ fn now_epoch_millis() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arboard::ImageData;
+    use crate::client::image::ImageData;
 
     #[derive(Default)]
     struct MockClipboard {

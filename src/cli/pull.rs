@@ -5,6 +5,7 @@ use std::fs;
 
 use crate::cli::{ClientConfigArgs, PullArgs, build_client_config, handle_peek_response};
 use crate::client::transport::{make_request, send_request};
+#[cfg(feature = "system-clipboard")]
 use crate::client_actions::{PullApplyErrorKind, apply_pull_response_with_system_clipboard};
 use crate::protocol::{CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, RequestKind, ResponseKind};
 
@@ -16,37 +17,30 @@ pub async fn run(args: PullArgs) -> Result<()> {
         return crate::cli::exit::exit_with_code(2, "--base64 requires --stdout");
     }
 
-    let effective_max_size = if args.max_size == 0 {
-        crate::protocol::DEFAULT_MAX_SIZE
-    } else {
-        args.max_size
-    };
-
+    let config = build_client_config(client_config_args(&args))?;
+    #[cfg(not(feature = "system-clipboard"))]
+    if !args.peek && !args.stdout && args.output.is_none() {
+        return crate::cli::exit::exit_with_code(
+            6,
+            "This build has no OS clipboard support. Use pull --stdout/--output or a client build with --features system-clipboard.",
+        );
+    }
     if args.peek {
-        let response = match send_request(
-            &build_client_config(client_config_args(&args, effective_max_size)),
-            make_request(RequestKind::PeekMeta),
-        )
-        .await
-        {
+        let response = match send_request(&config, make_request(RequestKind::PeekMeta)).await {
             Ok(response) => response,
             Err(err) => return crate::cli::exit::exit_with_code(5, &err.to_string()),
         };
         return handle_peek_response(response, args.json);
     }
 
-    let response = match send_request(
-        &build_client_config(client_config_args(&args, effective_max_size)),
-        make_request(RequestKind::Get),
-    )
-    .await
-    {
+    let response = match send_request(&config, make_request(RequestKind::Get)).await {
         Ok(response) => response,
         Err(err) => return crate::cli::exit::exit_with_code(5, &err.to_string()),
     };
 
+    #[cfg(feature = "system-clipboard")]
     if !args.stdout && args.output.is_none() && !args.base64 {
-        return handle_pull_to_clipboard(response, effective_max_size);
+        return handle_pull_to_clipboard(response, config.max_size);
     }
 
     if let ResponseKind::Value { value } = &response.kind {
@@ -118,6 +112,7 @@ pub async fn run(args: PullArgs) -> Result<()> {
     crate::cli::handle_response(response, false)
 }
 
+#[cfg(feature = "system-clipboard")]
 fn handle_pull_to_clipboard(
     response: crate::protocol::Response,
     max_decoded_bytes: usize,
@@ -136,8 +131,10 @@ fn handle_pull_to_clipboard(
     }
 }
 
-fn client_config_args(args: &PullArgs, max_size: usize) -> ClientConfigArgs {
+fn client_config_args(args: &PullArgs) -> ClientConfigArgs {
     ClientConfigArgs {
+        profile: args.profile.clone(),
+        settings_file: args.settings_file.clone(),
         target: args.target.clone(),
         host: args.host.clone(),
         user: args.user.clone(),
@@ -145,9 +142,10 @@ fn client_config_args(args: &PullArgs, max_size: usize) -> ClientConfigArgs {
         identity_file: args.identity_file.clone(),
         ssh_option: args.ssh_option.clone(),
         ssh_bin: args.ssh_bin.clone(),
-        max_size,
+        max_size: args.max_size,
         timeout_ms: args.timeout_ms,
         strict_frames: args.strict_frames,
+        resync_frames: args.resync_frames,
         resync_max_bytes: args.resync_max_bytes,
     }
 }

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SSH Clipboard",
+  "mainBinaryName": "ssh_clipboard_desktop",
+  "identifier": "io.github.johansigfrids.sshclipboard",
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "targets": ["nsis"],
+    "externalBin": ["binaries/ssh_clipboard"],
+    "windows": {"nsis": {"installMode": "currentUser"}}
+  }
+}

@@ -5,14 +5,13 @@ use crate::protocol::{
     CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardValue, ErrorCode, Request, RequestKind, Response,
     ResponseKind,
 };
-use eyre::{Result, WrapErr};
+use eyre::Result;
 use std::env;
-use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::net::{UnixListener, UnixStream};
+use tokio::net::UnixStream;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, timeout};
 use tracing::{error, info};
@@ -53,18 +52,13 @@ fn get_uid() -> u32 {
 }
 
 pub async fn run_daemon(socket_path: PathBuf, max_size: usize, io_timeout_ms: u64) -> Result<()> {
-    prepare_socket_path(&socket_path)?;
-    let old_umask = set_umask();
-    let listener = UnixListener::bind(&socket_path);
-    unsafe { libc::umask(old_umask) };
-    let listener = listener.wrap_err("bind unix socket")?;
-    std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(0o600))?;
+    let binding = crate::server_socket::SocketBinding::bind(&socket_path).await?;
     info!(path = %socket_path.display(), "daemon listening");
 
     let state = Arc::new(Mutex::new(ClipboardState { value: None }));
 
     loop {
-        let (stream, _) = listener.accept().await?;
+        let (stream, _) = binding.listener.accept().await?;
         let state = Arc::clone(&state);
         tokio::spawn(async move {
             if let Err(err) = handle_connection(stream, state, max_size, io_timeout_ms).await {
@@ -72,23 +66,6 @@ pub async fn run_daemon(socket_path: PathBuf, max_size: usize, io_timeout_ms: u6
             }
         });
     }
-}
-
-fn prepare_socket_path(path: &Path) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-        std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
-    }
-
-    if path.exists() {
-        std::fs::remove_file(path)?;
-    }
-
-    Ok(())
-}
-
-fn set_umask() -> libc::mode_t {
-    unsafe { libc::umask(0o077) }
 }
 
 async fn handle_connection(
@@ -260,7 +237,7 @@ fn framing_error_response(err: &eyre::Report, request_id: u64) -> Response {
     }
 }
 
-fn verify_peer_credentials(stream: &UnixStream) -> Result<()> {
+pub(crate) fn verify_peer_credentials(stream: &UnixStream) -> Result<()> {
     let expected = get_uid();
     let actual = peer_uid(stream)?;
     if !peer_uid_matches(actual, expected) {
@@ -338,12 +315,14 @@ mod tests {
         server.await.unwrap();
     }
 
-    #[test]
-    fn prepare_socket_path_sets_directory_permissions() {
+    #[tokio::test]
+    async fn binding_sets_directory_permissions() {
         let dir = tempfile::tempdir().unwrap();
         let socket_path = dir.path().join("runtime").join("daemon.sock");
 
-        prepare_socket_path(&socket_path).unwrap();
+        let _binding = crate::server_socket::SocketBinding::bind(&socket_path)
+            .await
+            .unwrap();
 
         let parent = socket_path.parent().unwrap();
         let mode = std::fs::metadata(parent).unwrap().permissions().mode() & 0o777;

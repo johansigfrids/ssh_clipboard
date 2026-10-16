@@ -6,6 +6,8 @@ Document the GitHub Actions setup for tests and releases, including build varian
 ## Key Files
 - `.github/workflows/ci.yml` (PR/push checks)
 - `.github/workflows/release.yml` (tagged release builds)
+- `.github/workflows/desktop-release.yml` (manual environment-gated Windows signed drafts)
+- `.github/workflows/server-release.yml` (manual environment-gated Linux x64 signed drafts)
 - `docs/testing.md` (local test commands and Linux deps)
 
 ## CI Overview
@@ -20,6 +22,18 @@ Document the GitHub Actions setup for tests and releases, including build varian
   - `linux-agent`
   - `linux-server` (`--no-default-features`)
 
+The server job installs no GUI prerequisites and rejects OS clipboard/tray/hotkey/X11/Wayland/GTK dependencies in its normal Cargo tree before building. The `system-clipboard` feature can enable native clipboard access without the legacy agent; see [build variants](build-variants.md).
+
+Linux-only maintenance code must pass warnings-as-errors on the CI toolchain as well as Windows checks. Use `Err(eyre!(...))` for match-result expressions, or a statement block with `bail!(...);`: the pinned eyre macro emits a trailing semicolon that Rust rejects in expression position. Older local Linux toolchains may miss this diagnostic.
+
+Process-backed timeout fixtures must allow Windows PowerShell to start and drain their synthetic stderr before the operation assertion. The persistent-connection uncertainty probe uses the shared ten-second fixture budget rather than three seconds; it still requires an unacknowledged mutation timeout, retained epoch and reaped child. Production timeout defaults are unchanged.
+
+On 2026-10-16, a full Windows run exceeded three existing elapsed-time assertions while separately admitted transport modules competed with each other and compilation. The isolated timeout probes passed. Legacy, one-shot session and persistent-session pipe fixtures now acquire the same two-slot test semaphore before spawning, instead of independent module limits. Full Windows and headless WSL suites subsequently passed with their timing/uncertainty/reaping assertions unchanged. Keep admission shared across fixture families; do not hide startup contention by extending production deadlines or dropping cleanup assertions.
+
+## Desktop Prototype Checks
+
+The `desktop` job checks the isolated Phase 1 prototype on Windows, macOS, and Linux. It uses Node.js 24, the committed npm/Cargo lockfiles, Svelte type/build checks, rendered frontend interaction tests, Rust formatting/lint/tests, and `npm run build:prototype` for a standalone executable with an embedded-asset check. Linux installs WebKitGTK 4.1 and tray/clipboard build dependencies. This job does not publish artifacts or run a native GUI session; OS clipboard/paste and focus/shortcut behavior need separate evidence in [desktop-prototype.md](desktop-prototype.md).
+
 ## Release Overview
 - `release.yml` runs on tags matching `v*`.
 - Builds five variants:
@@ -32,6 +46,21 @@ Document the GitHub Actions setup for tests and releases, including build varian
 - Packages artifacts per OS and uploads to GitHub Releases with SHA256 checksums.
   - Agent builds include both `ssh_clipboard` and `ssh_clipboard_agent`.
 - Uses concurrency per tag (`github.ref`) to avoid overlapping release runs.
+- Sets `make_latest: false` so a legacy archive release cannot displace the desktop keyed-feed release; legacy downloads use an explicit `v*` tag.
+
+## Desktop Release Staging
+
+Desktop CI also lints/tests installed features without release credentials and builds a synthetic-key NSIS package on Windows without installing it. The mock framework handoff and bounded download probes run as tests. The separate manual desktop workflow pins actions/toolchain, validates an immutable master commit, and exposes signing credentials only in its protected packaging step. It creates drafts; the owner has configured environment protections/signing inputs, while actual protected signing, publishing and installed/native acceptance remain separate. See [release operations](releasing.md).
+
+Frontend Node tests now also execute the desktop draft handoff with inert filesystem/GitHub adapters, rejecting wrong/dirty source, debug/test identity, wrong CLI/platform/version, changed bytes/checksums, missing assets, ambiguous stages and existing releases. A temporary Git repository checks clean/dirty/staged/untracked/source-change admission. The Windows synthetic installer checks its public evidence against the exact newly verified package and removes its disposable private key. See [release readiness](release-readiness.md).
+
+## Server Release Staging
+
+The manual server workflow validates the exact stable core commit on master, pins Rust/actions, and runs headless checks without credentials. A separate `server-release` environment gates the Linux x64 signing step. It builds on Ubuntu 24.04, verifies exact signed bytes/version/platform with the server policy, and creates a `server-v<version>` draft without publishing/overwriting or becoming latest. The credential-free validation job also executes the actual draft handoff with inert adapters, checking source/platform/profile refusal, no overwrite and desktop-feed isolation. Source SHA/profile/key ID/checksum evidence accompanies the package. Other architectures/runtime compatibility and real user-systemd acceptance remain gates. Environment protections/signing inputs are configured, but this workflow has not run on GitHub; the real staging helper has passed locally with synthetic trust on Windows/Ubuntu WSL. See [release setup](releasing.md#signed-server-drafts).
+
+## Released Compatibility Baseline
+
+After its optimized headless build, the Linux server job runs the seven standard-library Python guard tests and [released-client compatibility probe](released-compatibility.md). The latter downloads the fixed v0.3.0 archive, checks its reviewed SHA-256 before execution and exercises old/new CLI/proxy/daemon routes using private sockets and synthetic data. It never starts SSH, systemd or an OS clipboard adapter. A pinned upload-artifact action retains the metadata-only pass/failure/cleanup report for 14 days, including on a failed probe. Reports live in the job's fresh runner temporary directory, outside cached Cargo output, so a restored cache cannot collide with the no-overwrite evidence contract. Other platform jobs do not execute this Linux baseline. A network/download failure fails the check; it is not reported as successful compatibility.
 
 ## Update Triggers
 - Changing build variants, features, or supported OSes.

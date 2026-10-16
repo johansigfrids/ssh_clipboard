@@ -61,6 +61,30 @@ async fn read_frame_payload_inner<R: AsyncRead + Unpin>(
     resync: bool,
     max_scan_bytes: usize,
 ) -> Result<FrameReadResult> {
+    let (length, discarded) =
+        read_frame_length_inner(reader, max_size, resync, max_scan_bytes).await?;
+    let mut payload = vec![0u8; length];
+    reader.read_exact(&mut payload).await?;
+    Ok(FrameReadResult {
+        payload,
+        discarded_bytes: discarded,
+    })
+}
+
+/// Check the legacy header before the compatibility adapter reserves a payload buffer.
+pub(crate) async fn read_frame_length<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    max_size: usize,
+) -> Result<usize> {
+    Ok(read_frame_length_inner(reader, max_size, false, 0).await?.0)
+}
+
+async fn read_frame_length_inner<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    max_size: usize,
+    resync: bool,
+    max_scan_bytes: usize,
+) -> Result<(usize, usize)> {
     let discarded = read_magic(reader, resync, max_scan_bytes).await?;
 
     let mut version_bytes = [0u8; 2];
@@ -77,12 +101,7 @@ async fn read_frame_payload_inner<R: AsyncRead + Unpin>(
         return Err(FramingError::PayloadTooLarge(len).into());
     }
 
-    let mut payload = vec![0u8; len as usize];
-    reader.read_exact(&mut payload).await?;
-    Ok(FrameReadResult {
-        payload,
-        discarded_bytes: discarded,
-    })
+    Ok((len as usize, discarded))
 }
 
 async fn read_magic<R: AsyncRead + Unpin>(

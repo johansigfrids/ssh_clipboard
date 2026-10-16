@@ -2,6 +2,10 @@
 fn main() {
     use std::path::Path;
 
+    if std::env::var_os("CARGO_FEATURE_EXTERNAL_RESOURCE_OWNER").is_some() {
+        return;
+    }
+
     let icon_path = Path::new("assets").join("icon.ico");
     if !icon_path.exists() {
         println!(

@@ -1,6 +1,6 @@
 [package]
 name = "ssh_clipboard"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 
 [[bin]]
@@ -17,38 +17,49 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 eyre = "0.6"
 thiserror = "2.0.18"
-arboard = { version = "3", features = ["wayland-data-control"] }
-image = "0.25"
+arboard = { version = "3", features = ["wayland-data-control"], optional = true }
+image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
 serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+dirs = "6"
+toml = "0.9"
+uuid = { version = "1", features = ["v4", "serde"] }
 time = { version = "0.3.47", features = ["formatting"] }
 
 global-hotkey = { version = "0.7", optional = true }
 tray-icon = { version = "0.21", optional = true }
 tao = { version = "0.34", optional = true }
-confy = { version = "2", optional = true }
+confy = "2"
 auto-launch = { version = "0.6", optional = true }
 single-instance = { version = "0.3", optional = true }
 tracing-appender = { version = "0.2", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
+minisign-verify = "0.3"
 notify-rust = { version = "4.12.0", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winrt-notification = { version = "0.5", optional = true }
-winreg = "0.55.0"
+winreg = { version = "0.55.0", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 notify-rust = { version = "4.12.0", optional = true }
 
 [features]
 default = ["agent"]
+# A desktop host embeds its own Windows icon/version resources. Avoid duplicate
+# resource records when this crate is linked as that host's library dependency.
+external-resource-owner = []
+system-clipboard = ["dep:arboard"]
 agent = [
+  "system-clipboard",
+  "dep:winreg",
   "dep:global-hotkey",
   "dep:tray-icon",
   "dep:tao",
-  "dep:confy",
   "dep:auto-launch",
   "dep:single-instance",
   "dep:tracing-appender",

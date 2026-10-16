@@ -19,7 +19,11 @@ cargo build --release --no-default-features
 
 The resulting binary is `target/release/ssh_clipboard`.
 
+The rework exposes explicit signed `server-maintenance install|update|status|recover|verify` commands. They retain per-user versioned executables, create a stable launcher and actual `ssh_clipboard-shelf.service`, pin trust/socket/limits, and restore the previous executable if proxy protocol health fails. Disposable real user-systemd runtime acceptance passes; production artifacts and persistent install/login acceptance remain pending. This is a separate reviewed migration from the legacy installer below; see [commands, evidence and remaining gates](server-maintenance.md).
+
 ## Run the Daemon
+
+The rework branch also has a separate experimental [shelf daemon/session proxy](shelf-server.md). It is not installed automatically. Its optional explicit V2 compatibility socket lets existing clients share the shelf; running separate old/new daemon modes without that adapter produces separate stores. Both current-source daemon modes reject duplicate ownership/live sockets and require an owner-only final socket directory; custom paths should use a dedicated private directory. Startup no longer unlinks a live socket or chmods an arbitrary existing parent.
 Run as the target user (per-user daemon):
 ```
 ssh_clipboard daemon
@@ -91,11 +95,13 @@ ssh_clipboard peek --target user@server
 
 The client invokes the proxy using the system `ssh` binary (with `ssh -T`) and speaks the framed protocol over stdin/stdout.
 
-## systemd (user service) — Suggested
-This project does not ship a unit file yet, but a typical user unit would:
+## Legacy systemd (user service)
+The legacy installer generates its unit in the extracted folder. A manually managed legacy unit should:
 - set `Restart=on-failure`
 - ensure `XDG_RUNTIME_DIR` exists (systemd user services typically do)
 - run `ssh_clipboard daemon`
+
+The rework maintenance command instead writes a stable actual user unit; it does not adopt an existing legacy unit or `/usr/local/bin` link. Before a separately authorized cutover, record the old service/launcher, target UID, socket and limits; verify independent trust and the noninteractive SSH command path. Review a compatibility-socket plan so old/new clients reach the same shelf. Retain the old installation/configuration for an explicit return path. Changing services clears the in-memory clipboard; rollback restores executable availability only. A fixed legacy forced-command key needs an explicitly reviewed endpoint change. No migration or linger change is automatic.
 
 ## Troubleshooting
 - **Proxy says daemon not running:** start the daemon first, or ensure the socket path matches on both ends (`--socket-path`).

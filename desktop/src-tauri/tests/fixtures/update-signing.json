@@ -1,0 +1,43 @@
+{
+  "purpose": "Synthetic public signature fixtures. No private release keys.",
+  "key_a": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE3QTE3NThBMDM1OEQ2RDIKUldUUzFsZ0RpbldocC92QytHTWw2WmJ4VFlQRERTWXJOcWorZEVISlo1VGQzL1JadHlUbDJ1NmwK",
+  "key_b": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEEzMENFNkFERTFFQjM0MUEKUldRYU5PdmhyZVlNbzQ1c05yakVZMFZpWFplT3M1UHdXSlZxbDZvYXlMWjdhSThuQmJVV3l3Q3kK",
+  "artifacts": {
+    "release": {
+      "version": "2.0.0",
+      "file": "SSHClipboard-stable-windows-x86_64-2.0.0-setup.exe",
+      "bytes": "c3ludGhldGljIHJlbGVhc2U=",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUUzFsZ0RpbldocCs0Wm1FZFFIMEwwdDZRWngwU0x1MmQxanFpOTB3ZWtHMnJHMStBVHUrV09MU3R2cXlaREtZNC9neFBUcHdMdVo5OTdoNkN3UE8vT1VNTjlCOWszYWdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxOTgxNzAzCWZpbGU6U1NIQ2xpcGJvYXJkLXN0YWJsZS13aW5kb3dzLXg4Nl82NC0yLjAuMC1zZXR1cC5leGUJdmVyc2lvbjoyLjAuMApvcDVmVGI5c0xPUEF5YjlaNUVsTng5eE02aWJRRXN4amliM056cTFQZytBaDJlT0JMdnF5bUFKYzQ1UnMvWHlDV3c3c2FxWjJUVXF6L29xUy9DZG9EUT09Cg=="
+    },
+    "beta": {
+      "version": "2.0.0",
+      "file": "SSHClipboard-beta-windows-x86_64-2.0.0-setup.exe",
+      "bytes": "c3ludGhldGljIGJldGE=",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUUzFsZ0RpbldocDdJZ2RLK0s4dGE0Y3pGNkdsOElsQUxRY1QrSm1qSEhLOEh5Nmh4bkJjZ3paZk5DVmNRbUJGamVpTmpxRHBKYzZBRlB2d3VaUEc4VGt2RWJ4SUVidXc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxOTgxNzAzCWZpbGU6U1NIQ2xpcGJvYXJkLWJldGEtd2luZG93cy14ODZfNjQtMi4wLjAtc2V0dXAuZXhlCXZlcnNpb246Mi4wLjAKdmQva1NsMFdna3ZYWVVqL29CSFpBYXQ1K2JHM3hRakk4K08vdTZMT2Vza0FTK01TMnRkZW0rMnFkS3lVellFeHBGc2l3b09ObmdkbHFwYmcyRlRXQWc9PQo="
+    },
+    "other_platform": {
+      "version": "2.0.0",
+      "file": "SSHClipboard-stable-linux-x86_64-2.0.0.AppImage",
+      "bytes": "c3ludGhldGljIExpbnV4",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUUzFsZ0RpbldocDVrTmZ6YUMwREwwdjNIY2F2c2FkZVNhNGdzUjI4dFhIWjM1ekdVaFBWSVNSYjVSa0ZoK3Y3eFhydS9VQlBCT1VSVFQ5Y0Z2NEpUYWRtQ3M2eGRLd3dFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxOTgxNzAzCWZpbGU6U1NIQ2xpcGJvYXJkLXN0YWJsZS1saW51eC14ODZfNjQtMi4wLjAuQXBwSW1hZ2UJdmVyc2lvbjoyLjAuMApvVS9Qelhvb1NBK2VORWllc29FN2FWV0VLaHcvS1QxcVA2ODFSNzVlNGtZMVdFeTBKczdyOHlaZG9UVHR4WVREdXpHazlCVkRkbzZlUjVjVWNhTHJCZz09Cg=="
+    },
+    "transition": {
+      "version": "2.0.0",
+      "file": "SSHClipboard-stable-windows-x86_64-2.0.0-setup.exe",
+      "bytes": "c3ludGhldGljIHRyYW5zaXRpb24KbmV4dCBwdWJsaWMga2V5OiBkVzUwY25WemRHVmtJR052YlcxbGJuUTZJRzFwYm1semFXZHVJSEIxWW14cFl5QnJaWGs2SUVFek1FTkZOa0ZFUlRGRlFqTTBNVUVLVWxkUllVNVBkbWh5WlZsTmJ6UTFjMDV5YWtWWk1GWnBXRnBsVDNNMVVIZFhTbFp4YkRadllYbE1XamRoU1RodVFtSlZWM2wzUTNrSw==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUUzFsZ0RpbldocDF0QWVWRTlac1BTaDdTUVpvYjB0WVpxUEVZWE9zKzY2RWRINTdjM2x2cHlTa01iR0I1azdaZVR5dEhuRVFwQUtjYzU3Nk8xaVhVK2hEK1RXeUV2RUE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxOTgxNzAzCWZpbGU6U1NIQ2xpcGJvYXJkLXN0YWJsZS13aW5kb3dzLXg4Nl82NC0yLjAuMC1zZXR1cC5leGUJdmVyc2lvbjoyLjAuMApVZUhKVE5CdFRxRGg4c3hGZEpIbCtOUEJyVnBYRVl0QjZJbzhtSFZ2dmtEaUFFc0J6Q1Zuekt0M3V3SmRKalp3K1hIbFpSSUd2VDhVZnhFOGVGMFFEQT09Cg=="
+    },
+    "next": {
+      "version": "3.0.0",
+      "file": "SSHClipboard-stable-windows-x86_64-3.0.0-setup.exe",
+      "bytes": "c3ludGhldGljIG5leHQgcmVsZWFzZQ==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRYU5PdmhyZVlNbzFPZUJlOENIaDNHTmtmWDBxTm4zcVhYZkJhYjRNUE5OZ01rSFlxZjJuOHhyVng3Q2RsNjhvcUE4NkVIVWZ1ZkRab0tBa09LcnIrblhmUk85UWxoNGdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxOTgxNzAzCWZpbGU6U1NIQ2xpcGJvYXJkLXN0YWJsZS13aW5kb3dzLXg4Nl82NC0zLjAuMC1zZXR1cC5leGUJdmVyc2lvbjozLjAuMAoyQTVOYnJBQUhaTXpyTmFzNHc5MXhSVnBXQ1R5eXdpbnVOQW5DUG94dHRRb2RIS3VtYXNwdDZaRCs2bkVTSTEvMHJ3SnI4clVRNEpZK2hkK2owOEREZz09Cg=="
+    },
+    "unversioned_signature": {
+      "version": "2.0.0",
+      "file": "SSHClipboard-stable-windows-x86_64-2.0.0-setup.exe",
+      "bytes": "c3ludGhldGljIHVudmVyc2lvbmVkIHNpZ25hdHVyZQ==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUUzFsZ0RpbldocDNxYi9IUDJnd3dmcTU5bFg1cVMyMTVDYURmNitmaXpNSnlicVJTc2tTT0kxUFNSamZUdThSa1g1ZDlxbDJHVnJ2Y3ZveDkvTnFXaWxXd3pSSElFMmc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxOTgxNzA0CWZpbGU6U1NIQ2xpcGJvYXJkLXN0YWJsZS13aW5kb3dzLXg4Nl82NC0yLjAuMC1zZXR1cC5leGUKQ2dNYnp6djlYZ3Ftb3hhTnZRS0xMTUVTdW1FNytvNHhheW1UcnU2eHlkWjRZSXZVTHc3RkpHd2hJOGZEOEE5ZUQxM1BNUGJKWWdta3lyaXA2K1ExREE9PQo="
+    }
+  }
+}

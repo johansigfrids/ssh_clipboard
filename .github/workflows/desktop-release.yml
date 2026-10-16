@@ -1,0 +1,137 @@
+name: Stage signed desktop release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version already committed in the core Cargo.toml
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/master'
+    runs-on: windows-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, resolved 2026-10-14
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Validate immutable source and requested version
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Invalid stable version' }
+          $core = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          if ($core -ne $env:RELEASE_VERSION -or $core -eq '0.0.0') { throw 'Version must match the reviewed core commit' }
+          if ((git rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Unexpected source commit' }
+      - name: Pin Rust toolchain
+        run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt,clippy
+      - name: Validate core
+        shell: pwsh
+        run: |
+          cargo +1.99.0 fmt -- --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo +1.99.0 clippy --locked --features agent --all-targets -- -D warnings
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo +1.99.0 test --locked --features agent
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Validate desktop without release credentials
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          npm ci
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo +1.99.0 fmt --manifest-path src-tauri/Cargo.toml -- --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo +1.99.0 clippy --locked --manifest-path src-tauri/Cargo.toml --all-features --all-targets -- -D warnings
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo +1.99.0 test --locked --manifest-path src-tauri/Cargo.toml --all-features
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+  package:
+    needs: validate
+    runs-on: windows-latest
+    # Configure required reviewers and master-only deployment rules before first use.
+    environment: desktop-release
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RUSTUP_TOOLCHAIN: '1.99.0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Prepare trusted build tools without signing credentials
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm --prefix desktop ci
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build, sign, and verify exact package
+        working-directory: desktop
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.DESKTOP_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.DESKTOP_SIGNING_PASSWORD }}
+          DESKTOP_PUBLIC_KEY: ${{ vars.DESKTOP_UPDATE_PUBLIC_KEY }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY -or -not $env:DESKTOP_PUBLIC_KEY) { throw 'Protected release trust inputs are missing' }
+          $publicKey = Join-Path $env:RUNNER_TEMP 'desktop-public-key.pub'
+          Set-Content -LiteralPath $publicKey -Value $env:DESKTOP_PUBLIC_KEY -NoNewline
+          node scripts/build-installed.mjs --version $env:RELEASE_VERSION --public-key-file $publicKey --notes-file ../CHANGELOG.md
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Create reviewable draft, never publish or overwrite
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          @'
+          import {readFileSync,readdirSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          import path from 'node:path';
+          import {execFileSync,spawnSync} from 'node:child_process';
+          const version=process.env.RELEASE_VERSION,base='desktop/artifacts';
+          const stages=readdirSync(base).filter(name=>name.startsWith(`installed-${version}-`));
+          if(stages.length!==1)throw Error('Expected exactly one verified desktop stage');
+          const stage=path.join(base,stages[0]);
+          const proof=JSON.parse(readFileSync(path.join(stage,'build-evidence.json'),'utf8'));
+          if(proof.testOnly!==false||proof.sourceDirty!==false||proof.profile!=='release'||proof.nativeTestOrigin!==null||proof.installed!==false||proof.published!==false||proof.platform!=='windows-x86_64'||proof.version!==version||proof.source!==process.env.GITHUB_SHA||proof.cliVersion!==`ssh_clipboard ${version}`||!/^[a-f0-9]{16}$/.test(proof.signingPublicKeyId??''))throw Error('Unexpected desktop package identity');
+          const name=`SSHClipboard-stable-windows-x86_64-${version}-setup.exe`;
+          const packageBytes=readFileSync(path.join(stage,name));
+          const sha256=createHash('sha256').update(packageBytes).digest('hex');
+          if(proof.bytes!==packageBytes.length||proof.sha256!==sha256||readFileSync(path.join(stage,`${name}.sha256`),'utf8')!==`${sha256}  ${name}\n`)throw Error('Desktop package differs from verified evidence');
+          const tag=`desktop-v${version}`,repo=process.env.GITHUB_REPOSITORY;
+          if(spawnSync('gh',['release','view',tag,'--repo',repo],{stdio:'ignore'}).status===0)throw Error('Never overwrite an existing signed release');
+          const assets=[name,`${name}.sig`,`${name}.sha256`,`desktop-stable-${proof.signingPublicKeyId}.json`,'candidate.json','build-evidence.json'].map(name=>path.join(stage,name));
+          for(const file of assets)readFileSync(file);
+          execFileSync('gh',['release','create',tag,...assets,'--repo',repo,'--target',process.env.GITHUB_SHA,'--draft','--title',`SSH Clipboard ${version}`,'--notes-file','CHANGELOG.md'],{stdio:'inherit'});
+          '@ | node --input-type=module
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: desktop-release-review
+          path: desktop/artifacts/installed-*/
+          if-no-files-found: ignore

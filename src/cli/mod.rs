@@ -22,11 +22,15 @@ mod install_daemon;
 mod peek;
 mod pull;
 mod push;
+#[cfg(target_os = "linux")]
+mod server_maintenance;
+mod settings;
 #[cfg(all(
     feature = "agent",
     any(target_os = "windows", target_os = "macos", target_os = "linux")
 ))]
 mod setup_agent;
+mod shelf;
 
 #[cfg(all(
     feature = "agent",
@@ -43,12 +47,25 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Inspect and edit the desktop/CLI shared settings.
+    Settings(settings::SettingsArgs),
+    /// Use the experimental item-aware endpoint explicitly.
+    Shelf(shelf::ShelfArgs),
+    /// Verify signed Linux server packages; never changes an installed service.
+    #[cfg(target_os = "linux")]
+    ServerMaintenance(server_maintenance::MaintenanceArgs),
     Push(PushArgs),
     Pull(PullArgs),
     Peek(PeekArgs),
     Doctor(DoctorArgs),
     #[cfg(target_os = "linux")]
     Daemon(DaemonArgs),
+    /// Run the experimental item-aware shelf on a separate private socket.
+    #[cfg(target_os = "linux")]
+    ShelfDaemon(ShelfDaemonArgs),
+    /// Bridge the experimental shelf endpoint over SSH stdio.
+    #[cfg(target_os = "linux")]
+    SessionProxy(SessionProxyArgs),
     #[cfg(target_os = "linux")]
     Proxy(ProxyArgs),
     #[cfg(target_os = "linux")]
@@ -90,6 +107,10 @@ enum Commands {
 #[derive(Args, Clone)]
 pub struct PushArgs {
     #[arg(long)]
+    pub profile: Option<String>,
+    #[arg(long)]
+    pub settings_file: Option<PathBuf>,
+    #[arg(long)]
     pub target: Option<String>,
     #[arg(long)]
     pub host: Option<String>,
@@ -103,21 +124,27 @@ pub struct PushArgs {
     pub ssh_option: Vec<String>,
     #[arg(long)]
     pub ssh_bin: Option<PathBuf>,
-    #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
-    pub max_size: usize,
-    #[arg(long, default_value_t = 7000)]
-    pub timeout_ms: u64,
+    #[arg(long)]
+    pub max_size: Option<usize>,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
     #[arg(long)]
     pub stdin: bool,
     #[arg(long)]
     pub strict_frames: bool,
-    #[arg(long, default_value_t = 8192)]
-    pub resync_max_bytes: usize,
+    #[arg(long, value_parser = clap::value_parser!(bool), conflicts_with = "strict_frames")]
+    pub resync_frames: Option<bool>,
+    #[arg(long)]
+    pub resync_max_bytes: Option<usize>,
 }
 
 #[derive(Args, Clone)]
 pub struct PullArgs {
     #[arg(long)]
+    pub profile: Option<String>,
+    #[arg(long)]
+    pub settings_file: Option<PathBuf>,
+    #[arg(long)]
     pub target: Option<String>,
     #[arg(long)]
     pub host: Option<String>,
@@ -131,10 +158,10 @@ pub struct PullArgs {
     pub ssh_option: Vec<String>,
     #[arg(long)]
     pub ssh_bin: Option<PathBuf>,
-    #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
-    pub max_size: usize,
-    #[arg(long, default_value_t = 7000)]
-    pub timeout_ms: u64,
+    #[arg(long)]
+    pub max_size: Option<usize>,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
     #[arg(long)]
     pub stdout: bool,
     #[arg(long)]
@@ -147,13 +174,19 @@ pub struct PullArgs {
     pub json: bool,
     #[arg(long)]
     pub strict_frames: bool,
-    #[arg(long, default_value_t = 8192)]
-    pub resync_max_bytes: usize,
+    #[arg(long, value_parser = clap::value_parser!(bool), conflicts_with = "strict_frames")]
+    pub resync_frames: Option<bool>,
+    #[arg(long)]
+    pub resync_max_bytes: Option<usize>,
 }
 
 #[derive(Args, Clone)]
 pub struct PeekArgs {
     #[arg(long)]
+    pub profile: Option<String>,
+    #[arg(long)]
+    pub settings_file: Option<PathBuf>,
+    #[arg(long)]
     pub target: Option<String>,
     #[arg(long)]
     pub host: Option<String>,
@@ -167,21 +200,27 @@ pub struct PeekArgs {
     pub ssh_option: Vec<String>,
     #[arg(long)]
     pub ssh_bin: Option<PathBuf>,
-    #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
-    pub max_size: usize,
-    #[arg(long, default_value_t = 7000)]
-    pub timeout_ms: u64,
+    #[arg(long)]
+    pub max_size: Option<usize>,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
     #[arg(long)]
     pub json: bool,
     #[arg(long)]
     pub strict_frames: bool,
-    #[arg(long, default_value_t = 8192)]
-    pub resync_max_bytes: usize,
+    #[arg(long, value_parser = clap::value_parser!(bool), conflicts_with = "strict_frames")]
+    pub resync_frames: Option<bool>,
+    #[arg(long)]
+    pub resync_max_bytes: Option<usize>,
 }
 
 #[derive(Args, Clone)]
 pub struct DoctorArgs {
     #[arg(long)]
+    pub profile: Option<String>,
+    #[arg(long)]
+    pub settings_file: Option<PathBuf>,
+    #[arg(long)]
     pub target: Option<String>,
     #[arg(long)]
     pub host: Option<String>,
@@ -195,8 +234,8 @@ pub struct DoctorArgs {
     pub ssh_option: Vec<String>,
     #[arg(long)]
     pub ssh_bin: Option<PathBuf>,
-    #[arg(long, default_value_t = 7000)]
-    pub timeout_ms: u64,
+    #[arg(long)]
+    pub timeout_ms: Option<u64>,
 }
 
 #[cfg(target_os = "linux")]
@@ -221,6 +260,48 @@ pub struct ProxyArgs {
     pub io_timeout_ms: u64,
     #[arg(long)]
     pub autostart_daemon: bool,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Args, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShelfDaemonArgs {
+    #[arg(long)]
+    pub socket_path: Option<PathBuf>,
+    /// Explicitly expose the same shelf through a V2 socket; never replaces a running daemon.
+    #[arg(long)]
+    pub legacy_socket_path: Option<PathBuf>,
+    #[arg(long, default_value_t = DEFAULT_MAX_SIZE)]
+    pub legacy_max_frame_bytes: usize,
+    #[arg(long, default_value_t = 20)]
+    pub max_items: usize,
+    #[arg(long, default_value_t = 3600)]
+    pub retention_secs: u64,
+    #[arg(long, default_value_t = 64 * 1024 * 1024)]
+    pub max_item_bytes: usize,
+    #[arg(long, default_value_t = 256 * 1024 * 1024)]
+    pub max_stored_bytes: usize,
+    #[arg(long, default_value_t = 384 * 1024 * 1024)]
+    pub max_resident_bytes: usize,
+    #[arg(long, default_value_t = 256 * 1024 * 1024)]
+    pub max_decoded_bytes: usize,
+    #[arg(long, default_value_t = 16)]
+    pub max_connections: usize,
+    #[arg(long, default_value_t = 30000)]
+    pub io_timeout_ms: u64,
+    #[arg(long, default_value_t = 300000)]
+    pub idle_timeout_ms: u64,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Args, Clone)]
+pub struct SessionProxyArgs {
+    #[arg(long)]
+    pub socket_path: Option<PathBuf>,
+    #[arg(long, default_value_t = 30000)]
+    pub io_timeout_ms: u64,
+    #[arg(long, default_value_t = 300000)]
+    pub idle_timeout_ms: u64,
 }
 
 #[cfg(target_os = "linux")]
@@ -433,6 +514,10 @@ pub async fn run() -> Result<()> {
     init_tracing(agent_mode)?;
 
     match cli.command {
+        Commands::Settings(args) => settings::run(args),
+        Commands::Shelf(args) => shelf::run(args).await,
+        #[cfg(target_os = "linux")]
+        Commands::ServerMaintenance(args) => server_maintenance::run(args).await,
         Commands::Push(args) => push::run(args).await,
         Commands::Pull(args) => pull::run(args).await,
         Commands::Peek(args) => peek::run(args).await,
@@ -446,6 +531,57 @@ pub async fn run() -> Result<()> {
                 .await
                 .wrap_err("daemon failed")?;
             Ok(())
+        }
+        #[cfg(target_os = "linux")]
+        Commands::ShelfDaemon(args) => {
+            let path = args
+                .socket_path
+                .unwrap_or(crate::shelf_daemon::default_socket_path()?);
+            let limits = crate::shelf::ShelfLimits {
+                max_items: args.max_items,
+                retention: std::time::Duration::from_secs(args.retention_secs),
+                max_item_bytes: args.max_item_bytes,
+                max_stored_bytes: args.max_stored_bytes,
+                max_resident_bytes: args.max_resident_bytes,
+                max_decoded_bytes: args.max_decoded_bytes,
+                ..Default::default()
+            };
+            let policy = crate::shelf_service::ServiceLimits {
+                max_connections: args.max_connections,
+                operation_timeout: std::time::Duration::from_millis(args.io_timeout_ms),
+                idle_timeout: std::time::Duration::from_millis(args.idle_timeout_ms),
+                ..Default::default()
+            };
+            let legacy = args
+                .legacy_socket_path
+                .map(|path| crate::shelf_daemon::LegacyEndpoint {
+                    path,
+                    max_frame: args.legacy_max_frame_bytes,
+                });
+            crate::shelf_daemon::run_with_legacy(path, limits, policy, legacy).await
+        }
+        #[cfg(target_os = "linux")]
+        Commands::SessionProxy(args) => {
+            let path = args
+                .socket_path
+                .unwrap_or(crate::shelf_daemon::default_socket_path()?);
+            let limits = crate::session_bridge::BridgeLimits {
+                read_timeout: std::time::Duration::from_millis(args.idle_timeout_ms),
+                write_timeout: std::time::Duration::from_millis(args.io_timeout_ms),
+                ..Default::default()
+            };
+            let code = match crate::session_proxy::run(path, limits).await {
+                Ok(code) => code,
+                Err(_) => {
+                    eprintln!(
+                        "Shelf session proxy failed. Check the configured endpoint and daemon."
+                    );
+                    5
+                }
+            };
+            // Tokio's stdio reads are blocking underneath. Exit on both paths so a
+            // held-open SSH stdin cannot keep the finished proxy process alive.
+            std::process::exit(code);
         }
         #[cfg(target_os = "linux")]
         Commands::Proxy(args) => {
@@ -626,9 +762,177 @@ fn humanize_bytes(size: u64) -> String {
     }
 }
 
+#[derive(Default)]
+pub(crate) struct ClientConfigArgs {
+    pub profile: Option<String>,
+    pub settings_file: Option<PathBuf>,
+    pub target: Option<String>,
+    pub host: Option<String>,
+    pub user: Option<String>,
+    pub port: Option<u16>,
+    pub identity_file: Option<PathBuf>,
+    pub ssh_option: Vec<String>,
+    pub ssh_bin: Option<PathBuf>,
+    pub max_size: Option<usize>,
+    pub timeout_ms: Option<u64>,
+    pub strict_frames: bool,
+    pub resync_frames: Option<bool>,
+    pub resync_max_bytes: Option<usize>,
+}
+
+pub(crate) fn build_client_config(args: ClientConfigArgs) -> Result<ClientConfig> {
+    if args
+        .target
+        .as_ref()
+        .is_some_and(|target| target.trim().is_empty())
+    {
+        return Err(eyre::eyre!("missing SSH target"));
+    }
+    let mut ssh = SshConfig {
+        target: args.target.unwrap_or_default(),
+        port: args.port,
+        user: args.user,
+        host: args.host,
+        identity_file: args.identity_file,
+        ssh_options: args.ssh_option,
+        ssh_bin: args.ssh_bin,
+    };
+    let defaults = settings::apply_connection_defaults(
+        &mut ssh,
+        args.settings_file.as_deref(),
+        args.profile.as_deref(),
+    )?
+    .unwrap_or_default();
+    let target = ssh.resolve_target();
+    crate::configuration::validate_connection(target.trim(), ssh.port, "")
+        .map_err(|message| eyre::eyre!(message))?;
+    if target.trim().is_empty() {
+        return Err(eyre::eyre!(
+            "missing SSH target: apply desktop settings or use --target, --host, or --profile"
+        ));
+    }
+    Ok(ClientConfig {
+        ssh,
+        max_size: match args.max_size {
+            Some(0) => DEFAULT_MAX_SIZE,
+            Some(bytes) => bytes,
+            None => defaults.max_size,
+        },
+        timeout_ms: args.timeout_ms.unwrap_or(defaults.timeout_ms),
+        resync_frames: if args.strict_frames {
+            false
+        } else {
+            args.resync_frames.unwrap_or(defaults.resync_frames)
+        },
+        resync_max_bytes: args.resync_max_bytes.unwrap_or(defaults.resync_max_bytes),
+    })
+}
+
+fn init_tracing(agent_mode: bool) -> Result<()> {
+    #[cfg(not(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    )))]
+    let _ = agent_mode;
+
+    #[cfg(all(
+        feature = "agent",
+        any(target_os = "windows", target_os = "macos", target_os = "linux")
+    ))]
+    if agent_mode {
+        let log_dir = crate::agent::config_path()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| ".".into()))
+            .join("logs");
+        let _ = std::fs::create_dir_all(&log_dir);
+        let file_appender = tracing_appender::rolling::daily(log_dir, "agent.log");
+        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+        Box::leak(Box::new(guard));
+
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .with_writer(non_blocking)
+            .init();
+        return Ok(());
+    }
+
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_writer(std::io::stderr)
+        .init();
+    Ok(())
+}
+
+pub fn init_tracing_for_agent() -> Result<()> {
+    init_tracing(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saved_transport_defaults_and_explicit_builtin_values_have_correct_precedence() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = crate::configuration::ConfigStore::new(directory.path().join("settings.json"));
+        let mut config = crate::configuration::Configuration::default();
+        config.profiles[0].target = "saved-hub".into();
+        config.profiles[0].transport = crate::configuration::TransportSettings {
+            ssh_options: vec!["ServerAliveInterval=20".into()],
+            ssh_bin: Some("saved-ssh".into()),
+            max_size: 123456,
+            timeout_ms: 9000,
+            resync_frames: false,
+            resync_max_bytes: 2048,
+        };
+        store.prepare(None, config).unwrap().commit().unwrap();
+        let selected = build_client_config(ClientConfigArgs {
+            settings_file: Some(store.path().into()),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(selected.max_size, 123456);
+        assert_eq!(selected.timeout_ms, 9000);
+        assert!(!selected.resync_frames);
+        assert_eq!(selected.resync_max_bytes, 2048);
+        assert_eq!(selected.ssh.ssh_bin, Some("saved-ssh".into()));
+        let explicit = build_client_config(ClientConfigArgs {
+            settings_file: Some(store.path().into()),
+            max_size: Some(DEFAULT_MAX_SIZE),
+            timeout_ms: Some(7000),
+            resync_frames: Some(true),
+            resync_max_bytes: Some(8192),
+            ssh_bin: Some("explicit-ssh".into()),
+            ssh_option: vec!["ServerAliveInterval=1".into()],
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(explicit.max_size, DEFAULT_MAX_SIZE);
+        assert_eq!(explicit.timeout_ms, 7000);
+        assert!(explicit.resync_frames);
+        assert_eq!(explicit.resync_max_bytes, 8192);
+        assert_eq!(explicit.ssh.ssh_bin, Some("explicit-ssh".into()));
+        assert_eq!(
+            explicit.ssh.ssh_options,
+            ["ServerAliveInterval=1", "ServerAliveInterval=20"]
+        );
+        let parsed = Cli::try_parse_from([
+            "ssh_clipboard",
+            "peek",
+            "--timeout-ms",
+            "7000",
+            "--resync-frames",
+            "true",
+        ])
+        .unwrap();
+        let Commands::Peek(args) = parsed.command else {
+            panic!("expected peek");
+        };
+        assert_eq!(args.timeout_ms, Some(7000));
+        assert_eq!(args.resync_frames, Some(true));
+        assert!(args.max_size.is_none());
+    }
 
     #[test]
     fn humanize_bytes_formats_units() {
@@ -664,75 +968,4 @@ mod tests {
         let parsed = Cli::try_parse_from(["ssh_clipboard", "install-client"]);
         assert!(parsed.is_err());
     }
-}
-
-pub(crate) struct ClientConfigArgs {
-    pub target: Option<String>,
-    pub host: Option<String>,
-    pub user: Option<String>,
-    pub port: Option<u16>,
-    pub identity_file: Option<PathBuf>,
-    pub ssh_option: Vec<String>,
-    pub ssh_bin: Option<PathBuf>,
-    pub max_size: usize,
-    pub timeout_ms: u64,
-    pub strict_frames: bool,
-    pub resync_max_bytes: usize,
-}
-
-pub(crate) fn build_client_config(args: ClientConfigArgs) -> ClientConfig {
-    ClientConfig {
-        ssh: SshConfig {
-            target: args.target.unwrap_or_default(),
-            port: args.port,
-            user: args.user,
-            host: args.host,
-            identity_file: args.identity_file,
-            ssh_options: args.ssh_option,
-            ssh_bin: args.ssh_bin,
-        },
-        max_size: args.max_size,
-        timeout_ms: args.timeout_ms,
-        resync_frames: !args.strict_frames,
-        resync_max_bytes: args.resync_max_bytes,
-    }
-}
-
-fn init_tracing(agent_mode: bool) -> Result<()> {
-    #[cfg(not(all(
-        feature = "agent",
-        any(target_os = "windows", target_os = "macos", target_os = "linux")
-    )))]
-    let _ = agent_mode;
-
-    #[cfg(all(
-        feature = "agent",
-        any(target_os = "windows", target_os = "macos", target_os = "linux")
-    ))]
-    if agent_mode {
-        let log_dir = crate::agent::config_path()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| ".".into()))
-            .join("logs");
-        let _ = std::fs::create_dir_all(&log_dir);
-        let file_appender = tracing_appender::rolling::daily(log_dir, "agent.log");
-        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-        Box::leak(Box::new(guard));
-
-        tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
-            .with_writer(non_blocking)
-            .init();
-        return Ok(());
-    }
-
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
-    Ok(())
-}
-
-pub fn init_tracing_for_agent() -> Result<()> {
-    init_tracing(true)
 }

@@ -1,12 +1,13 @@
 // Inspect the actual archived app without launching its GUI or installing it.
 import {execFileSync} from "node:child_process";
+import {createHash} from "node:crypto";
 import {mkdtempSync,readFileSync,rmSync,writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import path from "node:path";
 
 export function macPackageIdentity(evidence) {
   const arch={"darwin-aarch64":"arm64","darwin-x86_64":"x86_64"}[evidence.platform];
-  if(!arch||!/^\d+\.\d+\.\d+$/.test(evidence.version)||typeof evidence.testOnly!=="boolean")throw new Error("Invalid Mac package identity.");
+  if(!arch||!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(evidence.version)||typeof evidence.testOnly!=="boolean")throw new Error("Invalid Mac package identity.");
   return {
     arch,
     application:evidence.testOnly?"SSH Clipboard Update Test.app":"SSH Clipboard.app",
@@ -29,6 +30,8 @@ export function verifyMacPackage(stage,evidence) {
   if(process.platform!=="darwin")throw new Error("Mac application inspection requires native macOS tools.");
   const identity=macPackageIdentity(evidence);
   const archive=path.resolve(stage,identity.packageName);
+  const bytes=readFileSync(archive);
+  if(bytes.length!==evidence.bytes||createHash("sha256").update(bytes).digest("hex")!==evidence.sha256)throw new Error("Mac archive differs from recorded package bytes.");
   const run=(command,args)=>execFileSync(command,args,{encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:30000,maxBuffer:2*1024*1024}).trim();
   checkMacArchivePaths(run("/usr/bin/tar",["-tzf",archive]),identity.application);
   const temporary=mkdtempSync(path.join(tmpdir(),"ssh-clipboard-mac-package-"));
@@ -49,7 +52,7 @@ export function verifyMacPackage(stage,evidence) {
     // native installation, GUI, login or update acceptance claims.
     const source=JSON.parse(readFileSync(path.join(stage,"build-evidence.json"),"utf8")).source;
     if(source!==evidence.source)throw new Error("Mac package source evidence changed during inspection.");
-    writeFileSync(path.join(stage,"macos-package-inspection.json"),JSON.stringify({source,version:evidence.version,platform:evidence.platform,testOnly:evidence.testOnly,application:identity.application,identifier:identity.identifier,architecture:identity.arch,archiveInspected:true,codeSignaturesVerified:true,cliVersionVerified:true,installed:false,guiTested:false,loginTested:false,builtinUpdateTested:false},null,2)+"\n");
+    writeFileSync(path.join(stage,"macos-package-inspection.json"),JSON.stringify({source,version:evidence.version,platform:evidence.platform,testOnly:evidence.testOnly,sha256:evidence.sha256,bytes:evidence.bytes,application:identity.application,identifier:identity.identifier,architecture:identity.arch,archiveInspected:true,codeSignaturesVerified:true,cliVersionVerified:true,installed:false,guiTested:false,loginTested:false,builtinUpdateTested:false},null,2)+"\n");
   } finally {
     rmSync(temporary,{recursive:true,force:true});
   }

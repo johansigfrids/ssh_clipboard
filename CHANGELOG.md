@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Apple Silicon application archive/signature inspection and a release-profile package probe using disposable trust, with a documented clean migration from the legacy Mac client.
+- Protected Windows/macOS desktop staging with a shared update feed that requires both platform packages before draft creation. Native Mac installation/update acceptance is pending.
+
 ## [0.4.1] - 2026-10-16
 
 ### Fixed

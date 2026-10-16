@@ -19,7 +19,7 @@ The owner requested a full replacement on 2026-10-16. Read-only SSH inspection f
 
 No clipboard client process or application bundle was found in the inspected process list and standard application directories. A loaded `~/Library/LaunchAgents/ssh_clipboard.plist` still requests `/usr/local/bin/ssh_clipboard agent`, but that executable is absent and launchd reports spawn failure. The legacy `~/.config/ssh_clipboard/agent.toml` remains, with saved direct shortcuts and a startup preference. Its server name is obsolete. These are inspection results, not proof that every possible installation location has been inventoried.
 
-The new server's current hostname failed SSH host verification from the Mac. Resolve that route using an independently verified server host key and the Mac's own authentication. Never use `StrictHostKeyChecking=no`, copy private SSH keys, or infer GUI-session authentication from a different machine's successful connection.
+The new server's current hostname initially failed SSH host verification from the Mac. The Mac's existing trusted old alias has the same Ed25519 key as the server public key retrieved through the already trusted Windows connection. A metadata-only Mac-to-server check with strict verification and that existing host-key alias succeeds: it resolves the managed user launcher and reports server 0.4.0. No trust file or private key was changed. Persist a verified current-hostname entry or explicitly retain the reviewed host-key alias during profile setup; repeat metadata health in the installed GUI context. Never use `StrictHostKeyChecking=no`, copy private SSH keys, or infer GUI-session authentication from a different machine's successful connection.
 
 ## Delivery Sequence
 
@@ -41,6 +41,8 @@ Native update acceptance is separate from static package signature verification.
 Inspection and the clean-cutover scope are recorded. CI now requests a release-profile, disposable-trust Mac app and retains its package/inspection evidence for seven days. The installed builder explicitly ad-hoc signs the Mac bundle, extracts the produced archive privately, and checks its bundle identity, version, native executable/CLI architecture, code signatures and CLI version. The disposable signing private key is removed before artifact upload. The inspection does not launch the GUI or change login settings.
 
 The source change still needs a passing macOS CI package build. No Mac installation, startup change, settings migration, SSH trust change or cleanup has taken place. macOS native/update acceptance remains open.
+
+The production workflow is prepared to build Windows x64 and Apple Silicon behind the existing reviewer gate, then create one twelve-asset draft with a combined keyed feed. It pins trust to the public key in the reviewed source and refuses incomplete platform sets or disagreement on release version/trust/notes. Its first expanded production run remains pending. Plan an unused 0.4 patch version after package admission; never add/replace files in the published 0.4.1 release.
 
 ## Update Triggers
 

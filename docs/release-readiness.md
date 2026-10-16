@@ -44,6 +44,8 @@ The helper requires canonical stable core/version parity and refuses `--debug` w
 
 The desktop workflow requires release profile, clean exact source, production identity, no native test transport, matching CLI/version/platform and a canonical signing key ID. It recomputes the package SHA-256/size and checks the checksum record. It selects exactly the canonical package, signature, checksum, keyed feed, candidate and evidence; unrelated files cannot satisfy an asset-count check. Missing assets, changed bytes, test/debug/dirty/wrong-source evidence, ambiguous stages and existing releases are refused before creation. Creation always includes `--draft` and the reviewed source target, with no overwrite. The staging helper's signature verifier remains responsible for cryptographic admission.
 
+The Mac preparation expands that handoff to require Windows x64 and Apple Silicon together. `desktop/scripts/desktop-draft.mjs` admits each exact package, its candidate/feed/signature association, source public-key identity and the Mac archive inspection receipt, then combines the feed without dropping Windows. Candidate/build-evidence filenames carry platform suffixes to prevent collisions; historical published assets are unchanged. Actual handoff-function tests cover both platforms, missing/duplicate stages and feed disagreement. The expanded production workflow has not yet run; [Mac cutover](macos-cutover.md) tracks that gate separately from earlier Windows signing.
+
 Guardrail: checking source only at workflow checkout does not bind the eventual package to that source. Record and check source/profile in package evidence as well; test the real workflow handoff, not a duplicate implementation of it.
 
 ## Remaining Release Sequence

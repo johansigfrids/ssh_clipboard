@@ -18,7 +18,11 @@ concurrency:
 jobs:
   validate:
     if: github.ref == 'refs/heads/master'
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
     env:
       RELEASE_VERSION: ${{ inputs.version }}
     steps:
@@ -66,13 +70,20 @@ jobs:
 
   package:
     needs: validate
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x86_64
+          - os: macos-latest
+            platform: darwin-aarch64
     # Configure required reviewers and master-only deployment rules before first use.
     environment: desktop-release
-    permissions:
-      contents: write
     env:
       RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_PLATFORM: ${{ matrix.platform }}
       RUSTUP_TOOLCHAIN: '1.99.0'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -102,36 +113,43 @@ jobs:
           Set-Content -LiteralPath $publicKey -Value $env:DESKTOP_PUBLIC_KEY -NoNewline
           node scripts/build-installed.mjs --version $env:RELEASE_VERSION --public-key-file $publicKey --notes-file ../CHANGELOG.md
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Create reviewable draft, never publish or overwrite
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
           @'
           import {readFileSync,readdirSync} from 'node:fs';
-          import {createHash} from 'node:crypto';
           import path from 'node:path';
-          import {execFileSync,spawnSync} from 'node:child_process';
-          const version=process.env.RELEASE_VERSION,base='desktop/artifacts';
-          const stages=readdirSync(base).filter(name=>name.startsWith(`installed-${version}-`));
-          if(stages.length!==1)throw Error('Expected exactly one verified desktop stage');
-          const stage=path.join(base,stages[0]);
-          const proof=JSON.parse(readFileSync(path.join(stage,'build-evidence.json'),'utf8'));
-          if(proof.testOnly!==false||proof.sourceDirty!==false||proof.profile!=='release'||proof.nativeTestOrigin!==null||proof.installed!==false||proof.published!==false||proof.platform!=='windows-x86_64'||proof.version!==version||proof.source!==process.env.GITHUB_SHA||proof.cliVersion!==`ssh_clipboard ${version}`||!/^[a-f0-9]{16}$/.test(proof.signingPublicKeyId??''))throw Error('Unexpected desktop package identity');
-          const name=`SSHClipboard-stable-windows-x86_64-${version}-setup.exe`;
-          const packageBytes=readFileSync(path.join(stage,name));
-          const sha256=createHash('sha256').update(packageBytes).digest('hex');
-          if(proof.bytes!==packageBytes.length||proof.sha256!==sha256||readFileSync(path.join(stage,`${name}.sha256`),'utf8')!==`${sha256}  ${name}\n`)throw Error('Desktop package differs from verified evidence');
-          const tag=`desktop-v${version}`,repo=process.env.GITHUB_REPOSITORY;
-          if(spawnSync('gh',['release','view',tag,'--repo',repo],{stdio:'ignore'}).status===0)throw Error('Never overwrite an existing signed release');
-          const assets=[name,`${name}.sig`,`${name}.sha256`,`desktop-stable-${proof.signingPublicKeyId}.json`,'candidate.json','build-evidence.json'].map(name=>path.join(stage,name));
-          for(const file of assets)readFileSync(file);
-          execFileSync('gh',['release','create',tag,...assets,'--repo',repo,'--target',process.env.GITHUB_SHA,'--draft','--title',`SSH Clipboard ${version}`,'--notes-file','CHANGELOG.md'],{stdio:'inherit'});
+          const stages=readdirSync('artifacts').filter(name=>name.startsWith(`installed-${process.env.RELEASE_VERSION}-`));
+          if(stages.length!==1)throw Error('Expected exactly one package stage');
+          const proof=JSON.parse(readFileSync(path.join('artifacts',stages[0],'build-evidence.json'),'utf8'));
+          if(proof.platform!==process.env.RELEASE_PLATFORM)throw Error('Native runner architecture differs from requested platform');
           '@ | node --input-type=module
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
         with:
-          name: desktop-release-review
+          name: desktop-package-${{ matrix.platform }}
           path: desktop/artifacts/installed-*/
-          if-no-files-found: ignore
+          if-no-files-found: error
+
+  draft:
+    needs: package
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Download verified packages from this exact workflow run
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download $env:GITHUB_RUN_ID --repo $env:GITHUB_REPOSITORY --pattern 'desktop-package-*' --dir desktop/artifacts/release-inputs
+      - name: Create reviewable draft, never publish or overwrite
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node desktop/scripts/desktop-draft.mjs

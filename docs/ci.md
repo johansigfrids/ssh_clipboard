@@ -28,6 +28,8 @@ Linux-only maintenance code must pass warnings-as-errors on the CI toolchain as 
 
 Process-backed timeout fixtures must allow Windows PowerShell to start and drain their synthetic stderr before the operation assertion. The persistent-connection uncertainty probe uses the shared ten-second fixture budget rather than three seconds; it still requires an unacknowledged mutation timeout, retained epoch and reaped child. Production timeout defaults are unchanged.
 
+On 2026-10-16, a full Windows run exceeded three existing elapsed-time assertions while separately admitted transport modules competed with each other and compilation. The isolated timeout probes passed. Legacy, one-shot session and persistent-session pipe fixtures now acquire the same two-slot test semaphore before spawning, instead of independent module limits. Full Windows and headless WSL suites subsequently passed with their timing/uncertainty/reaping assertions unchanged. Keep admission shared across fixture families; do not hide startup contention by extending production deadlines or dropping cleanup assertions.
+
 ## Desktop Prototype Checks
 
 The `desktop` job checks the isolated Phase 1 prototype on Windows, macOS, and Linux. It uses Node.js 24, the committed npm/Cargo lockfiles, Svelte type/build checks, rendered frontend interaction tests, Rust formatting/lint/tests, and `npm run build:prototype` for a standalone executable with an embedded-asset check. Linux installs WebKitGTK 4.1 and tray/clipboard build dependencies. This job does not publish artifacts or run a native GUI session; OS clipboard/paste and focus/shortcut behavior need separate evidence in [desktop-prototype.md](desktop-prototype.md).

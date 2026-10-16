@@ -117,8 +117,7 @@ async fn run(
     kind: RequestKind,
     deadline_ms: u64,
 ) -> Result<Response, TransportFailure> {
-    static PROCESS_LIMIT: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
-    let _permit = PROCESS_LIMIT.acquire().await.unwrap();
+    let _permit = crate::client::SUBPROCESS_PROBES.acquire().await.unwrap();
     let started = Instant::now();
     let mut child = command
         .stdin(Stdio::piped())
@@ -143,7 +142,11 @@ async fn run(
         child.try_wait().unwrap().is_some(),
         "completed/failed operations must reap their child"
     );
-    assert!(started.elapsed() < Duration::from_millis(deadline_ms + 2500));
+    assert!(
+        started.elapsed() < Duration::from_millis(deadline_ms + 2500),
+        "operation plus cleanup exceeded its bound: {:?}",
+        started.elapsed()
+    );
     result
 }
 

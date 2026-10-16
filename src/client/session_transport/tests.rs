@@ -124,11 +124,10 @@ fn policy() -> SessionPolicy {
         operation_timeout: Duration::from_secs(3),
     }
 }
-static PROCESSES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
 
 #[tokio::test]
 async fn managed_health_rejects_a_healthy_protocol_from_the_wrong_release() {
-    let _slot = PROCESSES.acquire().await.unwrap();
+    let _slot = crate::client::SUBPROCESS_PROBES.acquire().await.unwrap();
     let reply = frame(&Response::Health {
         request_id: 2.into(),
         epoch: Uuid::from_u128(1),
@@ -152,7 +151,7 @@ async fn managed_health_rejects_a_healthy_protocol_from_the_wrong_release() {
 
 #[tokio::test]
 async fn stderr_flood_and_nonzero_exit_do_not_erase_a_validated_reply() {
-    let _slot = PROCESSES.acquire().await.unwrap();
+    let _slot = crate::client::SUBPROCESS_PROBES.acquire().await.unwrap();
     let reply = frame(&Response::Health {
         request_id: 2.into(),
         epoch: Uuid::from_u128(1),
@@ -178,7 +177,7 @@ async fn stderr_flood_and_nonzero_exit_do_not_erase_a_validated_reply() {
 }
 #[tokio::test]
 async fn correlated_remote_errors_outrank_exit_status_and_never_expose_stderr() {
-    let _slot = PROCESSES.acquire().await.unwrap();
+    let _slot = crate::client::SUBPROCESS_PROBES.acquire().await.unwrap();
     let reply = frame(&Response::Error {
         request_id: 2.into(),
         code: wire::ErrorCode::Busy,
@@ -203,7 +202,7 @@ async fn correlated_remote_errors_outrank_exit_status_and_never_expose_stderr() 
 }
 #[tokio::test]
 async fn unacknowledged_mutations_timeout_and_reap_without_replaying() {
-    let _slot = PROCESSES.acquire().await.unwrap();
+    let _slot = crate::client::SUBPROCESS_PROBES.acquire().await.unwrap();
     let start = tokio::time::Instant::now();
     let result = run_child(
         fixture(&[], true),
@@ -221,7 +220,7 @@ async fn unacknowledged_mutations_timeout_and_reap_without_replaying() {
 
 #[tokio::test]
 async fn acknowledged_mutations_remain_confirmed_when_process_cleanup_hits_the_deadline() {
-    let _slot = PROCESSES.acquire().await.unwrap();
+    let _slot = crate::client::SUBPROCESS_PROBES.acquire().await.unwrap();
     let reply = frame(&Response::Cleared {
         request_id: 2.into(),
         epoch: Uuid::from_u128(1),

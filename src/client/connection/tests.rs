@@ -270,6 +270,7 @@ fn fixture(stall: bool) -> Child {
 
 #[tokio::test]
 async fn one_child_and_bounded_reader_survive_multiple_metadata_operations_until_explicit_close() {
+    let _slot = crate::client::SUBPROCESS_PROBES.acquire().await.unwrap();
     let child = fixture(false);
     let pid = child.id();
     let mut connection = Connection::from_child(child, config(), policy())
@@ -298,6 +299,7 @@ async fn one_child_and_bounded_reader_survive_multiple_metadata_operations_until
 
 #[tokio::test]
 async fn an_unacknowledged_mutation_keeps_its_epoch_and_reaps_the_failed_connection() {
+    let _slot = crate::client::SUBPROCESS_PROBES.acquire().await.unwrap();
     // This budget also covers starting Windows PowerShell and draining its stderr
     // flood. A short startup budget can fail before the mutation under test.
     let mut connection = Connection::from_child(fixture(true), config(), policy())

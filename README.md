@@ -28,7 +28,7 @@ The Linux rework also includes an experimental bounded shelf server and session 
 
 Signed Linux maintenance is also available on this branch through `server-maintenance install|update|status|recover|verify`: stable user-owned executables, pinned public trust, and rollback after failed protocol health. The commands do not adopt the legacy service automatically. Disposable signed-binary and real user-systemd runtime tests pass, including crash-loop rollback and cleanup. Production artifacts, persistent install/login acceptance and the existing server cutover remain pending. See [managed server setup](docs/server-maintenance.md). Actual published Linux v0.3.0 CLI/proxy/daemon compatibility is tested on disposable sockets for both protocol upgrade orders; see [tested pairings and limits](docs/released-compatibility.md).
 
-The rework remains unreleased. [Release readiness](docs/release-readiness.md) tracks prepared notes, automated/native evidence, intended initial package platforms and the remaining production signing/installation/cutover gates.
+The rework candidate is **0.4.0** and remains unreleased. [Release readiness](docs/release-readiness.md) tracks versioned notes, automated/native evidence, intended initial package platforms and the remaining production signing/installation/cutover gates. The legacy client and V2 route remain available throughout the 0.4 series.
 
 ## Quick Start (recommended)
 

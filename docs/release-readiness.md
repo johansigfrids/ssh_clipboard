@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Keep the release candidate's automated evidence, prepared material, and remaining approval/platform gates in one place. Preparation does not publish, merge, choose a version, or replace the installed client/server.
+Keep the release candidate's automated evidence, prepared material, and remaining approval/platform gates in one place. Version 0.4.0 is chosen for review; preparation does not publish, merge, or replace the installed client/server.
 
 ## Key Files
 
-- `CHANGELOG.md`: unreleased user-facing notes; assign a version only after it is deliberately chosen.
+- `CHANGELOG.md`: versioned 0.4.0 candidate notes; assign the actual publication date at release time.
 - `.github/workflows/desktop-release.yml`, `server-release.yml`: master-only protected draft staging.
 - `desktop/scripts/build-installed.mjs`, `release-source.mjs`: desktop source/package evidence.
 - `desktop/tests/desktop-release.test.mjs`, `release-source.test.mjs`: source admission and actual draft-handoff refusal tests.
@@ -14,7 +14,9 @@ Keep the release candidate's automated evidence, prepared material, and remainin
 
 ## Candidate Scope
 
-The rework remains on `codex/ssh-clipboard-rework` in draft PR #1. The shared core version is still `0.3.0`; no new tag, stable version, production package or publication date is implied by this preparation. The current notes stay under Unreleased. Synthetic test versions/packages are not production releases.
+The rework candidate is **0.4.0** on `codex/ssh-clipboard-rework` in PR #1. The owner authorized choosing a sensible version and preparing the PR for merge on 2026-10-16. A minor pre-1.0 increment reflects the substantial desktop/history/update additions while the existing V2 route remains available; it does not claim the broader platform/operational maturity of 1.0. The shared core and both dependency lockfiles carry 0.4.0. The desktop frontend/prototype packages retain their internal 0.0.0 versions; installed staging overrides the app version from the matching core version.
+
+The notes have a 0.4.0 section explicitly marked Unreleased, with no publication date. No tag or production release has been created. Synthetic updater versions and the pinned published v0.3.0 compatibility fixture remain unchanged; they are evidence inputs, not current application versions.
 
 The initial protected workflows stage Windows x64 desktop and Linux x64 server packages. The existing legacy CLI/agent release pipeline remains separate. macOS/Linux desktop compilation is not native GUI/package acceptance, so do not advertise those rework installers as validated releases.
 
@@ -44,7 +46,7 @@ Guardrail: checking source only at workflow checkout does not bind the eventual 
 
 ## Remaining Release Sequence
 
-1. Finish reviewing the PR, choose the new stable version and compatibility/support window, update the core version/lockfiles/notes, and obtain exact-head green CI. Merge is a separate authorized action; protected staging accepts only master.
+1. Finish reviewing PR #1 for version 0.4.0 and obtain exact-head green CI after the version/lockfile/notes changes. Retain the legacy client and V2 route throughout the 0.4 series; choose any removal/end-of-support date separately after an accepted installed migration. Merge is a separate authorized action; protected staging accepts only master.
 2. Run the protected desktop/server draft workflows from the reviewed master SHA. Required environment approval is the configured owner gate. Check the resulting signatures against independently retained public trust and inspect exact source, version, platform and package evidence. Keep both releases as drafts.
 3. Admit the exact production artifacts: verify the Windows production installation/update identity and Linux runtime/persistent-service behavior, with any required manual checks scoped and estimated in advance. Reuse the [completed native session](native-history-acceptance.md) and installed updater evidence; do not repeat unchanged synthetic micro-checks. Interrupted installation, omitted native recovery paths and other desktop platforms remain explicit gaps.
 4. Review a concrete live server/SSH/startup transition and return path before separately authorizing it. Preserve the legacy service/client and explain in-memory shelf loss on restart. Publication is another separate action; server/legacy releases must not displace the desktop keyed-feed latest release.

@@ -38,7 +38,7 @@ Describe legacy releases, staged signed desktop releases, key operations, and ve
 
 ## Signed Desktop Drafts
 
-The current rework candidate, refreshed automated evidence and remaining version/merge/signing/platform gates are tracked in [release readiness](release-readiness.md). Unreleased notes do not select a production version or authorize a tag.
+The current rework candidate is **0.4.0**. Refreshed automated evidence and remaining review/merge/signing/platform gates are tracked in [release readiness](release-readiness.md). The versioned unreleased notes do not imply publication or authorize a tag.
 
 The new workflow does not run on legacy `v*` tags. It accepts manual dispatch from `master`, validates the exact commit/core version, and requires the `desktop-release` environment before a Windows x64 signed build. It creates a **draft** `desktop-v<version>` with package/signature/checksum, candidate JSON, keyed feed, and evidence. The owner has configured production signing inputs; no production workflow build/release has run yet. Installed/native acceptance is still required; source/cryptographic and debug package proofs do not waive it.
 

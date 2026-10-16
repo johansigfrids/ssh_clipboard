@@ -191,7 +191,7 @@ Offer a one-time migration summary for preserved connection settings, device nam
 
 ## Release Preparation Status
 
-On 2026-10-16, Windows core/desktop, frontend, headless Linux and pinned released-client checks were refreshed. Desktop staging now binds source/profile/package bytes through the draft handoff, with executable refusal probes and a real synthetic installer verification. A shared test-only process limit fixes cross-module fault-fixture contention without changing production deadlines. Unreleased notes and the remaining version/merge/protected-signing/artifact/cutover gates are recorded in [release readiness](release-readiness.md). The manual history session is closed; this preparation does not choose a version, merge, publish or deploy.
+On 2026-10-16, Windows core/desktop, frontend, headless Linux and pinned released-client checks were refreshed. Desktop staging now binds source/profile/package bytes through the draft handoff, with executable refusal probes and a real synthetic installer verification. A shared test-only process limit fixes cross-module fault-fixture contention without changing production deadlines. The owner authorized version selection and PR preparation: **0.4.0** is the candidate, with matching core/lockfiles and versioned unreleased notes. The legacy client and V2 route remain throughout the 0.4 series; no removal date is chosen. Remaining review/merge/protected-signing/artifact/cutover gates are recorded in [release readiness](release-readiness.md). The manual history session is closed; this preparation does not merge, publish or deploy.
 
 ## Cross-Cutting Verification
 

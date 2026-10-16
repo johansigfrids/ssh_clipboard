@@ -26,6 +26,10 @@ The compatibility adapter must be explicitly configured when the shelf starts. R
 
 Current-source native process tests prove shared V2/session storage and refusal of occupied endpoints. Retained V2 fixtures prove the framing contract. The actual published Linux x86_64 v0.3.0 CLI/proxy/daemon now also passes private old/new process-route checks: exact Unicode/whitespace and PNG bytes, shared history/latest-item changes, size refusal with metadata access, and fixed legacy endpoint refusal without mutation. See [released-binary evidence](released-compatibility.md). This establishes that protocol pairing, not every older release/platform or an installed migration. No support-window end date or removal of the legacy agent is chosen yet.
 
+## 0.4 Compatibility Commitment
+
+For the 0.4.0 candidate, retain the legacy client and V2 compatibility route throughout the 0.4 series. The tested released pairing is Linux x86_64 v0.3.0 with the rework routes; this is not a promise about every historical platform/version. Any removal or end-of-support date requires a later explicit decision after installed migration acceptance. The core version bump does not change either wire version or automatically move a profile/service to the shelf.
+
 ## SSH Route and Privilege Boundary
 
 An existing `command="... proxy"` key remains a V2 key, regardless of the requested SSH command. It cannot reach `session-proxy` or maintenance commands. A shelf-only key needs an explicitly reviewed absolute `session-proxy` forced command, with the correct socket path if customized. Use distinct aliases/keys for separate fixed endpoints during migration; do not introduce a general shell dispatcher to make a transfer key a management key. Preserve host verification and no-PTY/forwarding restrictions.

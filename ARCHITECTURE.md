@@ -6,6 +6,8 @@ Describe the current implementation and the target architecture agreed during th
 
 **Status: rework in progress.** The installed CLI/agent/server still implement the current system below. An isolated [Phase 1 desktop prototype](docs/desktop-prototype.md) now uses those transfer services; the target architecture is not yet implemented as a whole. [The implementation plan](docs/implementation-plan.md) defines the delivery sequence and acceptance checks. Existing feature documents describe shipped behavior until their corresponding phase lands.
 
+The merge candidate is **0.4.0**, with versioned unreleased notes and matching shared-core lockfiles. The legacy client and V2 endpoint remain supported throughout the 0.4 series. This source preparation does not publish artifacts or perform installed cutover; [release readiness](docs/release-readiness.md) records the remaining gates.
+
 ## Key Files
 
 - `src/client/`, `src/client_actions.rs`: clipboard adapters and SSH transfers.

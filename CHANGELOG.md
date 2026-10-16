@@ -3,6 +3,9 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+
+## [0.4.0] - Unreleased
+
 ### Added
 - Experimental desktop quick panel with visible Share/Copy actions, text/image previews, tray access, and discoverable optional shortcuts.
 - Shared saved connection profiles, settings UI, metadata-only diagnostics, and backed-up legacy settings migration with an explicit import review.
@@ -21,7 +24,7 @@ All notable changes to this project will be documented in this file.
 - Bound competing subprocess fault fixtures together so parallel test modules do not exhaust each other's timing budgets.
 
 ### Migration and release status
-- This section describes the unreleased rework. No new production version or publication date has been chosen.
+- Version 0.4.0 is the prepared rework candidate; it has not been published and has no publication date yet.
 - Sharing and copying remain explicit; background history updates do not overwrite the local clipboard or upload its contents.
 - Existing V2 clients and the legacy agent remain available. Installing the rework does not automatically replace a running server, change SSH key restrictions, or take over startup registration.
 - Windows x64 has isolated native and installed-update evidence. New macOS/Linux desktop packages and the exact production server installation remain separate release gates; see [release readiness](docs/release-readiness.md).

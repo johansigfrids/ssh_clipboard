@@ -44,7 +44,7 @@ Anonymous HTTPS requests verified the public latest-release API, repository-wide
 ## Remaining Boundaries
 
 - Desktop 0.4.1 is published and accepted for the bounded upgrade/startup and public-delivery checks. Retain the immutable 0.4.0 desktop draft as evidence; do not publish or overwrite it.
-- The independent signed `server-v0.4.0` draft and existing Linux service are unchanged. Persistent-service/login/boot and the concrete legacy service/socket/SSH transition need their own review and authorization.
+- After this desktop admission, the owner separately authorized the [clean Linux 0.4.0 cutover and server publication](linux-cutover-acceptance.md). Persistent installation, fresh SSH routes, old-install retirement and public server assets pass; actual reboot/last-session logout remain separate.
 - Reuse the closed native history and installed updater/key-transition sessions. Interrupted native installation, omitted native recovery paths and macOS/Linux desktop installers retain their explicit gaps. No repetitive history, paste or sign-out session was added for this startup-only correction.
 - Evidence-only follow-up commits do not change the source of either signed artifact.
 

@@ -10,7 +10,7 @@ Explain how to run the daemon on the Linux server and how the SSH-invoked proxy 
 - `README.md`
 
 ## Build
-Preferred: download a Linux server release artifact and put `ssh_clipboard` on your `PATH`.
+Preferred: download the [signed Linux x86_64 server 0.4.0 release](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) and use the [managed installer and verification instructions](server-maintenance.md). The repository-wide latest release contains the Windows desktop installer. The legacy daemon examples below are an explicit compatibility alternative.
 
 Build from source on the Linux server:
 ```
@@ -19,9 +19,9 @@ cargo build --release --no-default-features
 
 The resulting binary is `target/release/ssh_clipboard`.
 
-The rework exposes explicit signed `server-maintenance install|update|status|recover|verify` commands. They retain per-user versioned executables, create a stable launcher and actual `ssh_clipboard-shelf.service`, pin trust/socket/limits, and restore the previous executable if proxy protocol health fails. Disposable real user-systemd runtime acceptance passes; production artifacts and persistent install/login acceptance remain pending. This is a separate reviewed migration from the legacy installer below; see [commands, evidence and remaining gates](server-maintenance.md).
+The rework exposes explicit signed `server-maintenance install|update|status|recover|verify` commands. They retain per-user versioned executables, create a stable launcher and actual `ssh_clipboard-shelf.service`, pin trust/socket/limits, and restore the previous executable if proxy protocol health fails. Signed production 0.4.0 installation and clean live migration now pass; anonymous public server delivery also passes, while actual reboot/last-session logout remain separate. This is a separately reviewed migration from the legacy installer below; see [commands](server-maintenance.md), [public verification trust](security.md#signed-package-trust) and [live acceptance](linux-cutover-acceptance.md).
 
-## Run the Daemon
+## Legacy daemon
 
 The rework branch also has a separate experimental [shelf daemon/session proxy](shelf-server.md). It is not installed automatically. Its optional explicit V2 compatibility socket lets existing clients share the shelf; running separate old/new daemon modes without that adapter produces separate stores. Both current-source daemon modes reject duplicate ownership/live sockets and require an owner-only final socket directory; custom paths should use a dedicated private directory. Startup no longer unlinks a live socket or chmods an arbitrary existing parent.
 Run as the target user (per-user daemon):
@@ -34,7 +34,7 @@ Optional timeouts:
 ssh_clipboard daemon --io-timeout-ms 7000
 ```
 
-## Quick setup (Ubuntu)
+## Legacy quick setup (Ubuntu)
 From the extracted release folder (e.g., `~/ssh_clipboard`):
 ```
 ./ssh_clipboard install-daemon

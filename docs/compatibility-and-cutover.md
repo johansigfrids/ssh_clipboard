@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Record the rework's protocol/configuration boundaries and the sequence for a separately authorized installation cutover. This is an acceptance checklist, not evidence that the existing server or desktop installation has been replaced.
+Record the rework's protocol/configuration boundaries and the sequence for an owner-authorized installation cutover. The [live Linux report](linux-cutover-acceptance.md) records completed managed installation/SSH acceptance and legacy retirement; checklist steps alone are not acceptance evidence.
 
 ## Key Files
 
@@ -58,12 +58,20 @@ Imported settings now have a one-time review in the panel and Settings showing t
 2. Explicitly handle old-agent startup/shortcut ownership, then test the new installed start-at-login choice across login. Do not remove the retained old client yet.
 3. Perform the separately reviewed server transition above; switch the chosen profile to shelf only after that endpoint and SSH route pass. Settings changes do not deploy a server or widen a forced-command key.
 
+## Owner-Requested Clean Server Replacement
+
+The owner requested a clean Linux 0.4 upgrade on 2026-10-16, including removal of the old installation from active use. After admitting the exact new package and live routes, remove the disabled legacy unit/enablement links, obsolete installed binaries/download archive and obsolete global command link, after verifying each belongs to this installation. Preserve an exact, private rollback copy separately from active installation paths. Do not treat a source checkout, unrelated configuration or a shared global command as disposable without inspecting ownership, contents and references first.
+
+The new shelf's explicit V2 adapter provides the retained 0.4 compatibility commitment; keeping the protocol does not require retaining the old daemon or executable on an active route. Verify the user-scoped SSH route before removing an obsolete global link, and check fixed absolute forced-command references without exposing key material. Never widen key restrictions to make cleanup succeed. Root-owned link cleanup and linger may require a human sudo command; do not collect passwords. Finish health/routing acceptance before retiring the old files, and document when post-cleanup rollback requires restoring a privileged link.
+
+The owner-authorized live transition is now complete: signed persistent 0.4.0 installation, fresh session/V2 SSH routes, and removal of the old active installation pass. The owner also confirmed selecting and saving the installed Windows history endpoint. See [live evidence and return-path limits](linux-cutover-acceptance.md). Server 0.4.0 publication/public delivery also pass; actual reboot/last-session logout remain separate.
+
 ## Release Gates Still Open
 
 - Owner signing-key/password retention and protected environment setup are complete, with metadata/public-key consistency verified. Protected 0.4.0 signing, independent downloaded-artifact admission and Windows production installation/text paste now pass; see [production acceptance](release-0.4.0-acceptance.md). Windows desktop 0.4.1 is now published with anonymous public-delivery verification; the server and remaining gates below still require review.
 - The [0.4.1 desktop correction](release-0.4.1-acceptance.md) has exact-source CI/signing, independent package admission, real-profile overwrite upgrade, saved-connection retention and startup off/on acceptance. The old Windows agent is removed at the owner's request. Reuse the previous actual login with the same quoted path/command; no new sign-out or history session is required. Separate desktop publication approval was given and public delivery passes; server publication remains separate.
 - Isolated Windows clean install, manual and built-in upgrades, retained startup, actual sign-in, download cancellation, tamper rejection and an installed signing-key transition pass with disposable trust/private delivery. Saved connection retention and a post-update text Share/Copy/Notepad round trip also pass. The exact 0.4.0 Windows production package is now admitted and its installed text path passes. Interrupted installation and the omitted shelf/recovery paths remain open; macOS/Linux desktop packages remain unverified.
-- Disposable real user-systemd runtime acceptance passes with signed debug fixtures. The exact optimized 0.4.0 production package also passes independent verification, released-client compatibility and isolated real SSH/runtime-service acceptance. Persistent install/login/boot, existing unit-directory permission review and separately authorized legacy service/SSH cutover remain open.
+- Disposable runtime and exact optimized-package service acceptance pass. The later [live clean 0.4.0 cutover](linux-cutover-acceptance.md) also passed persistent installation, reviewed directory permissions, actual SSH routing and legacy retirement with a separate recovery backup. Linger/unit enablement are configured; public server delivery also passes; actual reboot/last-session logout remain unobserved.
 - The [closed Windows shelf session](native-history-acceptance.md) confirms selected text/PNG paste, remote metadata without clipboard changes, deletion, preview privacy, legacy switching, direct Copy, import review and cancellation/reconnect/acknowledgment recovery. Explicit Retry/Discard, Clear confirmation, expired selected-Copy refusal and restart epoch UI remain automated-only evidence. Other private-feedback modes and other platforms retain their own gaps.
 
 Source tests, real SSH temporary fixtures, fake-service signed executable probes, package verification, native GUI/paste and installed/service tests remain separate evidence. Publish only the platforms and migration combinations with completed acceptance. Keep legacy return paths until a tested support window is explicitly chosen.

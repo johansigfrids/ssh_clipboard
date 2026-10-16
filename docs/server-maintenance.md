@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Track Phase 7's signed package policy, per-user installation/update commands, and release recovery. The commands integrate bounded downloads, pinned trust, a stable launcher/unit, and user-systemd/proxy health. Protected production signing and isolated real-service acceptance pass, including the exact optimized 0.4.0 artifact. Persistent installation/login and reviewed legacy migration remain open; see [production acceptance](release-0.4.0-acceptance.md).
+Track Phase 7's signed package policy, per-user installation/update commands, and release recovery. The commands integrate bounded downloads, pinned trust, a stable launcher/unit, and user-systemd/proxy health. Protected production signing and isolated real-service acceptance pass, including the exact optimized 0.4.0 artifact. The later owner-authorized persistent live installation/legacy retirement also passes; actual reboot/last-session logout remains separate. See [production artifact acceptance](release-0.4.0-acceptance.md) and [live cutover acceptance](linux-cutover-acceptance.md).
 
 ## Key Files
 
@@ -38,6 +38,8 @@ Linux exposes `ssh_clipboard server-maintenance verify --version <version> --pub
 
 These commands require a user systemd manager and run as the target user. No sudo, global installation change, SSH-key change, or linger configuration is performed. The first key must be obtained independently; package-supplied keys cannot establish trust.
 
+The production [public verification key and fingerprint](security.md#signed-package-trust) are available in this repository for reviewed first installation. Existing managed installations keep their saved key. The public key file contains no private credential.
+
 ```sh
 ssh_clipboard server-maintenance install --version <version> \
   --public-key <trusted.pub> --package <signed-binary> --signature <signed-binary.sig> \
@@ -52,7 +54,7 @@ Default storage is `$XDG_DATA_HOME/ssh_clipboard/server` (normally `~/.local/sha
 
 Install accepts all `shelf-daemon` options. It retains an immutable executable, links `~/.local/bin/ssh_clipboard` to `<root>/current/ssh_clipboard`, and writes an actual `ssh_clipboard-shelf.service` file under the user's systemd configuration directory. Existing conflicting launcher/unit files are refused. No unit points into a download folder. Literal paths are quoted with systemd environment substitution disabled and percent specifiers escaped; see [systemd execution rules](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html). The selected signed binary must report the expected version before any service switch.
 
-Omit **both** local package/signature flags to download the exact requested `server-v<version>` asset and `.sig` from this repository's GitHub Releases. The signed 0.4.0 server assets currently remain in a draft; they are not available through public delivery yet. Downloads use the existing `curl` command with default TLS validation, HTTPS-only redirects (maximum five), connect/total deadlines and byte limits. User curl configuration is disabled; an independent bounded pipe reader also caps streamed output. Signature reads cap at 16 KiB/20 seconds; packages at 256 MiB/300 seconds. No latest-version discovery or unattended restart is performed. See [curl options](https://curl.se/docs/manpage.html).
+Omit **both** local package/signature flags to download the exact requested `server-v<version>` asset and `.sig` from this repository's GitHub Releases. The signed [0.4.0 server assets](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) are public, with anonymous exact-byte/signature verification recorded in [live acceptance](linux-cutover-acceptance.md#server-publication). Downloads use the existing `curl` command with default TLS validation, HTTPS-only redirects (maximum five), connect/total deadlines and byte limits. User curl configuration is disabled; an independent bounded pipe reader also caps streamed output. Signature reads cap at 16 KiB/20 seconds; packages at 256 MiB/300 seconds. No latest-version discovery or unattended restart is performed. See [curl options](https://curl.se/docs/manpage.html).
 
 Every mutating command requires `--acknowledge-clipboard-loss` and discloses that restart/rollback loses the in-memory shelf. Initial service enablement occurs only after a durable transition journal and executable selection. Failed enable/start/health stops and disables a failed first installation; later update failure restores/restarts the retained predecessor. A failed requested update returns a failure exit even when rollback succeeds. Interrupted recovery can be retried while the journal remains. Protocol health runs the stable `session-proxy` against the saved socket and requires the selected server version, rather than accepting another healthy server or only checking systemd active state. Direct subprocesses have bounded output/deadlines and are killed/reaped on failure; no shell command strings are constructed.
 
@@ -72,7 +74,7 @@ On 2026-10-14 this passed over real SSH on the supplied Ubuntu host: user-unit e
 
 The rate-limit probe first reproduced a real bug: restoring the previous executable could still leave systemd refusing its restart. Maintenance now queries failed state and clears it before an explicit restart. It avoids blindly resetting unloaded inactive units, which systemd rejects. Keep this fault in acceptance; a successful process restart alone or a short default rate window does not prove rollback.
 
-The first fixture attempt also confirmed that the existing persistent user-unit directory has mode `0775`; the installer correctly refuses group-writable directories. No permissions were changed. A live migration needs an explicit ownership/permission review before installing there. Later exact-artifact 0.4.0 checks pass optimized production-package verification, isolated runtime service behavior and released-client protocol compatibility; see [production acceptance](release-0.4.0-acceptance.md). Runtime fixtures still do not prove persistent installation, boot/login behavior, public HTTPS asset availability or live released-client migration. Those remain gates before live cutover.
+The first fixture attempt also confirmed that the existing persistent user-unit directory has mode `0775`; the installer correctly refuses group-writable directories. No permissions were changed. A live migration needs an explicit ownership/permission review before installing there. Later exact-artifact 0.4.0 checks pass optimized production-package verification, isolated runtime service behavior and released-client protocol compatibility; see [production acceptance](release-0.4.0-acceptance.md). Runtime fixtures alone do not prove a live migration. The separate [live cutover](linux-cutover-acceptance.md) now establishes persistent installation, reviewed permissions, fresh SSH routes and old-installation retirement. Public server delivery is verified; actual reboot/last-session logout remain open.
 
 ## Update Triggers
 

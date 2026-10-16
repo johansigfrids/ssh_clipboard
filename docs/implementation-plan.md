@@ -201,7 +201,7 @@ The owner-requested clean Linux 0.4 installation is complete: managed shelf and 
 
 ## Cross-Cutting Verification
 
-The next owner-requested platform cutover is a complete Mac 0.3-to-0.4 replacement: preserve settings, use the current history server, establish installed login startup, and retire the old client/startup/configuration after native acceptance. The [Mac cutover plan](macos-cutover.md) records the inspected stale LaunchAgent, missing old executable, remaining SSH trust/authentication work and package/native/update gates. A permanently parallel test installation is not the intended outcome.
+The next owner-requested platform cutover is a complete Mac 0.3-to-0.4 replacement: preserve settings, use the current history server, establish installed login startup, and retire the old client/startup/configuration after native acceptance. The 0.4.2 preparation merged at `b465c44` after all seven candidate CI checks; the actual Mac passes signature/CLI/copied-import and metadata health with its owner-unlocked GUI agent. The [Mac cutover plan](macos-cutover.md) records the stale LaunchAgent, missing old executable, protected production staging and remaining GUI/login/update/cleanup gates. A permanently parallel test installation is not the intended outcome.
 
 - Keep current Rust formatting, clippy-with-warnings-denied, protocol fixtures, and agent/server test variants green during transition. Update commands and CI as workspace targets change; add frontend type/build checks when the frontend is introduced.
 - Test observable contracts: preserved clipboard bytes, native paste availability, configuration recovery, bounded resource use, no accidental upload/copy, profile isolation, and cryptographic rejection before installation.

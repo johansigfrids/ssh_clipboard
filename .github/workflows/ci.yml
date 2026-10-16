@@ -181,3 +181,19 @@ jobs:
             cargo build --release --no-default-features
           fi
         shell: bash
+
+      - name: Released-client compatibility guards and real binary probe
+        if: matrix.name == 'linux-server'
+        timeout-minutes: 3
+        run: |
+          python3 -m unittest discover -s scripts -p test_released_compatibility.py -v
+          python3 scripts/released_compatibility.py --current-binary target/release/ssh_clipboard --evidence-file "$RUNNER_TEMP/released-compatibility.json"
+
+      - name: Retain released-client compatibility evidence
+        if: always() && matrix.name == 'linux-server'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: released-v0.3.0-compatibility
+          path: ${{ runner.temp }}/released-compatibility.json
+          if-no-files-found: ignore
+          retention-days: 14

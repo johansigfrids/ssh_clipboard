@@ -54,6 +54,10 @@ Desktop CI also lints/tests installed features without release credentials and b
 
 The manual server workflow validates the exact stable core commit on master, pins Rust/actions, and runs headless checks without credentials. A separate `server-release` environment gates the Linux x64 signing step. It builds on Ubuntu 24.04, verifies exact signed bytes/version/platform with the server policy, and creates a `server-v<version>` draft without publishing/overwriting or becoming latest. The credential-free validation job also executes the actual draft handoff with inert adapters, checking source/platform/profile refusal, no overwrite and desktop-feed isolation. Source SHA/profile/key ID/checksum evidence accompanies the package. Other architectures/runtime compatibility and real user-systemd acceptance remain gates. Environment protections/signing inputs are configured, but this workflow has not run on GitHub; the real staging helper has passed locally with synthetic trust on Windows/Ubuntu WSL. See [release setup](releasing.md#signed-server-drafts).
 
+## Released Compatibility Baseline
+
+After its optimized headless build, the Linux server job runs the seven standard-library Python guard tests and [released-client compatibility probe](released-compatibility.md). The latter downloads the fixed v0.3.0 archive, checks its reviewed SHA-256 before execution and exercises old/new CLI/proxy/daemon routes using private sockets and synthetic data. It never starts SSH, systemd or an OS clipboard adapter. A pinned upload-artifact action retains the metadata-only pass/failure/cleanup report for 14 days, including on a failed probe. Reports live in the job's fresh runner temporary directory, outside cached Cargo output, so a restored cache cannot collide with the no-overwrite evidence contract. Other platform jobs do not execute this Linux baseline. A network/download failure fails the check; it is not reported as successful compatibility.
+
 ## Update Triggers
 - Changing build variants, features, or supported OSes.
 - Adding/removing system package dependencies.

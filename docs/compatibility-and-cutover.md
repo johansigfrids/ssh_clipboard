@@ -24,7 +24,7 @@ The legacy wire version is 2 (`SCB1`). The new `session-proxy` negotiates SCBS b
 
 The compatibility adapter must be explicitly configured when the shelf starts. Running separate legacy and shelf daemons without it creates separate stores. Occupied sockets are preserved and startup fails instead of displacing a running service. Legacy clients have no history/delete/deduplication controls. Their default frame cap remains 10 MiB; a larger latest shelf item can be visible in metadata yet refused by a legacy Get. Increasing a client preference does not increase another endpoint's policy. New clients negotiate encoded/decoded limits and must respect the narrowest policy.
 
-Current-source native process tests prove shared V2/session storage and refusal of occupied endpoints. Retained V2 fixtures prove the framing contract. They do not prove every historical released executable; an actual released client must join installed acceptance before declaring a version support window. No end date or removal of the legacy agent is chosen yet.
+Current-source native process tests prove shared V2/session storage and refusal of occupied endpoints. Retained V2 fixtures prove the framing contract. The actual published Linux x86_64 v0.3.0 CLI/proxy/daemon now also passes private old/new process-route checks: exact Unicode/whitespace and PNG bytes, shared history/latest-item changes, size refusal with metadata access, and fixed legacy endpoint refusal without mutation. See [released-binary evidence](released-compatibility.md). This establishes that protocol pairing, not every older release/platform or an installed migration. No support-window end date or removal of the legacy agent is chosen yet.
 
 ## SSH Route and Privilege Boundary
 

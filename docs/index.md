@@ -22,6 +22,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/shared-configuration.md](shared-configuration.md): Shared store, desktop profiles/advanced policy, CLI overrides, live reload, and save/recovery contracts.
 - [docs/configuration-migration.md](configuration-migration.md): Legacy/prototype migration, one-time import review, exact backups, schema 2 settings, preserved preferences, and recovery.
 - [docs/compatibility-and-cutover.md](compatibility-and-cutover.md): Client/server protocol matrix, forced-command boundaries, upgrade order, return paths, and remaining release gates.
+- [docs/released-compatibility.md](released-compatibility.md): Pinned v0.3.0 Linux CLI/proxy/daemon compatibility, repeatable private process probes, and evidence boundaries.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
 - [docs/shelf-core.md](shelf-core.md): New bounded shelf state, upload reservations, expiry, retry contracts, and pending server integration.
 - [docs/session-protocol.md](session-protocol.md): Separate shelf bootstrap, precision-safe metadata, negotiated limits, raw payload framing, and compatibility boundary.

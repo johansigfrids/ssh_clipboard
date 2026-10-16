@@ -78,6 +78,19 @@ jobs:
         if: runner.os == 'Windows'
         run: npm run test:package
 
+      - name: Test-only release Mac app, inspect archive without installing
+        if: runner.os == 'macOS'
+        run: npm run test:package -- --release
+
+      - name: Retain disposable Mac package and inspection evidence
+        if: success() && runner.os == 'macOS'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-test-package
+          path: desktop/artifacts/TEST-only-installed-*/
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Build standalone prototype
         run: npm run build:prototype
 

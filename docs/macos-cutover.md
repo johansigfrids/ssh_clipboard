@@ -8,6 +8,7 @@ Replace the owner's legacy 0.3 Mac client with one installed 0.4 desktop client.
 
 - `desktop/scripts/build-installed.mjs`: native application/updater package and independent verification.
 - `desktop/scripts/smoke-installed-build.mjs`: disposable signing identity and package admission.
+- `desktop/scripts/verify-macos-package.mjs`: extracted archive identity, architecture, code signature and CLI version checks without GUI launch.
 - `.github/workflows/ci.yml`, `.github/workflows/desktop-release.yml`: platform checks and protected production signing.
 - `desktop/src-tauri/src/startup_native.rs`, `desktop/src-tauri/src/panel.rs`: installed startup and desktop lifecycle.
 - `src/configuration.rs`, `src/configuration/migration.rs`: guarded legacy import and exact backup.
@@ -37,7 +38,9 @@ Native update acceptance is separate from static package signature verification.
 
 ## Status
 
-Inspection and the clean-cutover scope are recorded. No Mac installation, startup change, settings migration, SSH trust change or cleanup has taken place. macOS package/native/update acceptance remains open.
+Inspection and the clean-cutover scope are recorded. CI now requests a release-profile, disposable-trust Mac app and retains its package/inspection evidence for seven days. The installed builder explicitly ad-hoc signs the Mac bundle, extracts the produced archive privately, and checks its bundle identity, version, native executable/CLI architecture, code signatures and CLI version. The disposable signing private key is removed before artifact upload. The inspection does not launch the GUI or change login settings.
+
+The source change still needs a passing macOS CI package build. No Mac installation, startup change, settings migration, SSH trust change or cleanup has taken place. macOS native/update acceptance remains open.
 
 ## Update Triggers
 

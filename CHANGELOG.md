@@ -10,9 +10,9 @@ All notable changes to this project will be documented in this file.
 - Quote the installed Windows startup executable independently of its arguments, including paths with spaces or Unicode. Keep startup enablement in the current user profile.
 
 ### Release status
-- Windows desktop published as `desktop-v0.4.1` after independent signature verification and installed upgrade/startup acceptance. Anonymous public installer/feed verification passes. The immutable 0.4.0 desktop draft is retained as acceptance evidence and will not be overwritten or published. The separately verified server-v0.4.0 draft remains under its own release gates.
+- Windows desktop published as `desktop-v0.4.1` after independent signature verification and installed upgrade/startup acceptance. Anonymous public installer/feed verification passes. The immutable 0.4.0 desktop draft is retained as acceptance evidence and will not be overwritten or published. The independently verified server-v0.4.0 was published under its separate approval after clean live installation and public-delivery acceptance.
 
-## [0.4.0] - Unreleased
+## [0.4.0] - 2026-10-16
 
 ### Added
 - Experimental desktop quick panel with visible Share/Copy actions, text/image previews, tray access, and discoverable optional shortcuts.
@@ -32,10 +32,10 @@ All notable changes to this project will be documented in this file.
 - Bound competing subprocess fault fixtures together so parallel test modules do not exhaust each other's timing budgets.
 
 ### Migration and release status
-- Version 0.4.0 is the prepared rework candidate; it has not been published and has no publication date yet.
+- Linux x86_64 server 0.4.0 is published after independent signature verification and clean live installation/SSH acceptance. Anonymous public-delivery checks pass. The superseded Windows desktop 0.4.0 remains a draft; desktop 0.4.1 is published as the repository's latest release.
 - Sharing and copying remain explicit; background history updates do not overwrite the local clipboard or upload its contents.
 - Existing V2 clients and the legacy agent remain available. Installing the rework does not automatically replace a running server, change SSH key restrictions, or take over startup registration.
-- Windows x64 has isolated native and installed-update evidence. New macOS/Linux desktop packages and the exact production server installation remain separate release gates; see [release readiness](docs/release-readiness.md).
+- Windows x64 has native and installed-update evidence; the Linux server has exact signed persistent-installation and public-delivery evidence. New macOS/Linux desktop packages and actual server reboot/last-session logout retain their separate gaps; see [release readiness](docs/release-readiness.md).
 
 ## [0.3.0] - 2026-02-07
 ### Added

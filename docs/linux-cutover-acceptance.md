@@ -34,10 +34,16 @@ Both before and after final cleanup, fresh real SSH connections passed metadata 
 
 Pinned policy: 20 items, one-hour retention, 64 MiB encoded item, 256 MiB decoded/stored budgets, 384 MiB resident budget, 16 connections, 30-second I/O and five-minute idle timeout. The V2 compatibility frame cap remains 10 MiB. Legacy compatibility comes from the new shelf, with no second old daemon. Clipboard state remains memory-only.
 
+## Server Publication
+
+After separate owner approval, [server-v0.4.0](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) was published on 2026-10-16 with `--latest=false`. Anonymous HTTPS downloads of all five canonical assets matched the admitted draft bytes, sizes and digests. Independent retained-key signature/release-identity verification passed for the public executable again. The repository's latest-release API still selects desktop-v0.4.1, and its public keyed feed is byte-for-byte unchanged. Publication did not reinstall or restart the service.
+
+The [reviewed public verification key](security.md#signed-package-trust) is now documented for first installation. Immutable build evidence retains its original build-time `installed:false`/`published:false` fields; later deployment/publication does not rewrite signed package assets or their source.
+
 ## Remaining Boundaries
 
 - The owner confirmed selecting Temporary history (new server) and saving the installed Windows 0.4.1 connection. This records the actual profile change; the completed native history/paste session was not repeated.
-- `server-v0.4.0` remains an unpublished draft. Any later publication needs separate review and `--latest=false`; the published desktop-v0.4.1 remains latest.
+- Server 0.4.0 and desktop 0.4.1 are published; future server releases must also preserve the desktop keyed-feed latest selection. The superseded desktop-v0.4.0 stays a draft.
 - Actual reboot/last-session logout, interrupted installation and previously omitted native recovery/platform checks retain their explicit gaps. No reboot or unrelated service change was performed.
 
 ## Prevention Guidance

@@ -4,26 +4,16 @@
 Describe legacy releases, staged signed desktop releases, key operations, and verified recovery.
 
 ## Key Files
-- `.github/workflows/release.yml`
 - `.github/workflows/desktop-release.yml`
 - `desktop/scripts/build-installed.mjs`
 - `Cargo.toml`
 - `CHANGELOG.md` (if used)
 
-## Legacy CLI/Agent Release Steps
-1. Ensure `master` is green in CI.
-2. Update docs for the release:
-   - Update `CHANGELOG.md` with the release notes.
-   - Verify `README.md` is accurate for installation and the common setup.
-3. Verify `.github/workflows/release.yml` is up to date with current release outputs:
-   - Build matrix entries (platforms/targets and agent vs server variants).
-   - Artifact names and packaging format (`.zip`/`.tar.gz`) match docs and expected release assets.
-   - Added/removed binaries are reflected in packaging commands.
-4. Bump the version in `Cargo.toml` and commit the change.
-5. Decide the next version (e.g., `0.2.0`) and tag with `v` prefix:
-   - `git tag v0.2.0`
-   - `git push origin v0.2.0`
-6. GitHub Actions runs `release.yml` and publishes artifacts + checksums.
+## Retired Legacy Distribution
+
+The old automatic `v*` CLI/agent/server release publisher is removed. The legacy tray agent is retired from default builds and future distribution; its explicit compatibility feature and published v0.3.0 archives remain through the 0.4 compatibility period. See [legacy retirement](legacy-retirement.md).
+
+Do not create a legacy tag to publish a current desktop or server. Use the existing protected signed workflows, independent artifact admission and separate publication authorization below. Do not delete/rewrite historical tags or assets. An exceptional new legacy release would require a separate owner decision and reviewed staging workflow.
 
 ## Validate Artifacts
 - Download the artifacts from the GitHub Release page.
@@ -54,7 +44,7 @@ Desktop production staging requires clean Git state before and after building, p
 
 The combined draft has twelve canonical assets: each platform's package, `.sig`, `.sha256`, `candidate-<platform>.json` and `build-evidence-<platform>.json`; the Mac archive inspection receipt; and one `desktop-stable-<key-id>.json`. Historical Windows-only releases retain their original six-asset layout. Inert-adapter tests execute the actual handoff function, including partial-platform refusal and feed agreement; package smoke checks use the real builder. These checks do not replace protected signing or native acceptance. See [admission and prevention guidance](release-readiness.md#desktop-draft-admission).
 
-Review a complete draft before publishing: exact source SHA/version, expected platform, independent public key, signatures, checksums, CLI parity, notes, and native acceptance results. The offline `verify_desktop_update` tool takes public-key file, current version, candidate JSON, and package; verify against your independently retained public key. Downloaded public-key text alone does not establish initial trust. Publication is a separate explicitly authorized step, after clean-install/old-to-new upgrade, startup/config preservation, cancellation/interruption, and platform gates. A draft is not discoverable by the stable feed.
+Review a complete draft before publishing: exact source SHA/version, expected platform, independent public key, signatures, checksums, CLI parity, notes, and native acceptance results. The offline `verify_desktop_update` tool takes public-key file, current version, candidate JSON, and package; verify against your independently retained public key. Downloaded public-key text alone does not establish initial trust. Publication is a separate explicitly authorized step after reviewing the applicable automated/artifact checks and relevant native acceptance. The [implementation plan](implementation-plan.md) records deferred platforms and non-blocking omitted scenarios; do not reopen a broad manual campaign for unrelated changes. A draft is not discoverable by the stable feed.
 
 ## Signed Server Drafts
 
@@ -66,7 +56,7 @@ Local staging uses `npm run build:server -- --version <core-version> --public-ke
 
 The helper builds headless, checks the binary's reported version, copies it to the canonical `SSHClipboardServer-stable-linux-<arch>-<version>` filename, signs those exact bytes with authenticated version/filename and runs the concrete server verifier before writing checksums/candidate/build evidence. The evidence records source SHA, profile, platform, key ID, size/hash, and `installed:false` / `published:false`. It never installs or restarts a service. Candidate metadata is for review; package signature/trusted identity, rather than unauthenticated candidate text/checksums, establish admission.
 
-The workflow creates only a **draft** `server-v<version>`, with the raw binary, `.sig`, `.sha256`, candidate and evidence. It refuses an existing release and never overwrites assets or publishes. The maintenance downloader requests this exact tag/version. Before separately authorized publication, verify independent public trust, source/target/runtime, signatures, retained executable and real service rollback/recovery on a disposable installation. Existing legacy `v*` releases remain a separate pipeline. Server key loss/compromise needs an independently trusted management repair; there is no automatic feed-driven server trust rotation.
+The workflow creates only a **draft** `server-v<version>`, with the raw binary, `.sig`, `.sha256`, candidate and evidence. It refuses an existing release and never overwrites assets or publishes. The maintenance downloader requests this exact tag/version. Before separately authorized publication, verify independent public trust, source/target/runtime, signatures, retained executable and real service rollback/recovery on a disposable installation. Existing legacy `v*` releases remain immutable historical downloads; their publisher is retired. Server key loss/compromise needs an independently trusted management repair; there is no automatic feed-driven server trust rotation.
 
 `npm run test:server-package` generates disposable synthetic trust, invokes the real helper in test-only debug mode, and rejects a mismatched public key before candidate/success evidence can be written. It retains public verification/evidence files and removes private test material without installing anything. It passed on Windows/Ubuntu WSL on 2026-10-14. `npm run test:server-maintenance` separately exercises the signed executable lifecycle with fake systemctl and real daemon/proxy processes. Neither substitutes for actual user-systemd or live migration acceptance.
 
@@ -74,7 +64,7 @@ The explicit `test:server-maintenance -- --ssh-target <authorized-host>` mode no
 
 ## Key Rotation and Recovery
 
-GitHub's `latest` release is repository-wide: the desktop keyed-feed URL depends on it. Server drafts explicitly use `--latest=false`; when separately authorized to publish one, use `gh release edit server-v<version> --draft=false --latest=false --repo johansigfrids/ssh_clipboard`. Keep that flag at publication rather than relying on a draft's saved state or the web UI default. Legacy `v*` publishing also sets `make_latest: false`; download those archives through their explicit release tag. Only a reviewed desktop release carrying the keyed feeds may become latest. Publishing another release type as latest would make desktop feed assets unavailable. The earlier desktop 0.4.1 and server 0.4.0 publications passed their separate approvals and latest/feed preservation checks; see [public server acceptance](linux-cutover-acceptance.md#server-publication). Desktop 0.4.2 is now latest with anonymous verification of both platform packages and the combined keyed feed; see [publication acceptance](release-0.4.2-acceptance.md).
+GitHub's `latest` release is repository-wide: the desktop keyed-feed URL depends on it. Server drafts explicitly use `--latest=false`; when separately authorized to publish one, use `gh release edit server-v<version> --draft=false --latest=false --repo johansigfrids/ssh_clipboard`. Keep that flag at publication rather than relying on a draft's saved state or the web UI default. The retired legacy `v*` publisher no longer runs; download historical archives through their explicit release tag. Any separately authorized exceptional legacy publication must still use `--latest=false`. Only a reviewed desktop release carrying the keyed feeds may become latest. Publishing another release type as latest would make desktop feed assets unavailable. The earlier desktop 0.4.1 and server 0.4.0 publications passed their separate approvals and latest/feed preservation checks; see [public server acceptance](linux-cutover-acceptance.md#server-publication). Desktop 0.4.2 is now latest with anonymous verification of both platform packages and the combined keyed feed; see [publication acceptance](release-0.4.2-acceptance.md).
 
 Each binary follows `desktop-stable-<public-key-fingerprint>.json`. To rotate, stage a transition embedding the new public key/feed while signing it with the old key; pass the old public key with `--transition-from-public-key-file`. Verify both package trust and the installed transition before issuing packages signed only by the new key. Keep the old-key feed serving that transition for users who skip releases. Every later stable release must carry the retained old-key feed(s), because GitHub's `latest` asset URL follows the newest stable release. Do not point an old-key feed at a package it cannot verify. The initial automated draft workflow does not perform rotation or copy retained transition feeds: prepare/review those additions explicitly before publication.
 

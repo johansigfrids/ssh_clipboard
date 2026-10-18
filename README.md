@@ -2,10 +2,10 @@
 
 `ssh_clipboard` copies clipboard content between machines over SSH.
 
-- Clients: Windows / macOS / Linux
+- Desktop: Windows x64 / Apple Silicon macOS (Linux desktop is deferred)
 - Server: Linux (daemon + proxy)
 
-The Linux server keeps the latest clipboard value **in memory only** (no on-disk persistence).
+The Linux shelf server keeps bounded temporary clipboard history **in memory only** (no on-disk persistence). Its optional V2 compatibility endpoint exposes the latest item to older clients.
 
 ## Windows and Apple Silicon desktop
 
@@ -16,7 +16,7 @@ The Linux server keeps the latest clipboard value **in memory only** (no on-disk
 3. Use **Share current clipboard** to upload and **Copy to this computer** to replace the local clipboard with the shared item. Sharing and copying happen only when requested.
 4. Optionally enable **Start at login** in Behavior. Quit the old agent before enabling conflicting shortcuts/startup; installation does not remove it automatically.
 
-Close hides the panel in the tray/menu bar; Quit exits. Updates are available in Settings with explicit download/verification and install confirmation. The Mac app is ad-hoc signed without Apple notarization; if first launch needs approval, use macOS per-app Privacy & Security controls. See [first-install public trust](docs/security.md#signed-package-trust). Intel Mac and Linux desktop clients still use the [legacy v0.3.0 archives](https://github.com/johansigfrids/ssh_clipboard/releases/tag/v0.3.0).
+Close hides the panel in the tray/menu bar; Quit exits. Updates are available in Settings with explicit download/verification and install confirmation. The Mac app is ad-hoc signed without Apple notarization; if first launch needs approval, use macOS per-app Privacy & Security controls. See [first-install public trust](docs/security.md#signed-package-trust). Intel Mac and Linux desktop have no new supported package in this delivery. Frozen [v0.3.0 archives](https://github.com/johansigfrids/ssh_clipboard/releases/tag/v0.3.0) remain available for compatibility.
 
 ### Build the desktop from source
 
@@ -29,72 +29,25 @@ npm run tauri dev
 
 Enter your SSH alias or `user@host` in Settings, apply it, test the connection, then refresh or share. Copy writes the displayed item to your local clipboard. Close hides the panel; Quit exits the app.
 
-The prototype defaults to the legacy 10 MiB transfer limit, including request metadata, and honors a selected profile's limit. Images use lossless PNG compression with a separate 64 MiB pixel limit. Size errors explain what exceeded the limit; rejected shares keep the previous item. A client override does not reconfigure the server; larger negotiated limits are part of the coordinated client/server rework.
+Legacy profiles default to a 10 MiB transfer limit, including request metadata, and honor the selected profile's limit. Images use lossless PNG compression with a separate 64 MiB pixel limit. Shelf profiles negotiate their limits with the server. Size errors explain what exceeded the limit; rejected shares keep the previous item. A client override does not reconfigure the server.
 
 Desktop settings are stored separately from the old agent. Connection settings support named profiles: add, rename, choose and Apply, or remove with confirmation. A collapsed Advanced section edits per-profile SSH options, executable, timeout, transfer limit, and framing recovery. Test connection shows which steps passed or failed and what to check next. Optional direct Share/Copy shortcuts have recorders and explicit opt-in; see [shortcut behavior](docs/desktop-shortcuts.md). The rework CLI can inspect/edit them through `ssh_clipboard settings`; transfers without an explicit destination use the selected profile. The desktop reloads CLI edits automatically and protects unsaved drafts. Legacy/prototype settings migrate with exact backups; old startup registrations remain untouched. A one-time review explains imported connection/device, shortcut and startup choices; dismissing it preserves the original settings and recovery backup. Behavior settings choose panel, private notification, or quiet feedback for direct actions. Portable Windows builds use panel fallback for requested notifications. Shelf profiles now update history metadata automatically and recover transient network failures with bounded backoff. Authentication/trust errors pause with an explicit Reconnect history action; recovery never shares or copies automatically. Active operations expose Cancel. An uncertain shelf share can be checked or explicitly retried from its original capture within a server-enforced window; recovery never reads a newer clipboard. See [share recovery](docs/share-recovery.md). Installed-build staging now bundles a matching CLI in a signed per-user package. Release builds expose explicit start-at-login controls; portable prototypes cannot register startup. The panel is created hidden and unfocused; normal launches reveal it, while background startup stays in the tray. If the tray is unavailable, the panel opens so the app remains reachable. An isolated Windows test-app installation and signed manual upgrade have passed, including retained connection/startup registration and background launch without a panel flash; actual Windows sign-in also passed. Private Windows updater tests passed for same-key replacement, cancellation, tampered-package rejection and an installed signing-key transition. Installed builds also have bounded quiet update checks, explicit verified downloads, and guarded install confirmation. Rechecking keeps the release card visible and shows progress within Updates. Protected production signing and anonymous Windows/Apple Silicon public delivery pass. Clean Mac migration, text transfer, login/shortcut and isolated native update/restart acceptance also pass; native Mac image paste, browser-download Gatekeeper behavior and Linux desktop installation remain unverified; see [package/startup evidence](docs/desktop-updates.md). See the [prototype guide](docs/desktop-prototype.md), [shared settings](docs/shared-configuration.md), [migration/recovery](docs/configuration-migration.md), and [implementation plan](docs/implementation-plan.md).
 
-The Linux rework also includes an experimental bounded shelf server and session proxy. An optional V2 compatibility socket lets existing clients use its latest item while new sessions access history. The explicit `shelf` CLI now lists metadata, shares file/stdin content, exports selected items, and guards delete/clear by server epoch; see [client commands](docs/shelf-client.md). Connection settings can now opt into [desktop history](docs/desktop-history.md), including selection, safe copy, and confirmed delete/clear. Existing profiles keep V2 transfers. The server requires an explicit cutover; see [endpoint commands and compatibility](docs/shelf-server.md).
+The Linux server includes a bounded shelf and session proxy. An optional V2 compatibility socket lets existing clients use its latest item while new sessions access history. The explicit `shelf` CLI now lists metadata, shares file/stdin content, exports selected items, and guards delete/clear by server epoch; see [client commands](docs/shelf-client.md). Connection settings can now opt into [desktop history](docs/desktop-history.md), including selection, safe copy, and confirmed delete/clear. Existing profiles keep V2 transfers. The server requires an explicit cutover; see [endpoint commands and compatibility](docs/shelf-server.md).
 
 The [Linux x86_64 server 0.4.0 release](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) provides signed maintenance through `server-maintenance install|update|status|recover|verify`: stable user-owned executables, pinned public trust, and rollback after failed protocol health. The commands do not adopt the legacy service automatically. Disposable signed-binary and real user-systemd runtime tests pass, including crash-loop rollback and cleanup. The signed server has passed a [clean live installation and anonymous public-delivery verification](docs/linux-cutover-acceptance.md), with persistent unit/SSH health and retirement of the old installation. Actual reboot/last-session logout remain separate. See [managed server setup](docs/server-maintenance.md). Actual published Linux v0.3.0 CLI/proxy/daemon compatibility is tested on disposable sockets for both protocol upgrade orders; see [tested pairings and limits](docs/released-compatibility.md).
 
-Windows and Apple Silicon desktop **0.4.2** and Linux server **0.4.0** are published; the clean live Linux migration is accepted. [Release readiness](docs/release-readiness.md) tracks installed/public-delivery evidence and remaining platform/service gates. The legacy client and V2 route remain available throughout the 0.4 series.
+Windows and Apple Silicon desktop **0.4.2** and Linux server **0.4.0** are published; the clean live Linux migration is accepted. [Release readiness](docs/release-readiness.md) records installed/public-delivery evidence. The [implementation plan](docs/implementation-plan.md) is closed for this scope; Linux desktop and omitted rare manual checks are deferred and non-blocking. V2 routes and explicit compatibility builds remain available throughout the 0.4 series.
 
-## Legacy CLI/agent quick start
+## Retired legacy agent
 
-For the legacy CLI/agent or Linux daemon, download the matching platform/CPU archive from [v0.3.0](https://github.com/johansigfrids/ssh_clipboard/releases/tag/v0.3.0). The repository-wide latest release contains Windows x64 and Apple Silicon desktop packages; it does not contain legacy CLI/agent archives.
-- macOS: `x86_64` = Intel, `aarch64` = Apple Silicon
-- If the binary is not on `PATH`, run it from the extracted folder:
-  - macOS/Linux: `./ssh_clipboard`
-  - Windows PowerShell: `.\ssh_clipboard.exe`
+The signed desktop replaces the old tray agent. New source builds and automatic releases no longer include that agent by default. Its source is retained through 0.4 as an explicit compatibility build:
 
-### 1) Linux server (daemon + proxy)
-1) Download a Linux release artifact on the server and extract it (example folder: `~/ssh_clipboard`).
-
-2) Run the one-command setup (Ubuntu/systemd user service):
-```
-./ssh_clipboard install-daemon
+```powershell
+cargo build --release --features agent
 ```
 
-This will:
-- symlink `/usr/local/bin/ssh_clipboard` → `./ssh_clipboard` (uses `sudo`)
-- write `./ssh_clipboard.service`
-- symlink it into `~/.config/systemd/user/ssh_clipboard.service`
-- enable + start the service
-
-Important:
-- Do not move or delete the extracted folder after install; rerun `install-daemon` if you do.
-
-3) Verify the proxy works over SSH:
-```
-ssh -T user@server ssh_clipboard proxy --help
-```
-
-### 2) Client (agent: tray + hotkeys)
-1) Make sure SSH works non-interactively (recommended for hotkeys):
-```
-ssh user@server true
-```
-
-2) One-command client install + setup (recommended for first-time use):
-```
-# macOS/Linux
-./ssh_clipboard install-client --target user@server
-
-# Windows PowerShell
-.\ssh_clipboard.exe install-client --target user@server
-```
-This installs `ssh_clipboard` + `ssh_clipboard_agent` to a stable user-local location, updates your user PATH, runs `setup-agent`, verifies autostart, runs `doctor`, and starts the agent once.
-To remove the client install later, run `ssh_clipboard uninstall-client`.
-
-3) For later sessions, use from PATH:
-```
-ssh_clipboard agent
-```
-
-Notes:
-- Linux on Wayland auto-disables global hotkeys at startup with a single notice; use tray actions, or run under X11 to enable hotkeys.
-- If tray init fails, run `ssh_clipboard agent --no-tray`.
-- Autostart uses the `ssh_clipboard_agent` binary (bundled alongside `ssh_clipboard`) to avoid opening a terminal window on Windows/macOS.
+Use the current [managed server setup](docs/server-maintenance.md) for Linux installations. Frozen v0.3.0 downloads and the [old agent](docs/agent.md)/[client setup](docs/client-setup.md) references remain available for existing installations; they are not the recommended first-time setup. Legacy settings import and V2 CLI/server compatibility remain supported. See [the retirement boundary](docs/legacy-retirement.md).
 
 ## Essentials (daily usage)
 
@@ -137,8 +90,9 @@ ssh_clipboard pull --output ./clipboard.png --target user@server
 
 ## Feature overview
 - Clipboard formats: UTF-8 text and PNG images
-- One-shot request/response per SSH session
-- Agent: tray menu (Push/Pull/Peek), global hotkeys, notifications, optional autostart
+- Desktop: visible Share/Copy, temporary history, settings, optional shortcuts and login startup
+- Shelf sessions: live metadata and explicit transfer/recovery; V2 CLI routes retain one-shot requests
+- Verified desktop updates and signed Linux server maintenance
 - Server: per-user daemon, UNIX socket permissions, peer credential checks (Linux)
 
 ## More help (user docs)
@@ -152,10 +106,9 @@ ssh_clipboard <command> --help
 
 Useful starting points:
 - `ssh_clipboard doctor --target user@server`
-- `ssh_clipboard install-client --help`
-- `ssh_clipboard uninstall-client --help`
-- `ssh_clipboard setup-agent --help`
-- `ssh_clipboard install-daemon --help`
+- `ssh_clipboard settings --help`
+- `ssh_clipboard shelf --help`
+- `ssh_clipboard server-maintenance --help`
 - `ssh_clipboard push --help`
 - `ssh_clipboard pull --help`
 - `ssh_clipboard peek --help`
@@ -164,7 +117,7 @@ Useful starting points:
 If you’re hacking on the project or packaging it, start at `docs/index.md`.
 
 ## Build from source
-Client build (agent enabled by default):
+Clipboard CLI build (without the retired agent):
 ```
 cargo build --release
 ```

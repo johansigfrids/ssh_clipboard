@@ -55,6 +55,76 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("history refresh stays available beside an empty history without issuing a transfer on navigation", async () => {
+    state.settings.target="saved-hub";
+    state.history={epoch:"epoch-1",selectedId:null,items:[]};
+    state.clipboardChecked=true;
+    render(App);
+    await screen.findByText("saved-hub");
+    const refresh=screen.getByRole("button",{name:"Refresh history"});
+    expect(screen.getAllByRole("button",{name:/Refresh/})).toHaveLength(1);
+    expect(refresh.closest("section")?.getAttribute("aria-label")).toBe("Temporary clipboard history");
+    expect(screen.getByRole("button",{name:"Copy to this computer"}).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button",{name:"Share current clipboard"}).hasAttribute("disabled")).toBe(false);
+    await fireEvent.click(refresh);
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel","refresh_item"]);
+    expect(bridge.invoke.mock.calls[2][1]).toEqual({expectedRevision:state.settingsRevision});
+  });
+
+  it("collapsed advanced fields retain port/key inheritance and edits remain drafts", async () => {
+    state.settings.target="saved-hub";
+    state.settings.port=2222;state.settings.identityFile="keys/saved key";
+    render(App);
+    await screen.findByText("saved-hub");
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    const port=screen.getByLabelText(/Port/) as HTMLInputElement;
+    const identity=screen.getByLabelText(/Identity file/) as HTMLInputElement;
+    const details=port.closest("details")!;
+    expect(details.open).toBe(false);
+    expect(identity.closest("details")).toBe(details);
+    expect(port.value).toBe("2222");expect(identity.value).toBe("keys/saved key");
+    await fireEvent.input(port,{target:{value:""}});
+    await fireEvent.input(identity,{target:{value:""}});
+    await fireEvent.click(screen.getByRole("button",{name:"Restore advanced defaults"}));
+    expect(state.settings.port).toBe(2222);
+    expect(state.settings.identityFile).toBe("keys/saved key");
+    await fireEvent.click(screen.getByRole("button",{name:"Apply settings"}));
+    await screen.findByText("Settings applied.");
+    const saved=bridge.invoke.mock.calls.find(([name])=>name==="apply_settings")![1].settings;
+    expect(saved.port).toBeNull();expect(saved.identityFile).toBe("");
+  });
+
+  it("native field validation reveals a collapsed advanced field without sending settings", async () => {
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    const port=screen.getByLabelText(/Port/) as HTMLInputElement;
+    await fireEvent.input(port,{target:{value:"0"}});
+    await fireEvent.invalid(port);
+    expect(port.closest("details")!.open).toBe(true);
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+  });
+
+  it("backend advanced validation returns to the field while retaining the whole unsaved draft", async () => {
+    const normal=bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name,args)=>name==="apply_settings"?Promise.reject("Timeout must be a positive whole number."):normal(name,args));
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.input(screen.getByLabelText("Timeout (milliseconds)"),{target:{value:"bad"}});
+    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    await fireEvent.click(screen.getByLabelText("Show content previews"));
+    await fireEvent.click(screen.getByRole("button",{name:"Apply settings"}));
+    await screen.findByRole("alert");
+    const timeout=await screen.findByLabelText("Timeout (milliseconds)") as HTMLInputElement;
+    await waitFor(()=>expect(document.activeElement).toBe(timeout));
+    expect(timeout.closest("details")!.open).toBe(true);expect(timeout.value).toBe("bad");
+    expect(state.settings.showPreview).toBe(true);
+    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    expect((screen.getByLabelText("Show content previews") as HTMLInputElement).checked).toBe(false);
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel","apply_settings","get_panel"]);
+  });
+
   it("curated notes are inert bullets after the primary update action", async () => {
     state.updateStatus={...state.updateStatus,available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",phase:"offered",detail:"An update is available.",notes:"# 2.0.0\n\n- Faster startup.\n- <script>window.hacked = true</script>\n"};
     render(App);

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { cloneSettings, cloneTransport, command, defaultTransport, initialView, subscribe, type OperationView, type PanelView, type Settings, type UpdateView } from "./api";
   import { displayShortcut, shortcutFromEvent } from "./shortcut.js";
   import { conciseUpdateNotes } from "./update-notes";
@@ -25,6 +25,7 @@
   let confirmingInstall = $state<string | null>(null);
   let ready = $state(false);
   let content = $state<HTMLElement>();
+  let advancedOpen = $state(false);
   let draftRevision = $state<string | null>(null);
   let reloadPending = false;
   let reloading = false;
@@ -36,6 +37,7 @@
   const staleDraft = $derived(dirty && draftRevision !== view.settingsRevision);
   const applyDisabled = $derived(!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested || (startupDraft !== null && (!view.startupStatus.available || view.startupStatus.enabled === null)));
   const selectedHistory = $derived(view.history?.items.find((item) => item.id === view.history?.selectedId));
+  const canCopy = $derived(!!view.item || !!selectedHistory);
   const updateNotes = $derived(conciseUpdateNotes(view.updateStatus.notes, view.updateStatus.offeredVersion));
 
   function requestHistoryRemoval(kind: "delete" | "clear") {
@@ -70,6 +72,26 @@
   function applyDraft() {
     if (applyDisabled) return;
     void perform("apply_settings", "Settings applied.", { settings: cloneSettings(draft), expectedRevision: draftRevision, ...(startupDraft === null ? {} : { startAtLogin: startupDraft }) });
+  }
+
+  function revealInvalidField(event: Event) {
+    const details = (event.target as HTMLElement).closest("details");
+    if (details) { advancedOpen = true; details.open = true; }
+  }
+
+  async function revealAdvancedError(detail: string) {
+    // Backend validation remains authoritative, including decimal-string limits.
+    const fields: [RegExp, string][] = [
+      [/SSH port/i, "port"], [/identity file/i, "identity"], [/SSH option/i, "ssh-options"],
+      [/timeout/i, "timeout"], [/Transfer limit/i, "transfer-limit"], [/Framing recovery budget/i, "resync-budget"],
+      [/item.*limit/i, "shelf-item-limit"], [/decoded.*limit/i, "shelf-decode-limit"],
+    ];
+    const field = fields.find(([pattern]) => pattern.test(detail))?.[1];
+    if (!field) return;
+    section = "connection";
+    advancedOpen = true;
+    await tick();
+    content?.querySelector<HTMLElement>(`#${field}`)?.focus();
   }
 
   function discardChanges() { discardDraft(); inform("Loaded current saved settings."); }
@@ -155,6 +177,7 @@
   async function perform(name: string, success: string, args?: Record<string, unknown>) {
     if (busy || !ready) return;
     const hadDraft = dirty;
+    let validationDetail: string | null = null;
     localBusy = true;
     operationEpoch++;
     inform("");
@@ -166,10 +189,16 @@
       inform(name === "recover_share" && view.operationNotice ? view.operationNotice.message : name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success);
       if (name === "select_item" && content) content.scrollTop = 0;
     } catch (cause) {
-      inform(cause instanceof Error ? cause.message : String(cause), true);
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      inform(detail, true);
+      if (name === "apply_settings") validationDetail = detail;
       // Reflect connection/registration state even after a failed operation.
       try { view = await command<PanelView>("get_panel"); if (!hadDraft) discardDraft(); } catch { /* Keep the last view. */ }
-    } finally { localBusy = false; if (reloadPending) void reloadSavedSettings(); }
+    } finally {
+      localBusy = false;
+      if (validationDetail) await revealAdvancedError(validationDetail);
+      if (reloadPending) void reloadSavedSettings();
+    }
   }
 
   async function updateAction(name: "check_updates" | "download_update" | "install_update", version?: string) {
@@ -285,6 +314,17 @@
     {/if}
   </header>
 
+  {#if page === "settings"}
+    <section class="settings-navigation" aria-label="Settings navigation">
+      <h2>Settings</h2>
+      <nav aria-label="Settings sections">
+        {#each [["connection", "Connection"], ["shortcuts", "Shortcuts"], ["behavior", "Behavior"], ["updates", "Updates"]] as [id, label]}
+          <button type="button" class:active={section === id} aria-current={section === id ? "page" : undefined} onclick={() => selectSection(id)}>{label}</button>
+        {/each}
+      </nav>
+    </section>
+  {/if}
+
   <main bind:this={content}>
     {#if page !== "settings" || section !== "updates"}{@render operationProgress()}{/if}
     {#if view.settingsNotice}<div class="feedback error" role="alert">{view.settingsNotice}</div>{/if}
@@ -325,7 +365,6 @@
       {/if}
       {#if !configured}
         <section class="empty-state">
-          <div class="empty-icon" aria-hidden="true">↔</div>
           <h2>Your clipboard, across machines</h2>
           <p>Connect to your SSH clipboard server. Then share from one computer and copy on another.</p>
           <button class="primary" onclick={() => navigate("settings")}>Set up connection</button>
@@ -342,15 +381,15 @@
       {:else if selectedHistory}
         <section class="item-card" aria-label="Selected history item"><h2>{selectedHistory.label}</h2><p class="muted">Select this item in history to load its preview, or copy it to this computer.</p></section>
       {:else if view.clipboardChecked}
-        <section class="empty-state compact"><h2>Server clipboard is empty</h2><p>Copy some text or an image on this computer, then choose Share current clipboard.</p></section>
+        <section class="empty-state compact"><h2>Server clipboard is empty</h2><p>Copy text or an image, then choose Share current clipboard.</p></section>
       {:else}
-        <section class="empty-state compact"><h2>No shared item loaded</h2><p>Refresh to see the server's clipboard, or share what you copied on this computer.</p></section>
+        <section class="empty-state compact"><h2>No shared item loaded</h2><p>Refresh to load a shared item, or share your current clipboard.</p></section>
       {/if}
 
       <div class="actions">
-        <button class="primary" disabled={!ready || (!view.item && !selectedHistory) || busy} onclick={() => perform("copy_item", "Copied to this computer. You can paste it now.")}>Copy to this computer</button>
-        <button disabled={!ready || !configured || busy || view.pendingShare !== null} onclick={() => perform("share_clipboard", "Shared your clipboard with the server.")}>Share current clipboard</button>
-        <button class="text-button" disabled={!ready || !configured || busy} onclick={() => perform("refresh_item", view.history ? "History refreshed." : "Shared clipboard refreshed.")}>{view.history ? "Refresh history" : "Refresh shared clipboard"}</button>
+        <button class:primary={canCopy} disabled={!ready || !canCopy || busy} onclick={() => perform("copy_item", "Copied to this computer. You can paste it now.")}>Copy to this computer</button>
+        <button class:primary={!canCopy} disabled={!ready || !configured || busy || view.pendingShare !== null} onclick={() => perform("share_clipboard", "Shared your clipboard with the server.")}>Share current clipboard</button>
+        {#if !view.history}<button class="text-button" disabled={!ready || !configured || busy} onclick={() => perform("refresh_item", "Shared clipboard refreshed.")}>Refresh shared clipboard</button>{/if}
       </div>
       {#if view.pendingShare}
         <section class="share-recovery" aria-label="Share recovery">
@@ -368,7 +407,7 @@
       {@render feedback()}
       {#if configured && view.history}
         <section class="history" aria-label="Temporary clipboard history">
-          <div class="history-heading"><h2>Temporary history <span>{view.history.items.length}</span></h2><button type="button" class="text-button" disabled={!ready || busy || !view.history.items.length} onclick={() => requestHistoryRemoval("clear")}>Clear history…</button></div>
+          <div class="history-heading"><h2>Temporary history <span>{view.history.items.length}</span></h2><div class="history-tools"><button type="button" class="text-button" disabled={!ready || busy} onclick={() => perform("refresh_item", "History refreshed.")}>Refresh history</button><button type="button" class="text-button" disabled={!ready || busy || !view.history.items.length} onclick={() => requestHistoryRemoval("clear")}>Clear history…</button></div></div>
           {#if view.history.items.length}
             <ul class="history-list">
               {#each view.history.items as item (item.id)}
@@ -389,13 +428,7 @@
       {:else if configured}<p class="field-help">This connection uses the legacy server's single shared item.</p>{/if}
       <p class="quiet-note">{view.history ? "History updates automatically. Sharing and copying happen only when you ask." : "Sharing and copying happen only when you ask."}</p>
     {:else}
-      <div class="settings-title"><h2>Settings</h2></div>
-      <nav aria-label="Settings sections">
-        {#each [["connection", "Connection"], ["shortcuts", "Shortcuts"], ["behavior", "Behavior"], ["updates", "Updates"]] as [id, label]}
-          <button class:active={section === id} aria-current={section === id ? "page" : undefined} onclick={() => selectSection(id)}>{label}</button>
-        {/each}
-      </nav>
-      <form id="settings-form" onsubmit={(event) => { event.preventDefault(); applyDraft(); }}>
+      <form id="settings-form" oninvalidcapture={revealInvalidField} onsubmit={(event) => { event.preventDefault(); applyDraft(); }}>
         {#if section === "connection"}
           <label for="profile">Connection</label>
           <select id="profile" value={draft.profileId ?? ""} onchange={(event) => chooseProfile(event.currentTarget.value)} disabled={!ready || !view.settingsWritable || dirty || busy}>
@@ -422,11 +455,11 @@
             <option value="legacy">Single shared item (legacy server)</option><option value="shelf">Temporary history (new server)</option>
           </select>
           <p class="field-help">Choose the features installed on this server. Temporary history requires the new server and an SSH key that allows its session endpoint.</p>
-          <label for="port">Port <span>(optional)</span></label><input id="port" type="number" min="1" max="65535" value={draft.port ?? ""} oninput={(event) => draft.port = event.currentTarget.value === "" ? null : Number(event.currentTarget.value)} placeholder="From SSH config" disabled={!ready || busy} />
-          <label for="identity">Identity file <span>(optional)</span></label><input id="identity" bind:value={draft.identityFile} placeholder="From SSH config or agent" autocomplete="off" disabled={!ready || busy} />
-          <details class="advanced-connection">
+          <details class="advanced-connection" bind:open={advancedOpen}>
             <summary>Advanced connection settings</summary>
             <p class="field-help">These settings apply to this connection. SSH aliases already use your OpenSSH configuration.</p>
+            <label for="port">Port <span>(optional)</span></label><input id="port" type="number" min="1" max="65535" value={draft.port ?? ""} oninput={(event) => draft.port = event.currentTarget.value === "" ? null : Number(event.currentTarget.value)} placeholder="From SSH config" disabled={!ready || busy} />
+            <label for="identity">Identity file <span>(optional)</span></label><input id="identity" bind:value={draft.identityFile} placeholder="From SSH config or agent" autocomplete="off" disabled={!ready || busy} />
             <label for="ssh-options">SSH options <span>(one per line)</span></label>
             <textarea id="ssh-options" rows="3" value={sshOptionsText} oninput={(event) => editSshOptions(event.currentTarget.value)} placeholder="ServerAliveInterval=20" spellcheck="false" autocomplete="off" disabled={!ready || busy}></textarea>
             <p class="field-help">Order is preserved; blank lines are ignored. Connection tests and transfers keep batch mode enabled, so keys must already be unlocked and hosts trusted.</p>

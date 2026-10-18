@@ -42,6 +42,12 @@ Capture/copy now carry the endpoint's decoded-image limit through the owner thre
 
 ## Evidence and Remaining Acceptance
 
+PR 4 compacts the panel while preserving Copy above Share. Copy is primary when a snapshot or selected history item is available; otherwise Share is primary and disabled Copy is neutral. Refresh history sits beside the history heading, remains available for an empty history, and retains the same revision-guarded `refresh_item` command. Legacy/no-history views keep Refresh shared clipboard below the transfer buttons. Nothing about moving these controls changes selection, metadata watching, or clipboard access.
+
+Preview labels are visually bounded to two lines, text previews to 112 CSS pixels, and image previews to 128 CSS pixels. These display limits do not modify stored/copied content. Main text sizing is unchanged. Ordinary empty and short-text states show transfer actions and the history heading/first row at the default 440 x 670 viewport. Recovery/errors may take priority and remain fully available through the main scroll area. At minimum size, actions remain reachable by scrolling/focus.
+
+The 2026-10-18 synthetic browser pass covers empty, short-text, hidden-preview, image, long-label, unchecked, legacy, unconfigured, busy/Cancel, and uncertain-share states in both themes at 440 x 670 and 340 x 440. All forty layouts retain bounded shell/header/content width; long labels cannot enlarge the grid column. In the short-text fixture, the first row's bottom moves from y=673 (past the old content bottom y=632) to y=547 (inside the new bottom y=629). See [screenshots and delivery evidence](desktop-ux-plan.md#pr-4-compact-layout-and-consistent-buttons). This uses mock IPC and does not add native clipboard/SSH evidence.
+
 Automated checks cover strict endpoint loading, no-write defaults, invalid/future fields, local labels/exact bytes, native 16-bit decode bounds, cached preview privacy, stable selection/epoch replacement, endpoint isolation, frontend ID/revision selection without transfers, draft-only endpoint edits, and confirmation/cancellation. Existing rendered/owner/shortcut/configuration tests continue to run. Linux process tests exercise both protocol modes and the item-aware CLI independently of the desktop.
 
 A synthetic browser harness (ignored under `desktop/artifacts/history-preview`) exercises 20 rows and long labels without SSH, OS clipboard, or user settings. At 440x670 and 340x440, document width stays within the viewport, the content area scrolls, and the footer stays at the viewport bottom. Advanced shelf settings also fit at the minimum size. Selection moves to the preview; feedback appears before history so a long list does not hide transfer outcomes. This is browser layout evidence, not a native WebView/SSH/paste test.
@@ -56,6 +62,8 @@ The [2026-10-16 Windows native pass](native-history-acceptance.md) confirmed old
 - Direct Copy and panel Copy have different explicit targets; refreshing metadata must not make direct Copy retain an older selection.
 - Keep content labels out of logs and hidden-preview IPC, even though they travel as metadata.
 - Keep feedback near transfer controls and constrain scrolling to the content region at the native minimum size.
+- Check the grid's actual bounds with long unbroken connection targets. A hidden document scrollbar can mask a widened implicit column; bound both the grid column and content row.
+- Keep empty-history Refresh enabled and revision-guarded. Visual priority and preview truncation must not change the item/epoch copied or the original payload.
 
 ## Update Triggers
 

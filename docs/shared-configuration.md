@@ -25,6 +25,14 @@ Corrupt, unsupported-version, oversized, or unrecognized-field documents produce
 
 ## Save Contract and Guardrails
 
+### Visible Draft State
+
+The settings action bar sits outside the scrolling content and remains visible in Connection, Shortcuts, Behavior, and Updates. It reports Unsaved changes, All changes saved, or a saved-revision conflict. Changes take effect after Apply, including preview visibility. Apply submits the complete cross-section draft with its original revision; read-only settings, conflicts, active operations, and shortcut recording block both button and form submission. Install remains blocked while settings are edited.
+
+Back, Escape, section navigation, and panel hiding retain the process-local draft without saving. The clipboard panel offers Return to settings and Discard changes when edits remain; transfers and preview privacy continue using saved settings. Quit does not persist a draft. Discard loads the current saved state, including external edits, without a configuration write or transfer. Start at login retains its separate immediate-save behavior until [UI/UX PR 2](desktop-ux-plan.md#pr-2-one-save-model-for-start-at-login); its explanation remains explicit and other pending edits block that control.
+
+Prevention: the existence of a saved settings file is not evidence that the displayed draft is saved. Derive visible save state from draft equality and revision, and keep save controls outside the scroll region. Every secondary form action uses `type="button"`; the external Apply submit button is explicitly associated with the settings form. The submit handler uses the same guards as the button, so Enter cannot bypass a conflict or operation/recording lock.
+
 ### Desktop Connections
 
 The Connection selector edits a draft. Apply selects that profile as the shared default for desktop and target-less CLI transfers; merely choosing it does not connect, fetch, or write a clipboard. Apply or Discard an edited draft before choosing another connection. The panel displays the active connection name and SSH target.

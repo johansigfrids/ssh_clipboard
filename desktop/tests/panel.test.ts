@@ -51,6 +51,124 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("Back, Escape, hiding and reopening retain drafts without changing the active connection or previews", async () => {
+    state.settings.target = "saved-hub";
+    state.settingsSaved = true;
+    state.settingsRevision = "7";
+    state.item = { kind: "text", label: "Saved item", text: "Visible saved preview", imageUrl: null, encodedBytes: 21, createdAt: 1 };
+    render(App);
+    await screen.findByText("Visible saved preview");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    expect(screen.getByText("All changes saved")).toBeTruthy();
+    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "draft-hub" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByLabelText("Show content previews"));
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+    expect(screen.queryByText("All changes saved")).toBeNull();
+    expect(screen.getByText("Changes take effect after Apply.")).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("region", { name: "Unsaved settings" })).toBeTruthy();
+    expect(screen.getByText("saved-hub")).toBeTruthy();
+    expect(screen.getByText("Visible saved preview")).toBeTruthy();
+    await fireEvent.keyDown(window, { key: "Escape" });
+    bridge.listen.mock.calls.find(([name]) => name === "navigate")![1]({ payload: "panel" });
+    await fireEvent.click(screen.getByRole("button", { name: "Return to settings" }));
+    expect((screen.getByLabelText("Show content previews") as HTMLInputElement).checked).toBe(false);
+    await fireEvent.click(screen.getByRole("button", { name: "Connection" }));
+    expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("draft-hub");
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("region", { name: "Unsaved settings" })).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.queryByRole("region", { name: "Unsaved settings" })).toBeNull();
+    expect(state.settings.target).toBe("saved-hub");
+    expect(state.settings.showPreview).toBe(true);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "hide_panel"]);
+  });
+
+  it("the persistent save actions apply the whole draft from Updates with its original revision", async () => {
+    state.settings.target = "saved-hub";
+    state.settingsRevision = "7";
+    state.updateStatus = { ...state.updateStatus, available: true, offeredVersion: "2.0.0", phase: "ready" };
+    render(App);
+    await screen.findByText("saved-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.input(screen.getByLabelText("Connection name"), { target: { value: "Work" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByLabelText("Hide panel after copying"));
+    await fireEvent.click(screen.getByRole("button", { name: "Updates" }));
+    const savebar = screen.getByRole("region", { name: "Settings changes" });
+    expect(savebar.closest("main")).toBeNull();
+    expect(screen.getByRole("button", { name: "Install update…" }).hasAttribute("disabled")).toBe(true);
+    const apply = screen.getByRole("button", { name: "Apply settings" }) as HTMLButtonElement;
+    expect(apply.form).toBe(document.getElementById("settings-form"));
+    await fireEvent.click(apply);
+    await screen.findByText("All changes saved");
+    const saves = bridge.invoke.mock.calls.filter(([name]) => name === "apply_settings");
+    expect(saves).toHaveLength(1);
+    expect(saves[0][1]).toEqual({ settings: { ...initialView.settings, target: "saved-hub", profileName: "Work", closeAfterCopy: true }, expectedRevision: "7" });
+    expect(screen.getByRole("button", { name: "Install update…" }).hasAttribute("disabled")).toBe(false);
+    expect(apply.disabled).toBe(true);
+  });
+
+  it("form submission cannot bypass a read-only, recording, busy or stale draft guard", async () => {
+    state.settings.target = "saved-hub";
+    state.settingsRevision = "7";
+    state.settingsWritable = false;
+    render(App);
+    await screen.findByText("saved-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.input(screen.getByLabelText("Connection name"), { target: { value: "Work" } });
+    const submit = () => fireEvent.submit(document.getElementById("settings-form")!);
+    await submit();
+    state.settingsWritable = true;
+    const changed = bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1];
+    changed();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
+    await fireEvent.click(screen.getByLabelText("Open panel"));
+    await screen.findByText("Press a shortcut · Esc to cancel");
+    await submit();
+    await fireEvent.keyDown(window, { key: "Escape" });
+    const operation = bridge.listen.mock.calls.find(([name]) => name === "operation-state")![1];
+    operation({ payload: { generation: "1", active: { id: "1", label: "Sharing", cancellable: true, cancelling: false } } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(true));
+    await submit();
+    operation({ payload: { generation: "2", active: null } });
+    state.settingsRevision = "8";
+    state.settings.target = "cli-hub";
+    changed();
+    await screen.findByText("Saved settings changed");
+    await submit();
+    expect(bridge.invoke.mock.calls.some(([name]) => name === "apply_settings")).toBe(false);
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Saved settings changed")).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Connection" }));
+    expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("cli-hub");
+    expect(screen.queryByText("Unsaved changes")).toBeNull();
+  });
+
+  it("secondary form actions and navigation never apply a dirty settings draft", async () => {
+    state.settings.target = "saved-hub";
+    state.updateStatus = { ...state.updateStatus, available: true, offeredVersion: "2.0.0", phase: "offered" };
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => ["check_updates", "download_update"].includes(name) ? structuredClone(state.updateStatus) : normal(name, args));
+    render(App);
+    await screen.findByText("saved-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.input(screen.getByLabelText("Connection name"), { target: { value: "Work" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Restore default shortcut" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Updates" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Download and verify" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Download and verify" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Back" }).hasAttribute("disabled")).toBe(false));
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "check_updates", "download_update"]);
+  });
+
   it("rechecking an update keeps its card and settings header mounted with progress confined to Updates", async () => {
     state.updateStatus={available:true,currentVersion:"0.3.2",offeredVersion:"0.3.3",notes:"Retained release notes",phase:"offered",detail:"An update is available.",busy:false,downloadedBytes:0,totalBytes:null};
     const normal=bridge.invoke.getMockImplementation()!;
@@ -518,7 +636,7 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     await fireEvent.click(screen.getByRole("button", { name: "Test saved connection" }));
     await screen.findByText("Connection verified");
-    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("button", { name: "Copy to this computer" }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByText("No shared item loaded")).toBeTruthy();
     expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "test_connection"]);
@@ -554,7 +672,7 @@ describe("quick panel contracts", () => {
     expect(args.settings.transport.timeoutMs).toBe("15000");
     expect(args.settings.transport.sshOptions).toEqual(["ServerAliveInterval=20"]);
     expect(args.expectedRevision).toBe("4");
-    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByText("Other account")).toBeTruthy();
     expect(screen.queryByText("Old snapshot")).toBeNull();
     expect(screen.getByRole("button", { name: "Copy to this computer" }).hasAttribute("disabled")).toBe(true);
@@ -885,7 +1003,7 @@ describe("quick panel contracts", () => {
     await screen.findByText("saved-hub");
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("saved-hub");
-    expect(screen.getByText("Saved on this computer")).toBeTruthy();
+    expect(screen.getByText("All changes saved")).toBeTruthy();
     expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
   });
 
@@ -943,7 +1061,7 @@ describe("quick panel contracts", () => {
     await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "other-hub" } });
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
     await screen.findByText("Settings applied.");
-    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.queryByText("Server clipboard is empty")).toBeNull();
     expect(screen.getByText("No shared item loaded")).toBeTruthy();
   });
@@ -969,7 +1087,7 @@ describe("quick panel contracts", () => {
     await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "new-hub" } });
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
     await screen.findByText("Settings applied.");
-    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.queryByText("Previous connection contents")).toBeNull();
     expect(screen.getByRole("button", { name: "Copy to this computer" }).hasAttribute("disabled")).toBe(true);
   });

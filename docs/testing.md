@@ -75,6 +75,14 @@ finally { Remove-Item Env:SSH_CLIPBOARD_WRITE_IPC_FIXTURE }
 
 Then run `npm test` and `npm run build` in `desktop/` and the desktop Rust checks. Normal CI never sets the write variable. Keep fixtures synthetic, deterministic and free of local configuration paths.
 
+## Browser Contracts
+
+From `desktop/`, install the lockfile-matched test browser once with `npx playwright install chromium`, then run `npm run test:browser`. An existing Chrome can be used without a browser download by setting `PLAYWRIGHT_CHANNEL=chrome` for the test command. The runner owns a headless isolated browser and a test-only Vite server on `127.0.0.1:1421`; it refuses to reuse an already-running server.
+
+Three scenarios cover real Tab/arrow navigation and confirmation focus restoration, persistent Apply/Discard at the supported 340x440 minimum with long scrolling content, and browser constraint validation revealing a collapsed invalid port before any IPC save. Keep the wider state/race matrix in Vitest rather than duplicating it here. The suite uses the shared Rust-shaped responses and strict UI responder; test-only Vite aliases replace Tauri APIs, with no changes to normal dev/build/installed dispatch. External browser requests are blocked.
+
+CI runs this credential-free Chromium lane whenever desktop checks are selected. Tests have bounded deadlines, one worker and no retries; failures retain screenshots, traces and the HTML report for seven days. Local reports are ignored under `desktop/artifacts/browser-*`. This proves browser layout and keyboard/form behavior with mock IPC, not actual native clipboard, shortcut registration, login or installer behavior. See [Playwright web-server configuration](https://playwright.dev/docs/test-webserver) and [test options](https://playwright.dev/docs/test-use-options).
+
 ## Transport and Diagnostic Faults
 
 Pipe fixtures use noninteractive PowerShell or `/bin/sh`, with no SSH or clipboard. All transport fixture families share two-slot admission; keep timeout/uncertainty/reaping assertions and production deadlines intact. Linux process cases serialize cases to prevent fork-inherited executable writers causing ETXTBSY, while retaining concurrent clients inside each case. Fixture runtimes cap Tokio workers at two. See [session guardrails](persistent-sessions.md#evidence-and-fixture-guardrails).

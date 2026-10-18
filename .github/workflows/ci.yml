@@ -255,6 +255,38 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  browser:
+    name: Browser panel contracts
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - name: Install the lockfile-matched Chromium browser
+        run: npx playwright install --with-deps chromium
+      - name: Keyboard, layout and native form validation contracts
+        run: npm run test:browser
+      - name: Retain browser failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-failure-diagnostics
+          path: |
+            desktop/artifacts/browser-results/
+            desktop/artifacts/browser-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
   maintenance:
     name: Disposable server maintenance
     needs: changes
@@ -284,7 +316,7 @@ jobs:
   complete:
     name: CI complete
     if: always()
-    needs: [changes, desktop, test, maintenance]
+    needs: [changes, desktop, test, maintenance, browser]
     runs-on: ubuntu-latest
     steps:
       - name: Require successful selection and every selected check
@@ -296,8 +328,9 @@ jobs:
           DESKTOP: ${{ needs.desktop.result }}
           MAINTENANCE_SELECTED: ${{ needs.changes.outputs.maintenance }}
           MAINTENANCE: ${{ needs.maintenance.result }}
+          BROWSER: ${{ needs.browser.result }}
         run: |
           test "$CHANGES" = success
           if [ "$CORE_SELECTED" = true ]; then test "$CORE" = success; fi
-          if [ "$DESKTOP_SELECTED" = true ]; then test "$DESKTOP" = success; fi
+          if [ "$DESKTOP_SELECTED" = true ]; then test "$DESKTOP" = success; test "$BROWSER" = success; fi
           if [ "$MAINTENANCE_SELECTED" = true ]; then test "$MAINTENANCE" = success; fi

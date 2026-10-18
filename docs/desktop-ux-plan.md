@@ -4,7 +4,7 @@
 
 Turn the owner's accepted 2026-10-18 UI/UX review into six independently reviewable PRs. Improve settings confidence, use of space, update information, and everyday interaction while retaining the app's visual identity and explicit transfer model.
 
-**Status: PRs 1-2 merged; PR 3 implemented, pending review; PRs 4-6 planned.** The owner accepted all review recommendations, authorized PRs 1-2's merges after CI, and authorized PR 3. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
+**Status: PRs 1-3 merged; PR 4 implemented, pending review; PRs 5-6 planned.** The owner accepted all review recommendations, authorized PRs 1-3's merges after CI, and authorized PR 4. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
 
 ## Key Files
 
@@ -111,7 +111,7 @@ Synthetic browser checks at 440 x 670 and 340 x 440 confirm combined draft editi
 
 ### PR 3: Trustworthy, Actionable Updates
 
-**Delivery record (2026-10-18):** [GitHub PR #14](https://github.com/johansigfrids/ssh_clipboard/pull/14), pending review on `codex/actionable-updates`. Installed/available versions, status, and Download update now precede notes. Short exact-version bullets render as escaped text; longer, mismatched, or legacy notes retain their full inert text in a disclosure using the page's scroll area. Missing notes omit the section. Verification progress, cancellation, offer identity checks, dirty-settings/pending-share blocks, and explicit install confirmation remain in place.
+**Delivery record (2026-10-18):** [GitHub PR #14](https://github.com/johansigfrids/ssh_clipboard/pull/14), merged as `eedb187` after all eight checks passed at head `52c1811` (seven CI jobs plus the disposable Mac updater preparation). Installed/available versions, status, and Download update now precede notes. Short exact-version bullets render as escaped text; longer, mismatched, or legacy notes retain their full inert text in a disclosure using the page's scroll area. Missing notes omit the section. Verification progress, cancellation, offer identity checks, dirty-settings/pending-share blocks, and explicit install confirmation remain in place.
 
 Packaging now validates `desktop/release-notes/<version>.md` before credentials, compilation, or staging. Both platform feeds must match the reviewed source notes, which also supply the desktop draft description. Disposable test packages can use an explicit override under the same version/size/content contract. The checked-in 0.4.2 file is a source reference; existing published packages/feeds are unchanged, and future versions require their own reviewed notes and release authorization.
 
@@ -150,6 +150,27 @@ The same layout with the new concise version-specific notes:
 **Docs:** update `desktop-updates.md` and `releasing.md` with the curated-note authoring and input contract.
 
 ### PR 4: Compact Layout and Consistent Buttons
+
+**Delivery record (2026-10-18):** [GitHub PR #15](https://github.com/johansigfrids/ssh_clipboard/pull/15), pending review on `codex/compact-desktop-layout`. The header/empty states/previews are more compact; shared button treatments retain primary, secondary, and quiet hierarchy. Copy remains above Share, with Share emphasized when nothing can be copied. History Refresh moves beside its heading; single-item/no-history Refresh remains below transfers. Settings navigation now has a fixed shell row above the scrolling form. Port and Identity file move into Advanced with values/SSH inheritance preserved and validation revealing the field.
+
+`npm test` passes 78 rendered contracts and 25 Node/tooling tests. New cases cover contextual empty-history Refresh, collapsed port/key draft preservation/inheritance, native invalid-field disclosure, and backend validation returning from another section with the whole draft intact. `npm run build` reports zero Svelte errors/warnings; required core/agent Clippy passes.
+
+Synthetic browser checks cover ten panel states (empty, short text, image, hidden preview, long labels, unchecked, legacy, unconfigured, busy/Cancel, uncertain share) in dark/light at 440 x 670 and 340 x 440: forty layouts without horizontal overflow or clipped grid columns. Ordinary empty/short-preview controls and history heading/first row meet the default fold target. The short fixture's first row ends at y=547 inside the content bottom y=629, versus baseline y=673 beyond y=632. Header height drops from 81 to 65 CSS pixels. Long text/images remain bounded; focus can scroll offscreen actions into view.
+
+Settings checks cover both themes at 440 x 670, 340 x 440, and 700 x 900, including scrolling Advanced, switching all sections, persistent navigation/save controls, native Port constraints, and backend Timeout recovery. Minimum-size settings retain about 164 CSS pixels for content with no overlap. Tab traversal through all four sections keeps focused fields/controls reachable with outline clearance; Cancel invokes only the expected cancellation command. A separate 352 x 536 CSS viewport at device scale 1.25 checks 125%-equivalent rendering of a 440 x 670 window. Browser fixtures use fake IPC and synthetic content; there is no new native WebView/OS-scaling, clipboard, startup, installation, or publication evidence. Production state remains untouched.
+
+Before/after at 440 x 670, dark theme, scale 100%, using merged PR 3 (`eedb187`) as baseline and the same synthetic short text/settings:
+
+| Surface | Before | After |
+| --- | --- | --- |
+| Panel | ![Panel with first history row clipped below the fold](images/desktop-ux-pr4/panel-before.png) | ![Compact panel with the first history row visible](images/desktop-ux-pr4/panel-after.png) |
+| Settings | ![Settings navigation inside scrolling content](images/desktop-ux-pr4/settings-before.png) | ![Settings navigation above the scrolling form](images/desktop-ux-pr4/settings-after.png) |
+
+Minimum-size light settings (340 x 440 at 100%, scrolled to Advanced's end) and the 125%-equivalent light check (352 x 536 CSS, output 440 x 670, with an unsaved Port edit):
+
+| Minimum | Scaled |
+| --- | --- |
+| ![Minimum settings with navigation and save controls visible](images/desktop-ux-pr4/settings-minimum.png) | ![Scaled settings with unsaved draft and persistent controls](images/desktop-ux-pr4/settings-scale125.png) |
 
 **Problem:** branding, empty-state space, and large secondary actions push history and settings controls down. Button emphasis is inconsistent, especially when Copy is disabled.
 

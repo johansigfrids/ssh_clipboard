@@ -1,6 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App.svelte";
+import { panelResponder } from "./helpers/panel-responder";
+import { ipc } from "./fixtures/ipc";
+import requests from "./fixtures/ipc-requests.json";
 import { cloneTransport, defaultTransport, initialView, type PanelView } from "../src/api";
 
 const bridge = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn(), native: true }));
@@ -17,44 +20,28 @@ beforeEach(() => {
   bridge.native = true;
   bridge.invoke.mockReset();
   bridge.listen.mockReset().mockResolvedValue(() => {});
-  bridge.invoke.mockImplementation(async (name: string, args?: { settings?: PanelView["settings"]; profileId?: string; startAtLogin?: boolean }) => {
-    if (name === "get_operation") return { generation: "0", active: null };
-    if (name === "acknowledge_migration_summary") {
-      state.migrationSummary = null;
-      state.settingsRevision = String(Number(state.settingsRevision ?? "0") + 1);
-    }
-    if (name === "apply_settings") {
-      if (args?.startAtLogin !== undefined) {
-        state.startupStatus.enabled = args.startAtLogin;
-        state.startupStatus.desired = args.startAtLogin;
-      }
-      state.settings = { ...args!.settings!, profileId: args!.settings!.profileId ?? "new-profile" };
-      const profile = { id: state.settings.profileId!, name: state.settings.profileName, target: state.settings.target, port: state.settings.port, identityFile: state.settings.identityFile, transport: cloneTransport(state.settings.transport), endpoint: { ...state.settings.endpoint } };
-      const index = state.profiles.findIndex(({ id }) => id === profile.id);
-      if (index === -1) state.profiles.push(profile); else state.profiles[index] = profile;
-      state.settingsSaved = true;
-      state.settingsRevision = String(Number(state.settingsRevision ?? "0") + 1);
-      state.item = null;
-      state.clipboardChecked = false;
-      state.connected = false;
-      state.connectionReport = null;
-    }
-    if (name === "remove_profile") {
-      state.profiles = state.profiles.filter(({ id }) => id !== args!.profileId);
-      const profile = state.profiles[0];
-      state.settings = { ...state.settings, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: cloneTransport(profile.transport), endpoint: { ...profile.endpoint } };
-      state.settingsRevision = String(Number(state.settingsRevision ?? "0") + 1);
-      state.item = null;
-      state.connected = false;
-      state.clipboardChecked = false;
-      state.connectionReport = null;
-    }
-    return structuredClone(state);
-  });
+  bridge.invoke.mockImplementation(panelResponder(() => state));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("quick panel contracts", () => {
+  it("unknown IPC commands fail instead of receiving a successful panel snapshot", async () => {
+    await expect(panelResponder(() => state)("apply_setting", { settings: state.settings })).rejects.toThrow("Unhandled IPC fixture command");
+  });
+
+  it("renders backend-produced history/recovery fields and sends the exact string revision", async () => {
+    state = structuredClone(ipc.shelf);
+    render(App);
+    await screen.findByText("Contract history item");
+    expect(screen.getByText("Synthetic retained result")).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "Check share status" }));
+    expect(bridge.invoke).toHaveBeenCalledWith("recover_share", {
+      operationId: state.pendingShare!.id, retry: false, expectedRevision: "18446744073709551615",
+    });
+    await fireEvent.click(screen.getByRole("button", { name: /Contract history item.*Contract laptop/ }));
+    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledWith("select_item", requests.select_item));
+  });
+
   it("explicit failures focus their persistent message and Dismiss restores the settings tab", async () => {
     const normal=bridge.invoke.getMockImplementation()!;
     bridge.invoke.mockImplementation((name,args)=>name==="test_connection"?Promise.reject(new Error("Synthetic connection failure")):normal(name,args));

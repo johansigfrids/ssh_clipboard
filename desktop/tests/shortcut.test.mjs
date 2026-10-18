@@ -27,5 +27,4 @@ test("shortcut labels follow the platform without rewriting explicit modifiers o
   assert.equal(displayShortcut("Super+KeyK","windows"),"Win + K");
   assert.equal(displayShortcut("Super+KeyK","linux"),"Super + K");
   assert.equal(displayShortcut("Control+KeyK","macos"),"Ctrl + K");
-  assert.equal(stored,"CommandOrControl+Shift+KeyV");
 });

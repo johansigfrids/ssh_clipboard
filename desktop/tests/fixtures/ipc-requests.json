@@ -1,0 +1,9 @@
+{
+  "select_item": {
+    "expectedRevision": "18446744073709551615",
+    "epoch": "00000000-0000-0000-0000-000000000001",
+    "itemId": "00000000-0000-0000-0000-000000000002"
+  },
+  "share_clipboard": { "expectedRevision": "18446744073709551615" },
+  "cancel_operation": { "id": "stale-operation" }
+}

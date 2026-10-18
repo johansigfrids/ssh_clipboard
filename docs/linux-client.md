@@ -10,6 +10,10 @@ Document Linux desktop client behavior, especially clipboard support, Wayland li
 - `docs/agent.md`
 - `docs/cli.md`
 
+## Deferred Platform
+
+The owner deferred new Linux desktop/AppImage/Wayland work on 2026-10-18. The following notes describe the frozen legacy agent, available from v0.3.0 archives or an explicit `--features agent` compatibility build. They do not describe a supported 0.4 desktop installer or an outstanding manual test assignment. See [retirement](legacy-retirement.md).
+
 ## Prerequisites
 - The Linux server is running `ssh_clipboard daemon`.
 - The SSH user on the server can run `ssh_clipboard proxy` (binary on `PATH` or absolute path).
@@ -27,7 +31,7 @@ Expected to work out of the box with `arboard` for text and PNG images.
 ## Agent Mode (Tray + Hotkeys)
 Run from source:
 ```
-cargo run --bin ssh_clipboard_agent
+cargo run --features agent --bin ssh_clipboard_agent
 ```
 
 Recommended one-command setup:

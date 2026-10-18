@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Default source builds provide the native clipboard CLI without the retired tray agent. The explicit `agent` compatibility feature, V2 routes and settings import remain available through 0.4.
+- Close the delivered Windows/Apple Silicon/Linux-server implementation plan; defer Linux desktop and further rare-scenario manual verification.
+
+### Removed
+- Retire the obsolete automatic `v*` CLI/agent publisher. Protected signed desktop/server workflows and existing published assets are unchanged.
+
 ## [0.4.2] - 2026-10-16
 
 ### Added

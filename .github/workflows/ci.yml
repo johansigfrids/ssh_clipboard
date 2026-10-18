@@ -168,6 +168,16 @@ jobs:
             exit 1
           fi
 
+      - name: Default clipboard CLI without the retired agent
+        if: matrix.features == 'agent'
+        shell: bash
+        run: |
+          tree="$(cargo tree --locked --edges normal --prefix none --format '{p}')"
+          if printf '%s\n' "$tree" | grep -E '^(tao|tray-icon|global-hotkey|auto-launch|single-instance|tracing-appender|notify-rust|winrt-notification|winreg) '; then
+            exit 1
+          fi
+          cargo test --locked --test default_cli
+
       - name: Clippy
         run: |
           if [ "${{ matrix.features }}" = "agent" ]; then

@@ -7,9 +7,13 @@ Concise command/flag reference for the `ssh_clipboard` CLI.
 - `src/main.rs`
 - `README.md`
 
+## Current and Retired Commands
+
+Default source builds include native clipboard transfers and shared `settings`. Old `agent`, `config`, `autostart`, `setup-agent`, `install-client` and `uninstall-client` commands require explicit `--features agent` or a frozen legacy archive. They are compatibility tools, not the normal desktop setup path. V2 transfers/proxy and settings migration remain supported through 0.4; see [retirement](legacy-retirement.md).
+
 ## Commands
 
-### Experimental Linux Shelf
+### Linux Shelf
 
 The cross-platform `shelf` namespace provides `list`, `health`, `share --file|--stdin`, `fetch <id> --stdout|--output`, `delete <id> --epoch <epoch>`, and `clear --epoch <epoch>`. It explicitly selects the new endpoint, uses JSON metadata and exact byte exports, and never reads/writes the OS clipboard. See [client commands and safety contracts](shelf-client.md).
 
@@ -19,7 +23,7 @@ The cross-platform `shelf` namespace provides `list`, `health`, `share --file|--
 
 `verify --version <version> --public-key <trusted.pub> --package <binary> --signature <binary.sig>` authenticates bounded files without executing/installing them.
 
-`install --version <version> --public-key <trusted.pub> --acknowledge-clipboard-loss` creates a separate per-user signed shelf installation and accepts the `shelf-daemon` socket/limit options. `update --version <newer-version> --acknowledge-clipboard-loss` retains pinned trust/options and restores the previous executable after failed service/protocol health. Both accept paired `--package` / `--signature` local inputs; omit both to download the exact GitHub `server-v<version>` asset. Production server assets are not published yet.
+`install --version <version> --public-key <trusted.pub> --acknowledge-clipboard-loss` creates a separate per-user signed shelf installation and accepts the `shelf-daemon` socket/limit options. `update --version <newer-version> --acknowledge-clipboard-loss` retains pinned trust/options and restores the previous executable after failed service/protocol health. Both accept paired `--package` / `--signature` local inputs; omit both to download the exact GitHub `server-v<version>` asset. Signed server 0.4.0 assets are published; see [live/public acceptance](linux-cutover-acceptance.md).
 
 `status` prints saved selection/recovery metadata, without asserting live health. `recover --acknowledge-clipboard-loss` resolves an unfinished transition by restoring the retained predecessor or disabling a failed first installation. These four commands accept `--root <absolute-path>`; default storage is the user's data directory under `ssh_clipboard/server`. Restart/rollback loses in-memory items. Existing global/legacy installs are not adopted. See [maintenance and migration gates](server-maintenance.md).
 
@@ -48,7 +52,7 @@ Rework push/pull/peek/doctor commands accept `--profile <id>` and `--settings-fi
 ### `push`
 Send local clipboard to server (text or PNG).
 
-In a headless `--no-default-features` build, use `--stdin`; OS clipboard requests fail before SSH with exit code 6. Normal agent/client builds retain clipboard support. A clipboard-only CLI can use `--no-default-features --features system-clipboard`.
+In a headless `--no-default-features` build, use `--stdin`; OS clipboard requests fail before SSH with exit code 6. Default clipboard CLI and opt-in agent builds retain clipboard support. A clipboard-only CLI can use `--no-default-features --features system-clipboard`.
 
 Common usage:
 ```

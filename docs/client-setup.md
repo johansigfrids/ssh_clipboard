@@ -18,7 +18,9 @@ For Linux desktop specifics (Wayland/X11, tray/hotkeys), see `docs/linux-client.
   - macOS: OpenSSH is included.
 
 ## Basic Usage
-Recommended first-time setup:
+For new Windows/Apple Silicon installations use the [signed desktop](../README.md#windows-and-apple-silicon-desktop). The following `install-client` procedure is retained only for frozen archives or an explicit `--features agent` compatibility build; see [retirement](legacy-retirement.md).
+
+Legacy first-time setup:
 ```
 # run from extracted release folder
 ./ssh_clipboard install-client --target user@server
@@ -52,9 +54,9 @@ ssh_clipboard peek --json --target user@server
 ```
 
 ## Agent Mode (Hotkeys + tray)
-The background agent is included in client builds by default. To run from source:
+The retired background agent requires an explicit compatibility build. To run from source:
 ```
-cargo run --bin ssh_clipboard_agent
+cargo run --features agent --bin ssh_clipboard_agent
 ```
 
 The agent uses the config file shown by `ssh_clipboard config path`.

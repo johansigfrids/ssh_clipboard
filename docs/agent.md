@@ -1,4 +1,4 @@
-# Agent (Hotkeys + Tray)
+# Retired Agent (Hotkeys + Tray)
 
 ## Purpose
 Document the background agent: tray/menu UX, global hotkeys, config, and logs.
@@ -12,11 +12,11 @@ Document the background agent: tray/menu UX, global hotkeys, config, and logs.
 - `docs/cli.md`
 
 ## Build and Run
-The agent is enabled by default in client builds. For a Linux server-only build, use `--no-default-features`.
+The old agent is retired from default builds and new distribution. Use the signed desktop for normal use. This document preserves the explicit `--features agent` compatibility path through 0.4; see [retirement](legacy-retirement.md). A Linux server-only build still uses `--no-default-features`.
 
 Run from source (agent binary):
 ```
-cargo run --bin ssh_clipboard_agent
+cargo run --features agent --bin ssh_clipboard_agent
 ```
 
 You can also run via the CLI wrapper:

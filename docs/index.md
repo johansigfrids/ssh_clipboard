@@ -15,19 +15,20 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 ## Docs Map
 - `docs/writing-docs.md`: How to write and maintain internal docs in this repo.
 - [ARCHITECTURE.md](../ARCHITECTURE.md): Current system and planned rework architecture.
-- [docs/implementation-plan.md](implementation-plan.md): Phased quick-panel, settings, shelf, transport, and signed-update rework, with migration and acceptance checks.
+- [docs/implementation-plan.md](implementation-plan.md): Closed rework phases, supported delivery, deferred Linux desktop and non-blocking evidence limits.
+- [docs/legacy-retirement.md](legacy-retirement.md): Retired default agent/distribution, preserved 0.4 compatibility and recovery boundaries.
 - [docs/desktop-prototype.md](desktop-prototype.md): Phase 1 source-build prototype, controls, limitations, and platform validation status.
 - [docs/desktop-shortcuts.md](desktop-shortcuts.md): Optional direct transfers, safe recording, grouped registration, and recovery.
 - [docs/desktop-notifications.md](desktop-notifications.md): Feedback preferences, private native messages, capability fallback, and retained outcomes.
 - [docs/shared-configuration.md](shared-configuration.md): Shared store, desktop profiles/advanced policy, CLI overrides, live reload, and save/recovery contracts.
 - [docs/configuration-migration.md](configuration-migration.md): Legacy/prototype migration, one-time import review, exact backups, schema 2 settings, preserved preferences, and recovery.
-- [docs/compatibility-and-cutover.md](compatibility-and-cutover.md): Client/server protocol matrix, forced-command boundaries, upgrade order, return paths, and remaining release gates.
+- [docs/compatibility-and-cutover.md](compatibility-and-cutover.md): Client/server protocol matrix, forced-command boundaries, upgrade order, return paths, and recorded acceptance limits.
 - [docs/released-compatibility.md](released-compatibility.md): Pinned v0.3.0 Linux CLI/proxy/daemon compatibility, repeatable private process probes, and evidence boundaries.
 - `docs/protocol.md`: Protocol framing, message types, and error codes.
-- [docs/shelf-core.md](shelf-core.md): New bounded shelf state, upload reservations, expiry, retry contracts, and pending server integration.
+- [docs/shelf-core.md](shelf-core.md): New bounded shelf state, upload reservations, expiry, retry contracts, and service integration.
 - [docs/session-protocol.md](session-protocol.md): Separate shelf bootstrap, precision-safe metadata, negotiated limits, raw payload framing, and compatibility boundary.
 - [docs/shelf-service.md](shelf-service.md): Transport-independent shelf actions, connection admission, deadlines, and stream-based lifecycle evidence.
-- [docs/shelf-server.md](shelf-server.md): Experimental Linux endpoint commands, safe socket ownership, bounded stdio bridge, and native process evidence.
+- [docs/shelf-server.md](shelf-server.md): Linux endpoint commands, safe socket ownership, bounded stdio bridge, and native process evidence.
 - [docs/shelf-client.md](shelf-client.md): Item-aware session validation, explicit CLI inputs/exports, epoch guards, and bounded SSH lifecycle.
 - [docs/desktop-history.md](desktop-history.md): Explicit endpoint profiles, history selection/mutations, safe copy, private labels, and layout evidence.
 - [docs/native-history-acceptance.md](native-history-acceptance.md): Closed Windows shelf/migration/cancellation session, observed native results, fixture cleanup, and explicit remaining gaps.
@@ -48,7 +49,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/update-signing-public-key.pub](update-signing-public-key.pub): Public production verification key; pin its reviewed [fingerprint and trust procedure](security.md#signed-package-trust).
 - `docs/cli.md`: CLI command and flag reference.
 - `docs/ci.md`: CI workflows, build variants, and release packaging.
-- `docs/releasing.md`: How to tag releases and validate artifacts.
+- `docs/releasing.md`: Protected signed draft staging, verification and publication.
 - [docs/release-0.4.0-acceptance.md](release-0.4.0-acceptance.md): Merged source, protected production drafts, independent signatures, Windows install/paste and isolated Linux service evidence.
 - [docs/release-0.4.1-acceptance.md](release-0.4.1-acceptance.md): Signed desktop correction, real-profile upgrade/startup, publication and anonymous public-delivery verification.
 - [docs/release-0.4.2-acceptance.md](release-0.4.2-acceptance.md): Windows/Apple Silicon publication, immutable package identity, anonymous combined-feed delivery and acceptance boundaries.
@@ -56,7 +57,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/troubleshooting.md`: Common errors and fixes.
 - `docs/testing.md`: How to run tests and what’s covered.
 - `docs/icon.md`: Icon assets and regeneration steps.
-- Agent-related:
+- Retired agent compatibility references:
   - `docs/cli.md` includes `agent`, `config`, and `autostart` command notes.
   - `docs/agent.md`: Agent setup, config, hotkeys, tray UX, and logs.
   - `docs/autostart.md`: Start-at-login behavior and refresh strategy.

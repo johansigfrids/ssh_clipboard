@@ -8,6 +8,10 @@ Document how “start at login” works and what `autostart refresh` does.
 - `docs/agent.md`
 - `docs/cli.md`
 
+## Retired Agent Scope
+
+These commands belong to the old opt-in `agent` build and its legacy settings. Normal installed desktop startup is controlled in Settings - Behavior; see [desktop startup](desktop-updates.md#start-at-login). The old agent is [retired](legacy-retirement.md) and is not included in default builds.
+
 ## Commands
 ```
 ssh_clipboard autostart status

@@ -1,5 +1,9 @@
 # Server Setup (Linux)
 
+## Current Installation
+
+For new Linux installations use the signed [managed server maintenance](server-maintenance.md) path. The commands below document the retained single-item daemon/proxy compatibility path; the owner's live server has completed its [clean 0.4 cutover](linux-cutover-acceptance.md). See [legacy retirement](legacy-retirement.md).
+
 ## Purpose
 Explain how to run the daemon on the Linux server and how the SSH-invoked proxy interacts with it.
 

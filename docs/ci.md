@@ -5,7 +5,6 @@ Document the GitHub Actions setup for tests and releases, including build varian
 
 ## Key Files
 - `.github/workflows/ci.yml` (PR/push checks)
-- `.github/workflows/release.yml` (tagged release builds)
 - `.github/workflows/desktop-release.yml` (manual environment-gated Windows and Apple Silicon signed drafts)
 - `.github/workflows/server-release.yml` (manual environment-gated Linux x64 signed drafts)
 - `docs/testing.md` (local test commands and Linux deps)
@@ -34,33 +33,25 @@ On 2026-10-16, a full Windows run exceeded three existing elapsed-time assertion
 
 The `desktop` job checks the isolated Phase 1 prototype on Windows, macOS, and Linux. It uses Node.js 24, the committed npm/Cargo lockfiles, Svelte type/build checks, rendered frontend interaction tests, Rust formatting/lint/tests, and `npm run build:prototype` for a standalone executable with an embedded-asset check. Linux installs WebKitGTK 4.1 and tray/clipboard build dependencies. This job does not publish artifacts or run a native GUI session; OS clipboard/paste and focus/shortcut behavior need separate evidence in [desktop-prototype.md](desktop-prototype.md).
 
-## Release Overview
-- `release.yml` runs on tags matching `v*`.
-- Builds five variants:
-  - `windows-agent`
-  - `mac-agent-arm64` (`aarch64-apple-darwin`)
-  - `mac-agent-x86_64` (`x86_64-apple-darwin`)
-  - `linux-agent`
-  - `linux-server` (`--no-default-features`)
-- Uses explicit `--target` builds so artifact names match architecture deterministically.
-- Packages artifacts per OS and uploads to GitHub Releases with SHA256 checksums.
-  - Agent builds include both `ssh_clipboard` and `ssh_clipboard_agent`.
-- Uses concurrency per tag (`github.ref`) to avoid overlapping release runs.
-- Sets `make_latest: false` so a legacy archive release cannot displace the desktop keyed-feed release; legacy downloads use an explicit `v*` tag.
+## Retired Legacy Publisher
+
+The old automatic `v*` agent/server publisher (`release.yml`) is removed as part of [legacy retirement](legacy-retirement.md). Historical v0.3.0 archives/tags are preserved. Current distribution uses the protected desktop/server draft workflows below; creating a new `v*` tag on current source does not publish an old-agent build.
+
+The existing compatibility matrix remains automated regression coverage. Its agent runners also check the default dependency tree for absence of old agent/tray/startup libraries and execute the default CLI command-surface regression. Existing Linux desktop compilation is not a new native Linux acceptance requirement.
 
 ## Desktop Release Staging
 
-Desktop CI also lints/tests installed features without release credentials and builds a synthetic-key NSIS package on Windows without installing it. The mock framework handoff and bounded download probes run as tests. The separate manual desktop workflow pins actions/toolchain, validates an immutable master commit, and exposes signing credentials only in its protected packaging step. It creates drafts; the owner has configured environment protections/signing inputs, while actual protected signing, publishing and installed/native acceptance remain separate. See [release operations](releasing.md).
+Desktop CI also lints/tests installed features without release credentials and builds a synthetic-key NSIS package on Windows without installing it. The mock framework handoff and bounded download probes run as tests. The separate manual desktop workflow pins actions/toolchain, validates an immutable master commit, and exposes signing credentials only in its protected packaging step. It creates drafts; the owner has configured environment protections/signing inputs, and protected signing/publication and accepted native paths have since passed for the shipped platforms. See [release operations](releasing.md).
 
 The macOS PR job now also builds a release-profile test app with disposable updater trust and an explicit ad-hoc code signature, then checks the extracted bundle identity/version, app/CLI architecture, code signatures and CLI version without starting the GUI. The public package/inspection evidence is retained for seven days after private test-key cleanup. The first probe and all seven jobs passed in [run 38919474529](https://github.com/johansigfrids/ssh_clipboard/actions/runs/38919474529) for PR head `4a05401` (synthetic merge `3c8897a`). A later private actual-Mac CLI/import probe also passed; see [Mac evidence](macos-cutover.md#status). This does not establish GUI installation, paste, startup or updater replacement, and subsequent candidate changes need fresh exact-head CI.
 
-Protected desktop staging validates Windows/macOS without credentials, then builds on both native runners behind the same reviewer environment. Only the final draft job receives release-write permission; it downloads artifacts from its own workflow run and invokes `desktop/scripts/desktop-draft.mjs`. Both platforms must match immutable source, production identity and the independently pinned public trust. One shared keyed feed contains both admitted platform entries. A partial-platform, inconsistent-notes/key/version or existing-tag result cannot create a draft. The expanded production workflow still needs its own successful run.
+Protected desktop staging validates Windows/macOS without credentials, then builds on both native runners behind the same reviewer environment. Only the final draft job receives release-write permission; it downloads artifacts from its own workflow run and invokes `desktop/scripts/desktop-draft.mjs`. Both platforms must match immutable source, production identity and the independently pinned public trust. One shared keyed feed contains both admitted platform entries. A partial-platform, inconsistent-notes/key/version or existing-tag result cannot create a draft. The expanded workflow passed for desktop 0.4.2; see [publication acceptance](release-0.4.2-acceptance.md).
 
 Frontend Node tests now also execute the desktop draft handoff with inert filesystem/GitHub adapters, rejecting wrong/dirty source, debug/test identity, wrong CLI/platform/version, changed bytes/checksums, missing assets, ambiguous stages and existing releases. A temporary Git repository checks clean/dirty/staged/untracked/source-change admission. The Windows synthetic installer checks its public evidence against the exact newly verified package and removes its disposable private key. See [release readiness](release-readiness.md).
 
 ## Server Release Staging
 
-The manual server workflow validates the exact stable core commit on master, pins Rust/actions, and runs headless checks without credentials. A separate `server-release` environment gates the Linux x64 signing step. It builds on Ubuntu 24.04, verifies exact signed bytes/version/platform with the server policy, and creates a `server-v<version>` draft without publishing/overwriting or becoming latest. The credential-free validation job also executes the actual draft handoff with inert adapters, checking source/platform/profile refusal, no overwrite and desktop-feed isolation. Source SHA/profile/key ID/checksum evidence accompanies the package. Other architectures/runtime compatibility and real user-systemd acceptance remain gates. Environment protections/signing inputs are configured, but this workflow has not run on GitHub; the real staging helper has passed locally with synthetic trust on Windows/Ubuntu WSL. See [release setup](releasing.md#signed-server-drafts).
+The manual server workflow validates the exact stable core commit on master, pins Rust/actions, and runs headless checks without credentials. A separate `server-release` environment gates the Linux x64 signing step. It builds on Ubuntu 24.04, verifies exact signed bytes/version/platform with the server policy, and creates a `server-v<version>` draft without publishing/overwriting or becoming latest. The credential-free validation job also executes the actual draft handoff with inert adapters, checking source/platform/profile refusal, no overwrite and desktop-feed isolation. Source SHA/profile/key ID/checksum evidence accompanies the package. The production 0.4.0 workflow, independent signatures, isolated real user-systemd runtime and clean live cutover have passed; see [server acceptance](linux-cutover-acceptance.md). Other architectures are outside the delivered scope and actual live reboot/logout remain unobserved. See [release setup](releasing.md#signed-server-drafts).
 
 ## Released Compatibility Baseline
 

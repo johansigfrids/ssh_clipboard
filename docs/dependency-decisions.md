@@ -38,19 +38,19 @@ Capture high-impact dependency choices, their rationale, and guardrails for futu
   - bump protocol version if needed,
   - update `docs/protocol.md` and release notes.
 
-## Desktop Foundation Candidate (2026-10)
+## Desktop Foundation (2026-10)
 
 ### Windows Startup Command Boundary (2026-10-16)
 
 The installed desktop uses a direct, Windows-only optional `auto-launch` dependency under `installed-desktop`, at the same 0.6.0 version already pinned transitively by Tauri. No package version changed in the lockfile. The pinned Tauri wrapper passes an unquoted executable into that backend's literal command concatenation. The Windows adapter now supplies a quoted absolute path and explicit current-user enable mode; other platforms keep the Tauri manager. Keep the native Windows argument-parser regression, saved-settings rollback tests and actual login evidence separate. A dependency upgrade must recheck the generated command rather than assuming that registry presence proves launchability. See [startup evidence](desktop-updates.md#start-at-login).
 
-### Provisional Decision
+### Accepted Decision for Shipped Platforms
 
-Evaluate Tauri 2 with Svelte/TypeScript in an isolated `desktop/` project before replacing the old agent. This provides a real settings/panel surface with the existing Rust transfer code, while keeping the framework choice reversible. The new project has separate lockfiles and a distinct application identifier. Phase 2 can migrate configuration with exact backups; installed executables and OS startup registrations remain untouched.
+Tauri 2 with Svelte/TypeScript is the shipped Windows/Apple Silicon desktop. Actual owner migration, settings, native text, login/shortcut and installed update acceptance are recorded in [publication acceptance](release-0.4.2-acceptance.md). Separate lockfiles and an explicit desktop identifier remain. The old agent is [retired](legacy-retirement.md); Linux desktop and additional rare manual checks are deferred, not an unresolved framework-selection gate.
 
 ### Guardrails
 
-- Native clipboard ownership, focus/tray/shortcut behavior, and platform packaging must pass the Phase 1 gate before accepting the framework for the shipping app.
+- Preserve the native clipboard ownership, focus/tray/shortcut and package contracts established during acceptance. For a relevant change, use automated evidence first and a targeted native check only where needed.
 - Keep clipboard ownership on one worker thread for the process lifetime; initialize access only on an explicit transfer action. Validate native paste separately from adapter tests.
 - Select a TypeScript version supported by `svelte-check`; the latest TypeScript major was outside its peer range, so the prototype uses TypeScript 6. Commit the npm lockfile and use `npm ci` for reproducibility.
 - Keep the existing client's `time` version in the prototype lockfile while evaluating it, avoiding an unrelated CLI deprecation from a newer compatible release.
@@ -58,7 +58,7 @@ Evaluate Tauri 2 with Svelte/TypeScript in an isolated `desktop/` project before
 - A host consuming the library on Windows opts into `external-resource-owner`. Tauri embeds the executable's resources; embedding them again in the library causes duplicate VERSION records at link time. Normal CLI builds keep their original resources.
 - Wayland currently uses visible alternate entry points, with portal support pending. Do not claim OS shortcut or tray capability from a browser screenshot or a successful compile.
 
-See [the prototype guide](desktop-prototype.md) for current evidence and open checks.
+See [the prototype guide](desktop-prototype.md) for recorded evidence and its limits; the [implementation plan](implementation-plan.md) defines the closed scope and deferred work.
 
 ## Shared Configuration Storage
 

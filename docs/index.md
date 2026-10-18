@@ -19,7 +19,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/desktop-ux-plan.md](desktop-ux-plan.md): Accepted UI/UX review, six scoped implementation PRs, dependencies, and validation criteria.
 - [docs/legacy-retirement.md](legacy-retirement.md): Retired default agent/distribution, preserved 0.4 compatibility and recovery boundaries.
 - [docs/desktop-prototype.md](desktop-prototype.md): Phase 1 source-build prototype, controls, limitations, and platform validation status.
-- [docs/desktop-shortcuts.md](desktop-shortcuts.md): Optional direct transfers, safe recording, grouped registration, and recovery.
+- [docs/desktop-shortcuts.md](desktop-shortcuts.md): Platform key labels, settings keyboard navigation, optional direct transfers, safe recording, and registration recovery.
 - [docs/desktop-notifications.md](desktop-notifications.md): Feedback preferences, private native messages, capability fallback, and retained outcomes.
 - [docs/shared-configuration.md](shared-configuration.md): Shared store, desktop profiles/advanced policy, CLI overrides, live reload, and save/recovery contracts.
 - [docs/configuration-migration.md](configuration-migration.md): Legacy/prototype migration, one-time import review, exact backups, schema 2 settings, preserved preferences, and recovery.
@@ -31,7 +31,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - [docs/shelf-service.md](shelf-service.md): Transport-independent shelf actions, connection admission, deadlines, and stream-based lifecycle evidence.
 - [docs/shelf-server.md](shelf-server.md): Linux endpoint commands, safe socket ownership, bounded stdio bridge, and native process evidence.
 - [docs/shelf-client.md](shelf-client.md): Item-aware session validation, explicit CLI inputs/exports, epoch guards, and bounded SSH lifecycle.
-- [docs/desktop-history.md](desktop-history.md): Explicit endpoint profiles, history selection/mutations, safe copy, private labels, and layout evidence.
+- [docs/desktop-history.md](desktop-history.md): Relative/exact times, stable focus/selection, endpoint profiles, safe mutations/copy, private labels, and layout evidence.
 - [docs/native-history-acceptance.md](native-history-acceptance.md): Closed Windows shelf/migration/cancellation session, observed native results, fixture cleanup, and explicit remaining gaps.
 - [docs/persistent-sessions.md](persistent-sessions.md): Reused SSH ownership, explicit Cancel, bounded metadata Watch/recovery, and no-replay guards.
 - [docs/share-recovery.md](share-recovery.md): Frozen uncertain shares, read-only acknowledgment lookup, explicit retry/discard, and server-enforced deadlines.

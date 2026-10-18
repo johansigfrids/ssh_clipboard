@@ -1,4 +1,4 @@
-:root { font-family: "Segoe UI", system-ui, sans-serif; color: #223044; background: #f7f8fa; font-synthesis: none; text-rendering: optimizeLegibility; --border: #dce1e9; --muted: #64748b; --surface: #fff; --accent: #2763bc; --hover: #edf4ff; --primary-hover: #1c509c; }
+:root { font-family: "Segoe UI", system-ui, sans-serif; color: #223044; background: #f7f8fa; font-synthesis: none; text-rendering: optimizeLegibility; --border: #dce1e9; --muted: #637389; --surface: #fff; --accent: #2763bc; --hover: #edf4ff; --primary-hover: #1c509c; }
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; overflow: hidden; }
 body { margin: 0; }
@@ -6,7 +6,10 @@ button, input, select, textarea { font: inherit; }
 button { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; padding: 8px 12px; min-height: 34px; font-size: 12px; line-height: 1.4; cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
 button:hover:not(:disabled) { border-color: var(--accent); background: var(--hover); }
 button:disabled { opacity: .48; cursor: default; }
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #6295e2; outline-offset: 3px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, [tabindex="-1"]:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+main:focus-visible { outline-offset: -4px; }
+[tabindex="-1"] { scroll-margin: 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .app-shell { height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
 .app-shell.settings-open { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
 header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
@@ -50,9 +53,14 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 190px; overflo
 .history-tools { display: flex; flex-wrap: wrap; gap: 4px; }
 .history-tools button { padding-inline: 6px; }
 .history-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 7px; }
-.history-list li { min-width: 0; }
-.history-list button { display: flex; flex-direction: column; gap: 5px; width: 100%; text-align: left; min-width: 0; padding: 12px; }
-.history-list button.selected { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.history-list li { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.history-list button { display: flex; flex-direction: column; gap: 5px; width: 100%; text-align: left; min-width: 0; padding: 10px 12px 6px; border-color: transparent; background: transparent; }
+.history-list li.selected { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.history-times { padding: 0 12px 8px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.history-times summary { font-size: 11px; padding: 4px 0; width: fit-content; }
+.history-times dl { margin: 4px 0; }
+.history-times dt { font-weight: 600; margin-top: 4px; }
+.history-times dd { margin: 2px 0 0; }
 .history-label { font-size: 13px; overflow-wrap: anywhere; }
 .history-detail { font-size: 10px; font-weight: normal; color: var(--muted); overflow-wrap: anywhere; }
 .settings-navigation { padding: 12px 16px 8px; border-bottom: 1px solid var(--border); min-width: 0; }
@@ -65,9 +73,9 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 190px; overflo
 .migration-summary dt { font-weight: 600; margin-top: 10px; }
 .migration-summary dd { margin: 3px 0 0; color: var(--muted); }
 .migration-summary details { margin-bottom: 16px; }
-nav { display: flex; gap: 4px; }
-nav button { flex: 1; min-width: 0; padding-inline: 5px; background: transparent; border-color: transparent; }
-nav button.active { background: var(--surface); border-color: var(--border); color: var(--accent); }
+.settings-tabs { display: flex; gap: 4px; }
+.settings-tabs button { flex: 1; min-width: 0; padding-inline: 5px; background: transparent; border-color: transparent; }
+.settings-tabs button.active { background: var(--surface); border-color: var(--border); color: var(--accent); }
 .update-versions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; font-size: 13px; }
 .update-versions > * { min-width: 0; overflow-wrap: anywhere; }
 .update-actions { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -17,3 +17,15 @@ test("display shortcut keeps the registered key visible", () => {
   assert.equal(displayShortcut("Control+Shift+KeyV"), "Ctrl + Shift + V");
   assert.equal(displayShortcut("control+alt+KeyC"), "Ctrl + Alt + C");
 });
+
+test("shortcut labels follow the platform without rewriting explicit modifiers or stored bindings", () => {
+  const stored="CommandOrControl+Shift+KeyV";
+  assert.equal(displayShortcut(stored,"macos"),"Cmd + Shift + V");
+  assert.equal(displayShortcut(stored,"windows"),"Ctrl + Shift + V");
+  assert.equal(displayShortcut(stored,"linux"),"Ctrl + Shift + V");
+  assert.equal(displayShortcut("Super+Alt+KeyK","macos"),"Cmd + Option + K");
+  assert.equal(displayShortcut("Super+KeyK","windows"),"Win + K");
+  assert.equal(displayShortcut("Super+KeyK","linux"),"Super + K");
+  assert.equal(displayShortcut("Control+KeyK","macos"),"Ctrl + K");
+  assert.equal(stored,"CommandOrControl+Shift+KeyV");
+});

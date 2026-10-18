@@ -4,7 +4,7 @@
 
 Turn the owner's accepted 2026-10-18 UI/UX review into six independently reviewable PRs. Improve settings confidence, use of space, update information, and everyday interaction while retaining the app's visual identity and explicit transfer model.
 
-**Status: PRs 1-4 merged; PR 5 implemented, pending review; PR 6 planned.** The owner accepted all review recommendations, authorized PRs 1-4's merges after CI, and authorized PR 5. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
+**Status: PRs 1-5 merged; PR 6 implemented, pending review.** The owner accepted all review recommendations, authorized PRs 1-5's merges after CI, and authorized PR 6. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
 
 ## Key Files
 
@@ -195,7 +195,7 @@ Minimum-size light settings (340 x 440 at 100%, scrolled to Advanced's end) and 
 
 ### PR 5: Relevant Messages and Better Settings Grouping
 
-**Delivery record (2026-10-18):** [GitHub PR #16](https://github.com/johansigfrids/ssh_clipboard/pull/16), pending review on `codex/contextual-feedback`. Healthy shelf state is one compact status with details on demand. Routine action confirmations stay in their originating section (in the settings save area), clear on navigation, and expire after five seconds. Errors have their own persistent presentation and explicit acknowledgement; timers never erase retained results, cancellation, capability warnings, or uncertain-share recovery. Panel and direct Share/Copy both retain their last backend outcome before returning/hiding; a compact result precedes recovery/history, with extra sentences in Details and failure detail initially expanded.
+**Delivery record (2026-10-18):** [GitHub PR #16](https://github.com/johansigfrids/ssh_clipboard/pull/16), merged as `034e705` after all seven CI checks passed at head `c957dbd`. Healthy shelf state is one compact status with details on demand. Routine action confirmations stay in their originating section (in the settings save area), clear on navigation, and expire after five seconds. Errors have their own persistent presentation and explicit acknowledgement; timers never erase retained results, cancellation, capability warnings, or uncertain-share recovery. Panel and direct Share/Copy both retain their last backend outcome before returning/hiding; a compact result precedes recovery/history, with extra sentences in Details and failure detail initially expanded.
 
 Behavior now groups Startup first, Clipboard panel, and Shortcut feedback as preferences for this computer across connections. Notification help/Test appear only for notification modes; the explicit test does not apply drafts. Normal tray availability and repeated panel narration are omitted, while unavailable/mismatch/conflict guidance stays. Shortcuts use a Background only cue and shorter complete Share/Copy/recording instructions. Successful registration reports Shortcuts active; errors still identify the affected action.
 
@@ -247,6 +247,28 @@ A failed uncertain share keeps its outcome and expanded detail above recovery:
 **Docs:** update `desktop-notifications.md`, `desktop-shortcuts.md`, `connection-diagnostics.md`, and relevant README wording.
 
 ### PR 6: History Scanning and Keyboard Usability
+
+**Delivery record (2026-10-18):** Implemented on `codex/history-keyboard-ux`, pending review. Rows show relative receipt/expiry, readable binary sizes, and a separate Exact times disclosure. A visible-panel-only 30-second clock preserves epoch/ID keyed rows, selection, focus and disclosure state without IPC. Invalid/imprecise timestamps remain unknown; elapsed local expiry never removes an item or claims server confirmation.
+
+Settings now have complete tab semantics, one Tab stop, Left/Right wrapping and Home/End. Opening/returning, Apply/Discard, selection, errors and confirmations have deliberate focus targets. Escape cancels confirmation/recording before navigating. Passive disappearance recovers focus only after the previously focused control is removed and body focus is observed. Field-help associations, named statuses, theme-aware focus outlines and platform-specific key labels are covered; canonical stored shortcuts and transfer guards are unchanged. Light muted text was darkened slightly after measuring 4.48:1 against the page; its minimum is now 4.55:1. Accent focus contrast is at least 5.49:1 light / 5.70:1 dark against page/surface.
+
+`npm test` passes 103 rendered/formatting contracts and 26 Node/tooling tests (129 total). Deterministic clocks cover boundaries, unsafe/unknown/future times, hidden/unmounted timer cleanup, stable row identity/selection/disclosure/focus, and zero tick IPC. Focus tests cover confirmations, validation, passive removal, epoch/profile changes and navigation guards. `npm run build` passes with zero Svelte errors/warnings; required `cargo clippy --features agent -- -D warnings` passes. Production Rust code is unchanged.
+
+Synthetic browser checks cover four states (ordinary history, long content, unknown/clock-skewed times, Mac display) in both themes at 440 x 670 and 340 x 440: 16 state/theme/size combinations, including all settings sections. No horizontal overflow or save-bar overlap occurs; the first ordinary row ends at y=562 within the content bottom y=629. Keyboard-only navigation covers tab arrows/Home/End, native-form Enter Apply, Discard, recorder Escape, update confirmation cancellation, history selection/disclosure and passive focus loss. The command log contains initial reads, recorder suppression, one explicit Apply, one selection and passive reloads; no copy/share/install/clear/remove command occurs. Relative times are not live announcements. These fixtures use mock IPC; they do not prove native transfers or screen-reader speech.
+
+The bounded Windows native pass uses an uninstalled debug WebView test app `SSHClipboardUXTest.exe`, SHA-256 `caa41edc32ad8625efecba361a3d6b2d563fc7888ed20189e04ce1f6e22660a1`, based on `034e705` plus this PR's frontend. Its identifier is `io.github.johansigfrids.sshclipboard.ux-test`; settings and WebView data stay under ignored `desktop/artifacts/TEST-only-native-ux-yTWJa7/`. The snapshot backend uses an explicit isolated store, no legacy discovery, an empty SSH target, disabled shortcuts/automatic updates and no installed startup capability. Frontend hashes were checked against the working tree before the subsequent light-muted-color-only adjustment. A local receipt retains hashes and steps.
+
+Computer Use confirmed settings entry, Right to Shortcuts, Tab into checkbox/recorder, Ctrl display, draft-only enabling, Return/Escape recorder cancellation, Discard focus followed by End to Updates, Escape returning focus to Open settings, and test-app Quit. Screenshots confirm visible focus at the owner's current Windows scaling; no scale setting was changed and no other DPI/monitor configuration was tested. No Apply, SSH, clipboard or startup action occurred, and the production settings hash was unchanged. Mac native focus/scaling, global registration and a full screen-reader pass remain gaps; Mac display is fixture-tested. No installation, release or published asset was changed.
+
+Before/after at 440 x 670, dark theme, browser scale 100%, using merged PR 5 (`034e705`) and the same synthetic history. The after image includes the new visible main-content focus outline:
+
+| Before | After |
+| --- | --- |
+| ![Dense absolute timestamps and KiB-only sizes](images/desktop-ux-pr6/history-before.png) | ![Relative times, readable units and exact-time disclosures](images/desktop-ux-pr6/history-after.png) |
+
+| Exact times by keyboard | Focus at minimum size, light theme |
+| --- | --- |
+| ![Independent exact-time disclosure with keyboard focus](images/desktop-ux-pr6/history-exact.png) | ![Focused Shortcuts tab with persistent settings actions](images/desktop-ux-pr6/shortcuts-light-minimum.png) |
 
 **Problem:** history rows contain dense absolute timestamps, and current focus/navigation behavior has not received a focused review.
 

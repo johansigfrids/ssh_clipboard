@@ -55,6 +55,196 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("quick panel contracts", () => {
+  it("explicit failures focus their persistent message and Dismiss restores the settings tab", async () => {
+    const normal=bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name,args)=>name==="test_connection"?Promise.reject(new Error("Synthetic connection failure")):normal(name,args));
+    state.settings.target="hub";
+    render(App);await screen.findByText("hub");
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Test saved connection"}));
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("alert")));
+    expect(screen.getByRole("alert").textContent).toContain("Synthetic connection failure");
+    await fireEvent.click(screen.getByRole("button",{name:"Dismiss message"}));
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("tab",{name:"Connection",exact:true})));
+  });
+
+  it("a replaced update offer removes confirmation and recovers focus without installing", async () => {
+    state.updateStatus={...state.updateStatus,available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",phase:"ready"};
+    render(App);await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Updates"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Install update…"}));
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("button",{name:"Install and restart"})));
+    bridge.listen.mock.calls.find(([name])=>name==="update-state")![1]({payload:{...state.updateStatus,offeredVersion:"3.0.0",phase:"offered"}});
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("tab",{name:"Updates"})));
+    expect(screen.queryByRole("group",{name:"Install update confirmation"})).toBeNull();
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+  });
+
+  it("completion of a passive operation recovers a removed Cancel control without a command", async () => {
+    render(App);await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    const changed=bridge.listen.mock.calls.find(([name])=>name==="operation-state")![1];
+    changed({payload:{generation:"1",active:{id:"1",label:"Sharing",cancellable:true,cancelling:false}}});
+    const cancel=await screen.findByRole("button",{name:"Cancel operation"});cancel.focus();
+    changed({payload:{generation:"2",active:null}});
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("main",{name:"Clipboard panel"})));
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+  });
+
+  it("settings tabs expose one panel and one tab stop with arrows, Home and End", async () => {
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    const connection=screen.getByRole("tab",{name:"Connection",exact:true});
+    await waitFor(()=>expect(document.activeElement).toBe(connection));
+    expect(screen.getByRole("tablist",{name:"Settings sections"})).toBeTruthy();
+    for(const tab of screen.getAllByRole("tab")) {
+      expect(tab.tabIndex).toBe(tab===connection?0:-1);
+      expect(tab.getAttribute("aria-controls")).toBe(screen.getByRole("tabpanel").id);
+    }
+    await fireEvent.keyDown(connection,{key:"ArrowRight"});
+    const shortcuts=screen.getByRole("tab",{name:"Shortcuts",exact:true});
+    await waitFor(()=>expect(document.activeElement).toBe(shortcuts));
+    expect(shortcuts.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe(shortcuts.id);
+    await fireEvent.keyDown(shortcuts,{key:"End"});
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("tab",{name:"Updates",exact:true})));
+    await fireEvent.keyDown(document.activeElement!,{key:"ArrowRight"});
+    await waitFor(()=>expect(document.activeElement).toBe(connection));
+    await fireEvent.keyDown(connection,{key:"ArrowLeft"});
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("tab",{name:"Updates",exact:true})));
+    await fireEvent.keyDown(document.activeElement!,{key:"Home"});
+    await fireEvent.keyDown(window,{key:"Escape"});
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("button",{name:"Open settings"})));
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+  });
+
+  it("relative ticks retain row identity, selection, disclosure state and clipboard command silence", async () => {
+    const now=Date.UTC(2026,9,18,12);
+    state.settings.target="hub";
+    state.history={epoch:"epoch-1",selectedId:"one",items:[{id:"one",label:"Saved item",kind:"text",encodedBytes:1048576,source:"Laptop",receivedAt:String(now-90000),expiresAt:String(now+90000)}]};
+    vi.useFakeTimers();vi.setSystemTime(now);
+    const rendered=render(App);
+    await vi.advanceTimersByTimeAsync(0);
+    // Visibility refresh samples the clock without an IPC request.
+    await fireEvent(document,new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(30000);
+    const row=screen.getByRole("button",{name:/Saved item.*Laptop/});
+    const disclosure=screen.getByText("Exact times",{exact:false}).closest("details")!;
+    disclosure.open=true;row.focus();
+    expect(row.getAttribute("aria-pressed")).toBe("true");
+    expect(row.textContent).toContain("1.0 MiB");
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(screen.getByRole("button",{name:/Saved item.*Laptop/})).toBe(row);
+    expect(document.activeElement).toBe(row);expect(disclosure.open).toBe(true);
+    expect(screen.getByText(/Past expiry \(local clock\)/)).toBeTruthy();
+    expect(row.closest("li")!.querySelector('[aria-live="off"]')).toBeTruthy();
+    expect(screen.getByText(new Date(now-90000).toLocaleString())).toBeTruthy();
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+    rendered.unmount();await vi.advanceTimersByTimeAsync(0);expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("hidden history clocks pause and resume without fetching or changing selection", async () => {
+    const now=Date.UTC(2026,9,18,12);vi.useFakeTimers();vi.setSystemTime(now);
+    let visibility: DocumentVisibilityState="visible";
+    vi.spyOn(document,"visibilityState","get").mockImplementation(()=>visibility);
+    state.settings.target="hub";state.history={epoch:"epoch",selectedId:"one",items:[{id:"one",label:"Clock item",kind:"text",encodedBytes:1,source:null,receivedAt:String(now),expiresAt:String(now+60000)}]};
+    render(App);await vi.advanceTimersByTimeAsync(0);
+    expect(screen.getByText(/Just now/)).toBeTruthy();
+    visibility="hidden";await fireEvent(document,new Event("visibilitychange"));await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(120000);expect(screen.getByText(/Just now/)).toBeTruthy();
+    visibility="visible";await fireEvent(document,new Event("visibilitychange"));await vi.advanceTimersByTimeAsync(0);
+    expect(screen.getByText(/2 minutes ago/)).toBeTruthy();
+    expect(screen.getByRole("button",{name:/Clock item/}).getAttribute("aria-pressed")).toBe("true");
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+  });
+
+  it("passive history replies preserve existing focus and recover only when its row disappears", async () => {
+    state.settings.target="hub";state.history={epoch:"epoch",selectedId:"one",items:[{id:"one",label:"Focus item",kind:"text",encodedBytes:1,source:null,receivedAt:"100",expiresAt:"200"}]};
+    render(App);
+    const row=await screen.findByRole("button",{name:/Focus item/});row.focus();
+    const changed=bridge.listen.mock.calls.find(([name])=>name==="settings-changed")![1];
+    changed();await waitFor(()=>expect(bridge.invoke).toHaveBeenCalledTimes(3));
+    expect(document.activeElement).toBe(row);
+    state.history.items=[];state.history.selectedId=null;changed();
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("heading",{name:"Temporary history 0"})));
+    expect(screen.getByRole("status",{name:"History selection"}).textContent).toContain("no longer available");
+    expect(bridge.invoke.mock.calls.every(([name])=>["get_operation","get_panel"].includes(name))).toBe(true);
+  });
+
+  it("history selection moves focus to the preview while preserving the selected ID and revision guard", async () => {
+    state.settings.target="hub";state.settingsRevision="7";
+    state.history={epoch:"epoch",selectedId:"one",items:[{id:"one",label:"Select me",kind:"text",encodedBytes:4,source:"Laptop",receivedAt:"100",expiresAt:"200"}]};
+    const normal=bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name,args)=>{
+      if(name==="select_item")state.item={kind:"text",label:"Select me",text:"Data",imageUrl:null,encodedBytes:4,createdAt:100};
+      return normal(name,args);
+    });
+    render(App);const row=await screen.findByRole("button",{name:/Select me.*Laptop/});
+    row.focus();await fireEvent.click(row);
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("heading",{name:"Select me"})));
+    expect(bridge.invoke.mock.calls.find(([name])=>name==="select_item")![1]).toEqual({itemId:"one",epoch:"epoch",expectedRevision:"7"});
+    expect(bridge.invoke.mock.calls.some(([name])=>["copy_item","share_clipboard"].includes(name))).toBe(false);
+  });
+
+  it("epoch/profile replacement recovers removed history focus without transferring", async () => {
+    state.settings.target="hub";state.history={epoch:"old",selectedId:"one",items:[{id:"one",label:"Epoch item",kind:"text",encodedBytes:1,source:null,receivedAt:"100",expiresAt:"200"}]};
+    render(App);const row=await screen.findByRole("button",{name:/Epoch item/});row.focus();
+    const changed=bridge.listen.mock.calls.find(([name])=>name==="settings-changed")![1];
+    state.history.epoch="new";changed();
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("heading",{name:"Temporary history 1"})));
+    expect(screen.getByRole("button",{name:/Epoch item/})).not.toBe(row);
+    state.history=null;state.settings.target="other";changed();
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("main",{name:"Clipboard panel"})));
+    expect(bridge.invoke.mock.calls.every(([name])=>["get_operation","get_panel"].includes(name))).toBe(true);
+  });
+
+  it("platform shortcut labels and field-help relationships remain local presentation", async () => {
+    state.platform="macos";state.activeShortcut="CommandOrControl+Shift+KeyV";
+    render(App);await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    expect(screen.getByText("Cmd + Shift + V")).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    for(const section of ["Connection","Shortcuts","Behavior","Updates"]){
+      await fireEvent.click(screen.getByRole("tab",{name:section,exact:true}));
+      for(const element of document.querySelectorAll('[aria-describedby]'))for(const id of element.getAttribute("aria-describedby")!.split(/\s+/))expect(document.getElementById(id)).not.toBeNull();
+    }
+    await fireEvent.click(screen.getByRole("tab",{name:"Shortcuts",exact:true}));
+    expect(screen.getByLabelText("Open panel").textContent).toBe("Cmd + Shift + V");
+    expect(state.settings.openShortcut).toBe("CommandOrControl+Shift+V");
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+  });
+
+  it("history confirmations restore focus on Escape and successful mutation", async () => {
+    state.settings.target="hub";state.history={epoch:"epoch",selectedId:"one",items:[{id:"one",label:"Item",kind:"text",encodedBytes:1,source:null,receivedAt:"100",expiresAt:"200"}]};
+    render(App);await screen.findByRole("button",{name:"Clear history…"});
+    await fireEvent.click(screen.getByRole("button",{name:"Clear history…"}));
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("button",{name:"Clear history",exact:true})));
+    await fireEvent.keyDown(window,{key:"Escape"});
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("button",{name:"Clear history…"})));
+    expect(screen.queryByRole("group",{name:"History removal confirmation"})).toBeNull();
+    await fireEvent.click(screen.getByRole("button",{name:"Clear history…"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Clear history",exact:true}));
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("heading",{name:"Temporary history 1"})));
+    expect(bridge.invoke.mock.calls.find(([name])=>name==="clear_history")![1]).toEqual({epoch:"epoch",expectedRevision:null});
+  });
+
+  it("profile and install confirmation cancellation returns focus without committing", async () => {
+    state.settingsSaved=true;state.settings.target="hub";state.profiles.push({...state.profiles[0],id:"two",name:"Other"});
+    state.updateStatus={...state.updateStatus,available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",phase:"ready"};
+    render(App);await screen.findByText("hub");await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Remove…"}));
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("button",{name:"Remove connection",exact:true})));
+    await fireEvent.keyDown(window,{key:"Escape"});
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("button",{name:"Remove…"})));
+    await fireEvent.click(screen.getByRole("tab",{name:"Updates",exact:true}));
+    await fireEvent.click(screen.getByRole("button",{name:"Install update…"}));
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("button",{name:"Install and restart"})));
+    await fireEvent.keyDown(window,{key:"Escape"});
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("button",{name:"Install update…"})));
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+  });
+
   it("routine confirmations expire, are scoped to their section, and clean up on unmount", async () => {
     const rendered=render(App);
     await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
@@ -70,9 +260,9 @@ describe("quick panel contracts", () => {
     expect(screen.queryByText("Settings applied.")).toBeNull();
     await fireEvent.click(screen.getByRole("button",{name:"Restore advanced defaults"}));
     expect(screen.getByText("Advanced defaults restored in your draft.")).toBeTruthy();
-    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Behavior",exact:true}));
     expect(screen.queryByText("Advanced defaults restored in your draft.")).toBeNull();
-    await fireEvent.click(screen.getByRole("button",{name:"Shortcuts",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Shortcuts",exact:true}));
     await fireEvent.click(screen.getByRole("button",{name:"Restore default shortcut"}));
     await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(1);
@@ -89,11 +279,11 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Behavior",exact:true}));
     await fireEvent.change(screen.getByLabelText("Feedback after shortcut actions"),{target:{value:"errors"}});
     await fireEvent.click(screen.getByRole("button",{name:"Test notification"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Shortcuts",exact:true}));
-    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Shortcuts",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Behavior",exact:true}));
     finish(structuredClone(state));
     await waitFor(()=>expect(screen.getByRole("button",{name:"Back"}).hasAttribute("disabled")).toBe(false));
     expect(screen.queryByText("Test notification submitted to the system.")).toBeNull();
@@ -114,7 +304,7 @@ describe("quick panel contracts", () => {
     bridge.listen.mock.calls.find(([name])=>name==="operation-notice")![1]({payload:"Shortcut cleanup failed. Quit and reopen."});
     await vi.advanceTimersByTimeAsync(10000);
     expect(screen.getByRole("alert").textContent).toContain("Shortcut cleanup failed");
-    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Behavior",exact:true}));
     await fireEvent.click(screen.getByRole("button",{name:"Back"}));
     expect(screen.getByRole("alert").textContent).toContain("Shortcut cleanup failed");
   });
@@ -126,7 +316,7 @@ describe("quick panel contracts", () => {
     await screen.findByRole("region",{name:"Latest transfer result"});
     vi.useFakeTimers();
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Behavior",exact:true}));
     await fireEvent.change(screen.getByLabelText("Feedback after shortcut actions"),{target:{value:"off"}});
     await fireEvent.click(screen.getByRole("button",{name:"Apply settings"}));
     await vi.advanceTimersByTimeAsync(0);
@@ -151,7 +341,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Behavior",exact:true}));
     await fireEvent.change(screen.getByLabelText("Feedback after shortcut actions"),{target:{value:mode}});
     expect(screen.getByText("Startup differs from the saved choice.")).toBeTruthy();
     expect(screen.getByText("Unavailable: reopen through the launcher.")).toBeTruthy();
@@ -161,7 +351,7 @@ describe("quick panel contracts", () => {
       expect(screen.getByText("This build shows results in the panel.").closest("details")!.open).toBe(true);
       expect(screen.getByText(/Sends a test now, without applying your draft/)).toBeTruthy();
     } else expect(test).toBeNull();
-    await fireEvent.click(screen.getByRole("button",{name:"Shortcuts",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Shortcuts",exact:true}));
     expect(screen.getByText(/Copy shared clipboard could not be registered/)).toBeTruthy();
     expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
   });
@@ -174,7 +364,7 @@ describe("quick panel contracts", () => {
     expect(screen.queryByText("Server reachable")).toBeNull();
     expect(screen.getByText("History is up to date.").closest("details")!.open).toBe(false);
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Behavior",exact:true}));
     expect(screen.queryByText("Tray menu")).toBeNull();
     expect(screen.getByRole("checkbox",{name:"Start at login"}).compareDocumentPosition(screen.getByRole("checkbox",{name:"Show content previews"}))&Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
@@ -236,7 +426,7 @@ describe("quick panel contracts", () => {
     await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
     await fireEvent.input(screen.getByLabelText("Timeout (milliseconds)"),{target:{value:"bad"}});
-    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Behavior",exact:true}));
     await fireEvent.click(screen.getByLabelText("Show content previews"));
     await fireEvent.click(screen.getByRole("button",{name:"Apply settings"}));
     await screen.findByRole("alert");
@@ -244,7 +434,7 @@ describe("quick panel contracts", () => {
     await waitFor(()=>expect(document.activeElement).toBe(timeout));
     expect(timeout.closest("details")!.open).toBe(true);expect(timeout.value).toBe("bad");
     expect(state.settings.showPreview).toBe(true);
-    await fireEvent.click(screen.getByRole("button",{name:"Behavior",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Behavior",exact:true}));
     expect((screen.getByLabelText("Show content previews") as HTMLInputElement).checked).toBe(false);
     expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel","apply_settings","get_panel"]);
   });
@@ -254,7 +444,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Updates",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Updates",exact:true}));
     const summary=screen.getByRole("region",{name:"What's new"});
     expect(summary.querySelectorAll("li")).toHaveLength(2);
     expect(screen.getByText("<script>window.hacked = true</script>").tagName).toBe("LI");
@@ -271,7 +461,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Updates",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Updates",exact:true}));
     const action=screen.getByRole("button",{name:"Download update"});
     const disclosure=document.querySelector("details.update-notes") as HTMLDetailsElement | null;
     if(notes) {
@@ -298,7 +488,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Updates",exact:true}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Updates",exact:true}));
     expect(screen.getByRole("button",{name:action,exact:true}).hasAttribute("disabled")).toBe(busy);
     expect(screen.getByRole("button",{name:"Check for updates"}).hasAttribute("disabled")).toBe(busy);
     if(phase==="downloading")expect(screen.getByText("512 B of 1.0 KiB")).toBeTruthy();
@@ -316,7 +506,7 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     expect(screen.getByText("All changes saved")).toBeTruthy();
     await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "draft-hub" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Behavior" }));
     await fireEvent.click(screen.getByLabelText("Show content previews"));
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
     expect(screen.queryByText("All changes saved")).toBeNull();
@@ -329,7 +519,7 @@ describe("quick panel contracts", () => {
     bridge.listen.mock.calls.find(([name]) => name === "navigate")![1]({ payload: "panel" });
     await fireEvent.click(screen.getByRole("button", { name: "Return to settings" }));
     expect((screen.getByLabelText("Show content previews") as HTMLInputElement).checked).toBe(false);
-    await fireEvent.click(screen.getByRole("button", { name: "Connection" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Connection" }));
     expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("draft-hub");
     await fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByRole("region", { name: "Unsaved settings" })).toBeTruthy();
@@ -348,9 +538,9 @@ describe("quick panel contracts", () => {
     await screen.findByText("saved-hub");
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     await fireEvent.input(screen.getByLabelText("Connection name"), { target: { value: "Work" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Behavior" }));
     await fireEvent.click(screen.getByLabelText("Hide panel after copying"));
-    await fireEvent.click(screen.getByRole("button", { name: "Updates" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Updates" }));
     const savebar = screen.getByRole("region", { name: "Settings changes" });
     expect(savebar.closest("main")).toBeNull();
     expect(screen.getByRole("button", { name: "Install update…" }).hasAttribute("disabled")).toBe(true);
@@ -379,7 +569,7 @@ describe("quick panel contracts", () => {
     const changed = bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1];
     changed();
     await waitFor(() => expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(false));
-    await fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     await fireEvent.click(screen.getByLabelText("Open panel"));
     await screen.findByText("Press a shortcut · Esc to cancel");
     await submit();
@@ -399,7 +589,7 @@ describe("quick panel contracts", () => {
     expect(screen.getByText("Saved settings changed")).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Connection" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Connection" }));
     expect((screen.getByLabelText("SSH alias or user@host") as HTMLInputElement).value).toBe("cli-hub");
     expect(screen.queryByText("Unsaved changes")).toBeNull();
   });
@@ -413,9 +603,9 @@ describe("quick panel contracts", () => {
     await screen.findByText("saved-hub");
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     await fireEvent.input(screen.getByLabelText("Connection name"), { target: { value: "Work" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     await fireEvent.click(screen.getByRole("button", { name: "Restore default shortcut" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Updates" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Updates" }));
     await fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Download update" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button", { name: "Download update" }));
@@ -432,7 +622,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Updates"}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Updates"}));
     const heading=document.querySelector("main")!.firstElementChild;
     const notes=screen.getByText("Retained release notes");
     const download=screen.getByRole("button",{name:"Download update"});
@@ -462,7 +652,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(()=>expect(screen.getByRole("button",{name:"Quit"}).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Updates"}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Updates"}));
     expect(screen.getByText("<script>never executed</script>").tagName).toBe("PRE");
     expect(document.querySelector("main script")).toBeNull();
     expect(bridge.invoke.mock.calls.some(([name])=>name==="install_update")).toBe(false);
@@ -480,7 +670,7 @@ describe("quick panel contracts", () => {
     const next={available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",notes:"Notes",phase:"offered",detail:"Available",busy:false,downloadedBytes:0,totalBytes:null};
     bridge.listen.mock.calls.find(([name])=>name==="update-state")![1]({payload:next});
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Updates"}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Updates"}));
     expect(screen.getByRole("button",{name:"Download update"})).toBeTruthy();
     expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
     state.pendingShare={id:"uncertain",canRetry:true};
@@ -495,7 +685,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(()=>expect(screen.getByRole("button",{name:"Quit"}).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.click(screen.getByRole("button",{name:"Updates"}));
+    await fireEvent.click(screen.getByRole("tab",{name:"Updates"}));
     await fireEvent.click(screen.getByRole("button",{name:"Install update…"}));
     bridge.listen.mock.calls.find(([name])=>name==="operation-state")![1]({payload:{generation:"1",active:{id:"1",label:"Sharing",cancellable:true,cancelling:false}}});
     await waitFor(()=>expect(screen.getByRole("button",{name:"Install and restart"}).hasAttribute("disabled")).toBe(true));
@@ -508,7 +698,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(await screen.findByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Behavior" }));
     const checkbox = screen.getByRole("checkbox", { name: "Start at login" }) as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
     expect(bridge.invoke.mock.calls.some(([name]) => name === "set_start_at_login")).toBe(false);
@@ -541,7 +731,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(await screen.findByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Behavior" }));
     expect((screen.getByRole("checkbox", { name: "Start at login" }) as HTMLInputElement).disabled).toBe(true);
     await fireEvent.click(screen.getByLabelText("Show content previews"));
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
@@ -557,7 +747,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Behavior" }));
     await fireEvent.click(screen.getByLabelText("Start at login"));
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
     await fireEvent.click(screen.getByLabelText("Start at login"));
@@ -576,7 +766,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Behavior" }));
     await fireEvent.click(screen.getByLabelText("Start at login"));
     state.settingsRevision = "8";
     bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
@@ -595,7 +785,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Behavior" }));
     await fireEvent.click(screen.getByLabelText("Start at login"));
     await fireEvent.click(screen.getByLabelText("Show content previews"));
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
@@ -782,7 +972,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Behavior" }));
     expect(screen.queryByRole("button", { name: "Test notification" })).toBeNull();
     await fireEvent.change(screen.getByLabelText("Feedback after shortcut actions"), { target: { value: "all" } });
     expect(screen.getByRole("button", { name: "Test notification" }).hasAttribute("disabled")).toBe(true);
@@ -805,7 +995,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Behavior" }));
     await fireEvent.change(screen.getByLabelText("Feedback after shortcut actions"), { target: { value: "errors" } });
     await fireEvent.click(screen.getByRole("button", { name: "Test notification" }));
     await screen.findByText("Test notification submitted to the system.");
@@ -818,12 +1008,12 @@ describe("quick panel contracts", () => {
   it("quiet-mode results survive reopening and repeated outcomes replace older UI feedback", async () => {
     state.operationNotice = { id: "1", message: "Shared clipboard copied to this computer.", failed: false };
     render(App);
-    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Shared clipboard copied to this computer.");
+    expect(await screen.findByRole("status", { name: "Transfer result" })).toHaveProperty("textContent", "Shared clipboard copied to this computer.");
     bridge.listen.mock.calls.find(([name]) => name === "operation-notice")![1]({ payload: "Older UI feedback" });
     await screen.findByText("Older UI feedback");
     state.operationNotice = { id: "2", message: "Shared clipboard copied to this computer.", failed: false };
     bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
-    await waitFor(() => expect(screen.getByRole("status")).toHaveProperty("textContent", "Shared clipboard copied to this computer."));
+    await waitFor(() => expect(screen.getByRole("status", { name: "Transfer result" })).toHaveProperty("textContent", "Shared clipboard copied to this computer."));
     expect(screen.getByRole("alert").textContent).toContain("Older UI feedback");
     await fireEvent.click(screen.getByRole("button", { name: "Dismiss message" }));
     expect(screen.queryByText("Older UI feedback")).toBeNull();
@@ -836,7 +1026,7 @@ describe("quick panel contracts", () => {
     render(App);
     await screen.findByText("hub");
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     const share = screen.getByLabelText("Share current clipboard") as HTMLButtonElement;
     expect(share.disabled).toBe(true);
     expect((screen.getByLabelText("Enable direct shortcuts") as HTMLInputElement).checked).toBe(false);
@@ -866,7 +1056,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     await fireEvent.click(screen.getByLabelText("Copy shared clipboard"));
     await screen.findByText("Press a shortcut · Esc to cancel");
     await fireEvent.keyDown(window, { key: "x", code: "KeyX", ctrlKey: true, repeat: true });
@@ -889,7 +1079,7 @@ describe("quick panel contracts", () => {
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Shortcuts" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     await fireEvent.click(screen.getByLabelText("Open panel"));
     await waitFor(() => expect(acknowledge).toBeTypeOf("function"));
     await fireEvent.blur(window);
@@ -904,10 +1094,10 @@ describe("quick panel contracts", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
     const press = bridge.listen.mock.calls.find(([name]) => name === "shortcut-pressed")![1];
     press({ payload: { binding: "Control+Alt+KeyC", openPanel: false } });
-    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Direct shortcuts work while this app is in the background. Use the panel buttons here.");
+    expect(await screen.findByRole("status", { name: "Action result" })).toHaveProperty("textContent", "Direct shortcuts work while this app is in the background. Use the panel buttons here.");
     state.operationNotice = { id: "1", message: "Current clipboard shared.", failed: false };
     bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
-    await waitFor(() => expect(screen.getByRole("status")).toHaveProperty("textContent", "Current clipboard shared."));
+    await waitFor(() => expect(screen.getByRole("status", { name: "Transfer result" })).toHaveProperty("textContent", "Current clipboard shared."));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "get_panel"]);
   });
@@ -989,7 +1179,7 @@ describe("quick panel contracts", () => {
     render(App);
     await screen.findByText("Old snapshot");
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.change(screen.getByLabelText("Connection"), { target: { value: "other" } });
+    await fireEvent.change(screen.getByRole("combobox", { name: "Connection", exact: true }), { target: { value: "other" } });
     expect((screen.getByLabelText("Connection name") as HTMLInputElement).value).toBe("Other account");
     expect((screen.getByLabelText(/Identity file/) as HTMLInputElement).value).toBe("other/key");
     expect(screen.getByRole("button", { name: "Test saved connection" }).hasAttribute("disabled")).toBe(true);
@@ -1032,7 +1222,7 @@ describe("quick panel contracts", () => {
     await screen.findByText("Settings applied.");
     expect(bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1].settings.profileId).toBeNull();
     expect(state.profiles).toHaveLength(3);
-    expect((screen.getByLabelText("Connection") as HTMLSelectElement).value).toBe("new-profile");
+    expect((screen.getByRole("combobox", { name: "Connection", exact: true }) as HTMLSelectElement).value).toBe("new-profile");
   });
 
   it("removal requires confirmation, carries the revision, and clears the old preview", async () => {
@@ -1058,7 +1248,7 @@ describe("quick panel contracts", () => {
     render(App);
     await screen.findByText("shared-hub");
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.change(screen.getByLabelText("Connection"), { target: { value: "other" } });
+    await fireEvent.change(screen.getByRole("combobox", { name: "Connection", exact: true }), { target: { value: "other" } });
     state.profiles.pop();
     state.settingsRevision = "5";
     bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
@@ -1136,7 +1326,7 @@ describe("quick panel contracts", () => {
     render(App);
     await screen.findByText("shared-hub");
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Behavior", exact: true }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Behavior", exact: true }));
     await fireEvent.click(screen.getByLabelText("Show content previews"));
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
     await screen.findByText("Settings applied.");

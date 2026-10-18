@@ -74,6 +74,14 @@ Optional Port and Identity file now live inside Advanced without changing their 
 
 The 2026-10-18 PR 4 browser pass covers both themes at 440 x 670, 340 x 440, and 700 x 900. At minimum size, settings retain about 164 CSS pixels of scrollable content before a dirty-state helper appears. A 352 x 536 CSS viewport with device scale 1.25 checks a 125%-equivalent rendering of a 440 x 670 window. Navigation/save actions do not overlap the form; collapsed Port validation and backend Timeout recovery work in the browser. This is synthetic browser evidence, not new native Windows/Mac scaling or clipboard evidence. See [the delivery record and screenshots](desktop-ux-plan.md#pr-4-compact-layout-and-consistent-buttons).
 
+## Keyboard and Focus
+
+Settings navigation is an associated tablist/tabpanel with selected state, one Tab stop, wrapping Left/Right, and Home/End. Opening settings and completing Apply/Discard focus the active tab; Back/Escape return to Open settings. Confirmations and recorders consume Escape before page navigation. Selecting history focuses the preview; removing a focused row passively recovers to history/main only after focus is lost, preserving ordinary focus and open exact-time disclosures on metadata ticks.
+
+Explicit command failures focus their persistent error unless a known Advanced field already received focus. Late replies cannot move focus after navigation. Connection, action, transfer, and lost-selection statuses are separately named; relative clocks are not live regions. Field help is explicitly associated with its input. Focus outlines use the theme accent; the light muted token was slightly darkened to keep small text above 4.5:1 on the page background. The checked text/muted minima are 12.55/4.55:1 (light) and 11.10/6.22:1 (dark); accent focus minima against page/surface are 5.49:1 and 5.70:1. This is a token check, not a whole-app accessibility certification.
+
+See [PR 6 evidence](desktop-ux-plan.md#pr-6-history-scanning-and-keyboard-usability) for browser keyboard/layout checks and the bounded isolated Windows WebView pass. Native Mac focus/scaling and a full screen-reader pass remain unverified. Prevent regressions by retaining the complete tab keyboard contract and guarding passive focus recovery on actual element removal plus body focus, rather than resetting focus on every refresh.
+
 ## Privacy and Limits
 
 - Clipboard text is rendered as text, not HTML. Labels use the first non-empty line, capped at 60 characters; text previews cap at 2,000 characters. Display truncation does not alter copied bytes.

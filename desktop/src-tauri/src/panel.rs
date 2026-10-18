@@ -643,28 +643,38 @@ fn configure_shortcut(
 async fn apply_settings(
     app: AppHandle,
     state: State<'_, Desktop>,
-    mut settings: SessionSettings,
+    settings: SessionSettings,
     expected_revision: Option<String>,
+    start_at_login: Option<bool>,
 ) -> Result<PanelView, String> {
-    settings.target = settings.target.trim().into();
-    settings.validate()?;
     let mut session = state
         .session
         .try_lock()
         .map_err(|_| "Wait for the current operation to finish.".to_string())?;
-    session.check_revision(expected_revision.as_deref()).map_err(|_| "Saved settings changed while you were editing. Discard your draft to load them before applying changes.".to_string())?;
-    if let Some(notice) = &session.settings_notice {
-        return Err(notice.clone());
-    }
     let store = state
         .config_store
         .as_ref()
         .ok_or("The settings location is unavailable.")?;
-    let mut next_config = session.saved_config.clone().unwrap_or_default();
-    settings.update_configuration(&mut next_config)?;
-    save_configuration(&mut session, store, next_config, |session, settings| {
-        configure_shortcut(&app, session, settings)
-    })?;
+    let result = apply_settings_draft(
+        &mut session,
+        store,
+        settings,
+        expected_revision.as_deref(),
+        start_at_login,
+        StartupAccess {
+            registry: &crate::startup_native::NativeRegistry(&app),
+            available: crate::startup_native::available(),
+        },
+        |session, settings| configure_shortcut(&app, session, settings),
+    );
+    session.startup_status = crate::startup_native::status(
+        &app,
+        session
+            .saved_config
+            .as_ref()
+            .is_some_and(|config| config.preferences.start_at_login),
+    );
+    result?;
     sync_monitor(&state, &mut session);
     session.view()
 }
@@ -706,53 +716,46 @@ async fn acknowledge_migration_summary(
     session.view()
 }
 
-#[tauri::command]
-async fn set_start_at_login(
-    app: AppHandle,
-    state: State<'_, Desktop>,
-    enabled: bool,
-    expected_revision: Option<String>,
-) -> Result<PanelView, String> {
-    let mut session = state
-        .session
-        .try_lock()
-        .map_err(|_| "Wait for the current operation to finish.")?;
-    session.check_revision(expected_revision.as_deref())?;
+struct StartupAccess<'a> {
+    registry: &'a dyn ssh_clipboard_desktop_prototype::startup::Registry,
+    available: bool,
+}
+
+fn apply_settings_draft(
+    session: &mut Session,
+    store: &ConfigStore,
+    mut settings: SessionSettings,
+    expected_revision: Option<&str>,
+    start_at_login: Option<bool>,
+    startup: StartupAccess<'_>,
+    configure: impl FnMut(&mut Session, &SessionSettings) -> Result<String, String>,
+) -> Result<(), String> {
+    settings.target = settings.target.trim().into();
+    settings.validate()?;
+    session.check_revision(expected_revision).map_err(|_| "Saved settings changed while you were editing. Discard your draft to load them before applying changes.".to_string())?;
     if let Some(notice) = &session.settings_notice {
         return Err(notice.clone());
     }
-    if !crate::startup_native::available() {
+    if start_at_login.is_some() && !startup.available {
         return Err("Start at login is available in installed release builds.".into());
     }
-    let store = state
-        .config_store
-        .as_ref()
-        .ok_or("The settings location is unavailable.")?;
-    let mut next = session.saved_config.clone().unwrap_or_default();
-    next.preferences.start_at_login = enabled;
-    // Prepare/check the config revision before touching the native entry.
-    let prepared = store
-        .prepare(session.saved_config.as_ref(), next)
-        .map_err(|e| e.to_string())?;
-    let result = ssh_clipboard_desktop_prototype::startup::change(
-        &crate::startup_native::NativeRegistry(&app),
-        enabled,
-        || prepared.commit().map_err(|e| e.to_string()),
-    );
-    if let Ok(saved) = &result {
-        // Only this preference changed: avoid re-registering shortcuts or clearing shelf state.
-        session.saved_config = Some(saved.clone());
-        sync_monitor(&state, &mut session);
+    // Parse the whole requested binding set before startup can change. Actual OS
+    // conflicts still use the shortcut transaction and startup rollback below.
+    if !is_wayland() {
+        Bindings::requested(&settings)?;
     }
-    session.startup_status = crate::startup_native::status(
-        &app,
-        session
-            .saved_config
-            .as_ref()
-            .is_some_and(|config| config.preferences.start_at_login),
-    );
-    result?;
-    session.view()
+    let mut next = session.saved_config.clone().unwrap_or_default();
+    settings.update_configuration(&mut next)?;
+    if let Some(enabled) = start_at_login {
+        next.preferences.start_at_login = enabled;
+    }
+    save_configuration_transaction(
+        session,
+        store,
+        next,
+        start_at_login.map(|enabled| (startup.registry, enabled)),
+        configure,
+    )
 }
 
 /// Both GUI writes and watcher reloads use the same profile-isolation boundary.
@@ -760,6 +763,19 @@ fn save_configuration(
     session: &mut Session,
     store: &ConfigStore,
     next_config: Configuration,
+    configure: impl FnMut(&mut Session, &SessionSettings) -> Result<String, String>,
+) -> Result<(), String> {
+    save_configuration_transaction(session, store, next_config, None, configure)
+}
+
+fn save_configuration_transaction(
+    session: &mut Session,
+    store: &ConfigStore,
+    next_config: Configuration,
+    startup: Option<(
+        &dyn ssh_clipboard_desktop_prototype::startup::Registry,
+        bool,
+    )>,
     mut configure: impl FnMut(&mut Session, &SessionSettings) -> Result<String, String>,
 ) -> Result<(), String> {
     let settings = SessionSettings::from_configuration(&next_config)?;
@@ -769,19 +785,31 @@ fn save_configuration(
         .prepare(session.saved_config.as_ref(), next_config)
         .map_err(|e| e.to_string())?;
     let previous_settings = session.settings.clone();
-    let status = configure(session, &settings)?;
-    let saved = match pending.commit() {
-        Ok(saved) => saved,
-        Err(error) => {
-            session.shortcut_status = match configure(session, &previous_settings) {
-                Ok(status) => status,
-                Err(_) => {
-                    session.shortcuts.suspend_direct();
-                    "Could not restore previous shortcuts. Direct actions are paused. Quit and reopen to restore saved settings.".into()
+    let activate_and_commit = || {
+        let status = configure(session, &settings)?;
+        let saved = match pending.commit() {
+            Ok(saved) => saved,
+            Err(error) => {
+                match configure(session, &previous_settings) {
+                    Ok(status) => session.shortcut_status = status,
+                    Err(_) => {
+                        session.shortcuts.suspend_direct();
+                        session.shortcut_status = "Could not restore previous shortcuts. Direct actions are paused. Quit and reopen to restore saved settings.".into();
+                        return Err(format!("{error} {}", session.shortcut_status));
+                    }
                 }
-            };
-            return Err(error.to_string());
-        }
+                return Err(error.to_string());
+            }
+        };
+        Ok((saved, status))
+    };
+    let (saved, status) = match startup {
+        Some((registry, enabled)) => ssh_clipboard_desktop_prototype::startup::change(
+            registry,
+            enabled,
+            activate_and_commit,
+        )?,
+        None => activate_and_commit()?,
     };
     session.activate_configuration(Some(saved), settings, status);
     Ok(())
@@ -1756,7 +1784,6 @@ pub fn run() {
             test_notification,
             apply_settings,
             acknowledge_migration_summary,
-            set_start_at_login,
             remove_profile,
             test_connection,
             refresh_item,
@@ -1861,6 +1888,10 @@ fn cleanup_transport(app: &AppHandle) {
 }
 
 #[cfg(test)]
+#[path = "panel/startup_tests.rs"]
+mod startup_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1902,7 +1933,7 @@ mod tests {
         assert!(!session.apply_metadata(&update));
     }
 
-    fn persisted_session() -> (tempfile::TempDir, ConfigStore, Session) {
+    pub(super) fn persisted_session() -> (tempfile::TempDir, ConfigStore, Session) {
         let directory = tempfile::tempdir().unwrap();
         let store = ConfigStore::new(directory.path().join("settings.json"));
         let mut session = session();

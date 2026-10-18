@@ -17,13 +17,17 @@ beforeEach(() => {
   bridge.native = true;
   bridge.invoke.mockReset();
   bridge.listen.mockReset().mockResolvedValue(() => {});
-  bridge.invoke.mockImplementation(async (name: string, args?: { settings?: PanelView["settings"]; profileId?: string }) => {
+  bridge.invoke.mockImplementation(async (name: string, args?: { settings?: PanelView["settings"]; profileId?: string; startAtLogin?: boolean }) => {
     if (name === "get_operation") return { generation: "0", active: null };
     if (name === "acknowledge_migration_summary") {
       state.migrationSummary = null;
       state.settingsRevision = String(Number(state.settingsRevision ?? "0") + 1);
     }
     if (name === "apply_settings") {
+      if (args?.startAtLogin !== undefined) {
+        state.startupStatus.enabled = args.startAtLogin;
+        state.startupStatus.desired = args.startAtLogin;
+      }
       state.settings = { ...args!.settings!, profileId: args!.settings!.profileId ?? "new-profile" };
       const profile = { id: state.settings.profileId!, name: state.settings.profileName, target: state.settings.target, port: state.settings.port, identityFile: state.settings.identityFile, transport: cloneTransport(state.settings.transport), endpoint: { ...state.settings.endpoint } };
       const index = state.profiles.findIndex(({ id }) => id === profile.id);
@@ -247,17 +251,9 @@ describe("quick panel contracts", () => {
     expect(bridge.invoke.mock.calls.some(([name])=>name==="install_update")).toBe(false);
   });
 
-  it("startup shows actual state without activating an imported preference and saves only on an explicit click", async () => {
+  it("startup edits share Apply and Discard with other settings while showing actual imported state", async () => {
     state.settingsRevision = "7";
     state.startupStatus = { available: true, enabled: false, desired: true, detail: "Retained preference differs from this app's startup entry." };
-    const normal = bridge.invoke.getMockImplementation()!;
-    bridge.invoke.mockImplementation((name, args) => {
-      if (name === "set_start_at_login") {
-        state.startupStatus.enabled = args.enabled;
-        state.settingsRevision = "8";
-      }
-      return normal(name, args);
-    });
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(await screen.findByRole("button", { name: "Open settings" }));
@@ -266,21 +262,99 @@ describe("quick panel contracts", () => {
     expect(checkbox.checked).toBe(false);
     expect(bridge.invoke.mock.calls.some(([name]) => name === "set_start_at_login")).toBe(false);
     await fireEvent.click(checkbox);
-    await screen.findByText("Startup choice saved.");
-    expect(bridge.invoke.mock.calls.find(([name]) => name === "set_start_at_login")![1]).toEqual({ enabled: true, expectedRevision: "7" });
+    expect(screen.getByText("Currently off.")).toBeTruthy();
     await fireEvent.click(screen.getByRole("checkbox", { name: "Show content previews" }));
-    expect(checkbox.disabled).toBe(true);
+    expect(checkbox.disabled).toBe(false);
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
+    await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Return to settings" }));
+    expect((screen.getByLabelText("Start at login") as HTMLInputElement).checked).toBe(true);
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((screen.getByLabelText("Start at login") as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText("Show content previews") as HTMLInputElement).checked).toBe(true);
+    await fireEvent.click(screen.getByLabelText("Start at login"));
+    await fireEvent.click(screen.getByLabelText("Show content previews"));
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
-    expect(bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1].expectedRevision).toBe("8");
+    await screen.findByText("All changes saved");
+    const saves = bridge.invoke.mock.calls.filter(([name]) => name === "apply_settings");
+    expect(saves).toHaveLength(1);
+    expect(saves[0][1]).toEqual({ settings: { ...initialView.settings, showPreview: false }, startAtLogin: true, expectedRevision: "7" });
+    expect(state.startupStatus.enabled).toBe(true);
+    expect(state.settingsRevision).toBe("8");
+    expect(bridge.invoke.mock.calls.some(([name]) => name === "set_start_at_login")).toBe(false);
   });
 
-  it("portable builds cannot request startup registration", async () => {
+  it.each([false, true])("unknown or unavailable startup (available=%s) still allows unrelated settings saves", async (available) => {
+    state.startupStatus = { available, enabled: null, desired: true, detail: "Startup state unavailable" };
     render(App);
     await waitFor(() => expect(screen.getByRole("button", { name: "Quit" }).hasAttribute("disabled")).toBe(false));
     await fireEvent.click(await screen.findByRole("button", { name: "Open settings" }));
     await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
     expect((screen.getByRole("checkbox", { name: "Start at login" }) as HTMLInputElement).disabled).toBe(true);
+    await fireEvent.click(screen.getByLabelText("Show content previews"));
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("All changes saved");
+    expect(bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1]).not.toHaveProperty("startAtLogin");
+    expect(state.startupStatus.enabled).toBeNull();
+    expect(state.startupStatus.desired).toBe(true);
     expect(bridge.invoke.mock.calls.some(([name]) => name === "set_start_at_login")).toBe(false);
+  });
+
+  it("toggling startup back to actual state cancels the explicit intent without repairing a saved mismatch", async () => {
+    state.startupStatus = { available: true, enabled: false, desired: true, detail: "Retained preference differs from this app's startup entry." };
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByLabelText("Start at login"));
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+    await fireEvent.click(screen.getByLabelText("Start at login"));
+    expect(screen.queryByText("Unsaved changes")).toBeNull();
+    await fireEvent.click(screen.getByLabelText("Hide panel after copying"));
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("All changes saved");
+    expect(bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1]).not.toHaveProperty("startAtLogin");
+    expect(state.startupStatus.enabled).toBe(false);
+    expect(state.startupStatus.desired).toBe(true);
+  });
+
+  it("an external revision retains a startup-only draft and requires Discard before saving", async () => {
+    state.settingsRevision = "7";
+    state.startupStatus = { available: true, enabled: false, desired: false, detail: "Actual startup is off" };
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByLabelText("Start at login"));
+    state.settingsRevision = "8";
+    bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
+    await screen.findByText("Saved settings changed");
+    expect((screen.getByLabelText("Start at login") as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(true);
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((screen.getByLabelText("Start at login") as HTMLInputElement).checked).toBe(false);
+    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "get_panel"]);
+  });
+
+  it("failed activation retains both startup and preference edits until an explicit Discard", async () => {
+    state.startupStatus = { available: true, enabled: false, desired: false, detail: "Actual startup is off" };
+    const normal = bridge.invoke.getMockImplementation()!;
+    bridge.invoke.mockImplementation((name, args) => name === "apply_settings" ? Promise.reject(new Error("Startup entry needs repair.")) : normal(name, args));
+    render(App);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open settings" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Behavior" }));
+    await fireEvent.click(screen.getByLabelText("Start at login"));
+    await fireEvent.click(screen.getByLabelText("Show content previews"));
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
+    await screen.findByText("Startup entry needs repair.");
+    expect(screen.queryByText("Settings applied.")).toBeNull();
+    expect((screen.getByLabelText("Start at login") as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText("Show content previews") as HTMLInputElement).checked).toBe(false);
+    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect((screen.getByLabelText("Start at login") as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText("Show content previews") as HTMLInputElement).checked).toBe(true);
   });
 
   it("uncertain share recovery checks status without recapturing and displays acceptance", async () => {

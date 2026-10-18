@@ -5,6 +5,7 @@
 
   let view = $state<PanelView>(initialView);
   let draft = $state<Settings>(cloneSettings(initialView.settings));
+  let startupDraft = $state<boolean | null>(null);
   let sshOptionsText = $state("");
   let page = $state("panel");
   let section = $state("connection");
@@ -30,9 +31,9 @@
   let operationEpoch = 0;
 
   const configured = $derived(view.settings.target.trim().length > 0);
-  const dirty = $derived(JSON.stringify(draft) !== JSON.stringify(view.settings));
+  const dirty = $derived(startupDraft !== null || JSON.stringify(draft) !== JSON.stringify(view.settings));
   const staleDraft = $derived(dirty && draftRevision !== view.settingsRevision);
-  const applyDisabled = $derived(!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested);
+  const applyDisabled = $derived(!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested || (startupDraft !== null && (!view.startupStatus.available || view.startupStatus.enabled === null)));
   const selectedHistory = $derived(view.history?.items.find((item) => item.id === view.history?.selectedId));
 
   function requestHistoryRemoval(kind: "delete" | "clear") {
@@ -62,11 +63,11 @@
     catch (cause) { inform(String(cause), true); }
   }
 
-  function discardDraft() { draft = cloneSettings(view.settings); sshOptionsText = draft.transport.sshOptions.join("\n"); draftRevision = view.settingsRevision; stopRecording(); removingProfile = false; }
+  function discardDraft() { draft = cloneSettings(view.settings); startupDraft = null; sshOptionsText = draft.transport.sshOptions.join("\n"); draftRevision = view.settingsRevision; stopRecording(); removingProfile = false; }
 
   function applyDraft() {
     if (applyDisabled) return;
-    void perform("apply_settings", "Settings applied.", { settings: cloneSettings(draft), expectedRevision: draftRevision });
+    void perform("apply_settings", "Settings applied.", { settings: cloneSettings(draft), expectedRevision: draftRevision, ...(startupDraft === null ? {} : { startAtLogin: startupDraft }) });
   }
 
   function discardChanges() { discardDraft(); inform("Loaded current saved settings."); }
@@ -135,7 +136,7 @@
     try {
       const next = await command<PanelView>("get_panel");
       if (disposed || epoch !== operationEpoch) return;
-      const retainDraft = dirty && JSON.stringify(draft) !== JSON.stringify(next.settings);
+      const retainDraft = dirty && (startupDraft !== null || JSON.stringify(draft) !== JSON.stringify(next.settings));
       if (JSON.stringify(next.operationNotice) !== JSON.stringify(view.operationNotice)) inform("");
       view = next;
       removingProfile = false;
@@ -156,10 +157,10 @@
     operationEpoch++;
     inform("");
     try {
-      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history", "recover_share", "discard_share", "set_start_at_login", "acknowledge_migration_summary"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
+      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history", "recover_share", "discard_share", "acknowledge_migration_summary"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
       confirmingHistory = null;
       view = await command<PanelView>(name, guardedArgs);
-      if (name === "apply_settings" || name === "remove_profile" || name === "set_start_at_login" || name === "acknowledge_migration_summary") discardDraft();
+      if (name === "apply_settings" || name === "remove_profile" || name === "acknowledge_migration_summary") discardDraft();
       inform(name === "recover_share" && view.operationNotice ? view.operationNotice.message : name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success);
       if (name === "select_item" && content) content.scrollTop = 0;
     } catch (cause) {
@@ -519,8 +520,8 @@
           <p class="field-help">{view.notificationStatus.detail}</p>
           <button type="button" disabled={!ready || busy || !view.notificationStatus.available} onclick={() => perform("test_notification", "Test notification submitted to the system.")}>Test notification</button>
           <div class="capability"><strong>Tray menu</strong><span>{view.trayStatus}</span></div>
-          <label class="toggle"><input type="checkbox" checked={view.startupStatus.enabled === true} disabled={!ready || busy || dirty || !view.settingsWritable || !view.startupStatus.available || view.startupStatus.enabled === null} onchange={(event) => perform("set_start_at_login", "Startup choice saved.", { enabled: event.currentTarget.checked })} />Start at login</label>
-          <p class="field-help">{view.startupStatus.detail} {dirty ? "Apply or discard other changes first." : "Changes to this choice are saved immediately."}</p>
+          <label class="toggle"><input type="checkbox" aria-describedby="startup-help" checked={startupDraft ?? (view.startupStatus.enabled === true)} disabled={!ready || busy || !view.settingsWritable || !view.startupStatus.available || view.startupStatus.enabled === null} onchange={(event) => startupDraft = event.currentTarget.checked === view.startupStatus.enabled ? null : event.currentTarget.checked} />Start at login</label>
+          <p id="startup-help" class="field-help">{startupDraft !== null && view.startupStatus.enabled !== null ? `Currently ${view.startupStatus.enabled ? "on" : "off"}.` : view.startupStatus.detail}</p>
         {/if}
       </form>
       {@render feedback()}

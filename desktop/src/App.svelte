@@ -32,6 +32,7 @@
   const configured = $derived(view.settings.target.trim().length > 0);
   const dirty = $derived(JSON.stringify(draft) !== JSON.stringify(view.settings));
   const staleDraft = $derived(dirty && draftRevision !== view.settingsRevision);
+  const applyDisabled = $derived(!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested);
   const selectedHistory = $derived(view.history?.items.find((item) => item.id === view.history?.selectedId));
 
   function requestHistoryRemoval(kind: "delete" | "clear") {
@@ -62,6 +63,13 @@
   }
 
   function discardDraft() { draft = cloneSettings(view.settings); sshOptionsText = draft.transport.sshOptions.join("\n"); draftRevision = view.settingsRevision; stopRecording(); removingProfile = false; }
+
+  function applyDraft() {
+    if (applyDisabled) return;
+    void perform("apply_settings", "Settings applied.", { settings: cloneSettings(draft), expectedRevision: draftRevision });
+  }
+
+  function discardChanges() { discardDraft(); inform("Loaded current saved settings."); }
 
   function syncRecording(active: boolean) {
     recordingSync = recordingSync.catch(() => {}).then(() => command<void>("set_shortcut_recording", { active }));
@@ -263,14 +271,14 @@
   {/if}
 {/snippet}
 
-<div class="app-shell">
+<div class="app-shell" class:settings-open={page === "settings"}>
   <header>
     <div class="brand-mark" aria-hidden="true">↔</div>
     <div class="brand"><h1>SSH Clipboard</h1><span>{configured ? view.settings.target : "Connect your machines"}</span></div>
     {#if page === "panel"}
       <button class="icon-button" aria-label="Open settings" onclick={() => navigate("settings")} disabled={!ready || busy}>⚙</button>
     {:else}
-      <button class="text-button" onclick={() => navigate("panel")} disabled={!ready || busy}>Done</button>
+      <button type="button" class="text-button" onclick={() => navigate("panel")} disabled={!ready || busy}>Back</button>
     {/if}
   </header>
 
@@ -295,6 +303,16 @@
       </section>
     {/if}
     {#if page === "panel"}
+      {#if dirty}
+        <section class="draft-notice" aria-label="Unsaved settings">
+          <strong>{staleDraft ? "Saved settings changed" : "Unsaved settings"}</strong>
+          <p>{staleDraft ? "Discard your draft to load the saved settings." : "Changes take effect after Apply."}</p>
+          <div class="draft-actions">
+            <button type="button" class="text-button" disabled={!ready || busy} onclick={() => navigate("settings")}>Return to settings</button>
+            <button type="button" class="text-button" disabled={busy} onclick={discardChanges}>Discard changes</button>
+          </div>
+        </section>
+      {/if}
       <div class="status-line"><span class:connected={view.connected} class="status-dot"></span>{busy ? "Working…" : view.connected ? "Server reachable" : configured ? "Not connected" : "Setup needed"}<span class="mode">{view.settings.profileName}</span></div>
       {#if view.historyStatus}
         <div class="history-connection" aria-label="History connection">
@@ -368,13 +386,13 @@
       {:else if configured}<p class="field-help">This connection uses the legacy server's single shared item.</p>{/if}
       <p class="quiet-note">{view.history ? "History updates automatically. Sharing and copying happen only when you ask." : "Sharing and copying happen only when you ask."}</p>
     {:else}
-      <div class="settings-title"><h2>Settings</h2><span>{view.settingsSaved ? "Saved on this computer" : "Apply to save"}</span></div>
+      <div class="settings-title"><h2>Settings</h2></div>
       <nav aria-label="Settings sections">
         {#each [["connection", "Connection"], ["shortcuts", "Shortcuts"], ["behavior", "Behavior"], ["updates", "Updates"]] as [id, label]}
           <button class:active={section === id} aria-current={section === id ? "page" : undefined} onclick={() => selectSection(id)}>{label}</button>
         {/each}
       </nav>
-      <form onsubmit={(event) => { event.preventDefault(); void perform("apply_settings", "Settings applied.", { settings: cloneSettings(draft), expectedRevision: draftRevision }); }}>
+      <form id="settings-form" onsubmit={(event) => { event.preventDefault(); applyDraft(); }}>
         {#if section === "connection"}
           <label for="profile">Connection</label>
           <select id="profile" value={draft.profileId ?? ""} onchange={(event) => chooseProfile(event.currentTarget.value)} disabled={!ready || !view.settingsWritable || dirty || busy}>
@@ -504,12 +522,22 @@
           <label class="toggle"><input type="checkbox" checked={view.startupStatus.enabled === true} disabled={!ready || busy || dirty || !view.settingsWritable || !view.startupStatus.available || view.startupStatus.enabled === null} onchange={(event) => perform("set_start_at_login", "Startup choice saved.", { enabled: event.currentTarget.checked })} />Start at login</label>
           <p class="field-help">{view.startupStatus.detail} {dirty ? "Apply or discard other changes first." : "Changes to this choice are saved immediately."}</p>
         {/if}
-        {#if staleDraft}<p class="field-help">Saved settings changed. Discard your draft to load them.</p>{/if}
-        {#if section !== "updates"}<div class="settings-actions"><button type="submit" class="primary" disabled={!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested}>Apply settings</button><button type="button" disabled={!dirty || busy} onclick={() => { discardDraft(); inform("Loaded current saved settings."); }}>Discard changes</button></div>{/if}
       </form>
       {@render feedback()}
     {/if}
   </main>
+
+  {#if page === "settings"}
+    <section class="settings-savebar" aria-label="Settings changes">
+      <p role="status">{!ready ? "Loading settings…" : staleDraft ? "Saved settings changed" : dirty ? "Unsaved changes" : view.settingsSaved ? "All changes saved" : "Apply to save"}</p>
+      {#if staleDraft}<p class="save-help">Discard your draft to load the saved settings.</p>
+      {:else if dirty}<p class="save-help">Changes take effect after Apply.</p>{/if}
+      <div class="settings-actions">
+        <button type="submit" form="settings-form" class="primary" disabled={applyDisabled}>Apply settings</button>
+        <button type="button" disabled={!dirty || busy} onclick={discardChanges}>Discard changes</button>
+      </div>
+    </section>
+  {/if}
 
   <footer><span>{view.activeShortcut ? displayShortcut(view.activeShortcut) : "Open from the launcher or tray"}</span><span>{view.updateStatus.available ? view.updateStatus.currentVersion : "Prototype"}</span><button class="quit-button" disabled={!ready || busy} onclick={() => command("quit_app").catch((cause) => inform(String(cause), true))}>Quit</button></footer>
 </div>

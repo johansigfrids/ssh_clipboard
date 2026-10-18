@@ -8,6 +8,7 @@ button:hover:not(:disabled) { border-color: var(--accent); background: #edf4ff; 
 button:disabled { opacity: .48; cursor: default; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #6295e2; outline-offset: 3px; }
 .app-shell { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+.app-shell.settings-open { grid-template-rows: auto minmax(0, 1fr) auto auto; }
 header { display: flex; align-items: center; gap: 12px; padding: 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .brand-mark { display: grid; place-items: center; flex-shrink: 0; background: #e8f0fc; color: var(--accent); width: 38px; height: 38px; border-radius: 10px; font-size: 24px; }
 .brand { min-width: 0; flex: 1; }
@@ -58,7 +59,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 190px; overflo
 .migration-summary dt { font-weight: 600; margin-top: 10px; }
 .migration-summary dd { margin: 3px 0 0; color: var(--muted); }
 .migration-summary details { margin-bottom: 16px; }
-.settings-title span { font-size: 10px; color: var(--muted); }
 nav { display: flex; margin-bottom: 24px; gap: 4px; }
 nav button { flex: 1; padding: 9px 5px; font-size: 12px; background: transparent; border-color: transparent; }
 nav button.active { background: var(--surface); border-color: var(--border); color: var(--accent); }
@@ -91,8 +91,15 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; f
 .shortcut-recorder { width: 100%; font-size: 13px; }
 .shortcut-recorder.recording { outline: 2px solid var(--accent); }
 .test-button { font-size: 12px; margin-top: 5px; }
-.settings-actions { display: flex; gap: 9px; margin-top: 24px; }
+.settings-savebar { padding: 12px 20px; border-top: 1px solid var(--border); background: var(--surface); }
+.settings-savebar p { margin: 0; font-size: 12px; }
+.settings-savebar .save-help { color: var(--muted); font-size: 11px; }
+.settings-actions { display: flex; gap: 9px; margin-top: 8px; }
 .settings-actions button { flex: 1; min-width: 0; font-size: 12px; }
+.draft-notice { margin-bottom: 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
+.draft-notice p { margin: 3px 0; font-size: 11px; color: var(--muted); }
+.draft-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.draft-actions button { padding: 5px 0; font-size: 11px; }
 .capability { display: flex; flex-direction: column; font-size: 12px; gap: 6px; padding: 15px 0; border-bottom: 1px solid var(--border); }
 .capability span { font-size: 11px; color: var(--muted); }
 .feedback { padding: 12px; border-radius: 8px; background: #e8f3ed; color: #286045; font-size: 12px; line-height: 1.5; margin-top: 18px; overflow-wrap: anywhere; }

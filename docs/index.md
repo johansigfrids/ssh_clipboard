@@ -16,6 +16,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/writing-docs.md`: How to write and maintain internal docs in this repo.
 - [ARCHITECTURE.md](../ARCHITECTURE.md): Current system and planned rework architecture.
 - [docs/implementation-plan.md](implementation-plan.md): Closed rework phases, supported delivery, deferred Linux desktop and non-blocking evidence limits.
+- [docs/desktop-ux-plan.md](desktop-ux-plan.md): Accepted UI/UX review, six scoped implementation PRs, dependencies, and validation criteria.
 - [docs/legacy-retirement.md](legacy-retirement.md): Retired default agent/distribution, preserved 0.4 compatibility and recovery boundaries.
 - [docs/desktop-prototype.md](desktop-prototype.md): Phase 1 source-build prototype, controls, limitations, and platform validation status.
 - [docs/desktop-shortcuts.md](desktop-shortcuts.md): Optional direct transfers, safe recording, grouped registration, and recovery.

@@ -4,14 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.4.2] - Unreleased candidate
+## [0.4.2] - 2026-10-16
 
 ### Added
 - Apple Silicon application archive/signature inspection and a release-profile package probe using disposable trust, with a documented clean migration from the legacy Mac client.
-- Protected Windows/macOS desktop staging with a shared update feed that requires both platform packages before draft creation. Native Mac installation/update acceptance is pending.
+- Protected Windows/macOS desktop staging with a shared update feed that requires both platform packages before draft creation. Clean Mac migration, native text/login/shortcut acceptance and an isolated real update/restart rehearsal pass.
 
 ### Release status
-- Candidate only. Production signing, native Mac cutover and publication are pending. Published Windows desktop 0.4.1 and Linux server 0.4.0 assets are unchanged; no server release is scheduled by this desktop addition.
+- Published as `desktop-v0.4.2` and repository latest after protected Windows/Apple Silicon signing, independent package admission, Mac acceptance and separate owner approval. Anonymous delivery of all twelve assets and the combined keyed feed passes. Signed source remains `b465c4407805f4feb8d4f58cb9d28e209e26ed7e`; later acceptance/docs do not replace package bytes. Earlier Windows 0.4.1 and Linux server 0.4.0 assets are unchanged.
 
 ## [0.4.1] - 2026-10-16
 
@@ -41,7 +41,7 @@ All notable changes to this project will be documented in this file.
 - Bound competing subprocess fault fixtures together so parallel test modules do not exhaust each other's timing budgets.
 
 ### Migration and release status
-- Linux x86_64 server 0.4.0 is published after independent signature verification and clean live installation/SSH acceptance. Anonymous public-delivery checks pass. The superseded Windows desktop 0.4.0 remains a draft; desktop 0.4.1 is published as the repository's latest release.
+- Linux x86_64 server 0.4.0 is published after independent signature verification and clean live installation/SSH acceptance. Anonymous public-delivery checks pass. The superseded Windows desktop 0.4.0 remains a draft; desktop 0.4.1 was the repository's latest release at server publication.
 - Sharing and copying remain explicit; background history updates do not overwrite the local clipboard or upload its contents.
 - Existing V2 clients and the legacy agent remain available. Installing the rework does not automatically replace a running server, change SSH key restrictions, or take over startup registration.
 - Windows x64 has native and installed-update evidence; the Linux server has exact signed persistent-installation and public-delivery evidence. New macOS/Linux desktop packages and actual server reboot/last-session logout retain their separate gaps; see [release readiness](docs/release-readiness.md).

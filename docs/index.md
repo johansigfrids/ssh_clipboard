@@ -51,6 +51,7 @@ Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`
 - `docs/releasing.md`: How to tag releases and validate artifacts.
 - [docs/release-0.4.0-acceptance.md](release-0.4.0-acceptance.md): Merged source, protected production drafts, independent signatures, Windows install/paste and isolated Linux service evidence.
 - [docs/release-0.4.1-acceptance.md](release-0.4.1-acceptance.md): Signed desktop correction, real-profile upgrade/startup, publication and anonymous public-delivery verification.
+- [docs/release-0.4.2-acceptance.md](release-0.4.2-acceptance.md): Windows/Apple Silicon publication, immutable package identity, anonymous combined-feed delivery and acceptance boundaries.
 - [docs/release-readiness.md](release-readiness.md): Rework candidate notes, refreshed automated evidence, desktop draft admission, and remaining release gates.
 - `docs/troubleshooting.md`: Common errors and fixes.
 - `docs/testing.md`: How to run tests and what’s covered.

@@ -14,6 +14,10 @@ Describe optional direct transfers, recording, and OS registration recovery in t
 
 Open panel defaults to `CommandOrControl+Shift+V`. Optional Share current clipboard and Copy shared clipboard have no default bindings and remain disabled until enabled and applied. Imported bindings remain visible but inactive until explicitly enabled. Either direct binding can be cleared independently; disabling retains both choices.
 
+Display uses the backend platform: CommandOrControl appears as Ctrl on Windows/Linux and Cmd on macOS; Alt becomes Option on macOS, and Super becomes Win on Windows, Cmd on macOS, or Super on Linux. Explicit Control stays Ctrl on every platform. Canonical stored bindings and physical-key recording are unchanged. Recorder labels remain associated with their controls; recording help describes the platform keys.
+
+Settings use a single Tab stop for the selected tab, Left/Right with wrapping, and Home/End. Tab enters the selected section's first available field. Opening settings focuses its active tab; Apply/Discard return there, and Back/Escape return to Open settings. Escape cancels a recorder or inline confirmation before navigating away. Field help is connected through `aria-describedby`, and known Advanced validation failures retain their field focus.
+
 Direct actions work while the window is in the background. Share captures once and sends once, without automatic retry. Copy fetches the latest remote item, validates it, then writes it to the retained native clipboard owner. Empty/failed fetches leave the local clipboard untouched. The panel Copy button continues to copy its displayed snapshot. Results open the panel by default; [feedback preferences](desktop-notifications.md) can select private native notifications or quiet behavior, with the latest result retained in the panel.
 
 Explain the complete interaction when configuring or testing these bindings: copy normally, press Share to send the existing local clipboard; press Copy to receive the remote item, then paste normally. Neither shortcut copies a selection or pastes into the active app. A manual test must state its expected visible result, including the feedback preference in effect.
@@ -35,6 +39,8 @@ Wayland preserves preferences and reports launcher/tray fallback; the X11 plugin
 ## Evidence and Remaining Checks
 
 Automated checks cover alias conflicts, inactive retained bindings, action swaps without re-registration, partial registration failure, old-key removal failure, stranded-key suppression, and settings persistence. Rendered tests cover independent recorders, native-consumed keys, cancellation/repeats, retained disabled choices, success feedback, and absence of transfer commands while editing. They do not prove native focus, OS conflict handling, or clipboard behavior from a global key press.
+
+The 2026-10-18 PR 6 isolated Windows WebView pass confirms settings arrow/Tab navigation, Ctrl display, draft-only recorder entry/Escape cancellation, Discard focus recovery, End to Updates, and Escape focus back to Open settings. No binding was applied or transferred. Browser fixtures additionally cover macOS labels, full keyboard Apply, confirmations and history; Mac native keyboard/scaling and global registration were not retested. See the [build identity and evidence](desktop-ux-plan.md#pr-6-history-scanning-and-keyboard-usability).
 
 On 2026-10-14 the user confirmed background direct Share on Windows with `SSHClipboardPrototype-20261014T112019571Z.exe`: copy text normally, hide with X, press Ctrl+Alt+C; the panel opens with the shared text and success feedback. The initial report of failure was an unclear test expectation, not a reproduced dispatch failure. This confirms Share only. Direct Copy followed by paste, empty Copy preservation, occupied bindings, and recording active bindings without transfers remain unconfirmed in this combined milestone.
 

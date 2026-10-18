@@ -12,9 +12,11 @@ export function shortcutFromEvent(event) {
   return [...modifiers, event.code].join("+");
 }
 
-/** @param {string} shortcut */
-export function displayShortcut(shortcut) {
-  const modifiers = { commandorcontrol: "Ctrl/Cmd", cmdorctrl: "Ctrl/Cmd", control: "Ctrl", ctrl: "Ctrl", super: "Cmd", alt: "Alt", shift: "Shift" };
+/** @param {string} shortcut @param {string} [platform] */
+export function displayShortcut(shortcut, platform = "unknown") {
+  const primary = platform === "macos" ? "Cmd" : ["windows", "linux"].includes(platform) ? "Ctrl" : "Ctrl/Cmd";
+  const system = platform === "macos" ? "Cmd" : platform === "windows" ? "Win" : "Super";
+  const modifiers = { commandorcontrol: primary, cmdorctrl: primary, control: "Ctrl", ctrl: "Ctrl", super: system, command: "Cmd", cmd: "Cmd", alt: platform === "macos" ? "Option" : "Alt", shift: "Shift" };
   return shortcut.split("+").map((token) => {
     const key = token.trim();
     return modifiers[/** @type {keyof typeof modifiers} */ (key.toLowerCase())] ?? key.replace(/^Key([A-Z])$/, "$1").replace(/^Digit([0-9])$/, "$1");

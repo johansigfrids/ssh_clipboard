@@ -13,6 +13,7 @@ Document the panel's explicit shelf endpoint and history controls, with legacy b
 - `desktop/src-tauri/src/panel.rs`: commands, profile isolation, explicit clipboard orchestration.
 - `desktop/src-tauri/src/clipboard.rs`: owner-thread capture/copy with endpoint budgets.
 - `desktop/src/App.svelte`, `desktop/src/api.ts`, `desktop/src/style.css`: controls, drafts, confirmation, layout.
+- `desktop/src/history-format.ts`: precision-checked local time and byte-size presentation.
 
 ## Endpoint Selection and Compatibility
 
@@ -33,6 +34,12 @@ Delete selected item and Clear history use an inline confirmation, not an immedi
 Transfers retain the existing immediate operation lock, so profile changes/direct actions cannot queue a different capture behind a transfer. Shelf actions now reuse an [owned persistent connection](persistent-sessions.md), with epoch checks and profile invalidation. The CLI retains bounded one-invocation sessions. A separate bounded metadata owner now snapshots/watches history and recovers transient failures automatically; trust/authentication/protocol errors pause for explicit action. History/expiry updates never fetch payloads or overwrite the local clipboard. Background replies are guarded by profile, revision, monitor generation, sequence, and the latest user-operation barrier. Cancel is available for active user operations; uncertain uploads now have [read-only acknowledgment checks and explicit captured retry/discard](share-recovery.md), with original epoch and server-deadline guards.
 
 ## Labels, Privacy, and Image Budgets
+
+History rows show relative receipt/expiry labels and binary sizes (B, KiB, MiB, and larger units). Each row has a separate keyboard-accessible Exact times disclosure with localized Received/Expires values and machine-readable timestamps. Selection remains a button with pressed state; the disclosure is not nested inside it. Selecting a row focuses the preview heading without copying anything.
+
+Relative labels update every 30 seconds only while the panel/document is visible and history exists. Settings navigation, hiding and unmount stop the timer. Ticks never fetch, reorder, select, remove, or recreate rows keyed by epoch plus item ID; open disclosures and focus survive. Unknown, unsafe-integer or invalid dates remain unknown. A future receipt reports clock disagreement, and elapsed expiry says Past expiry (local clock): only server metadata establishes membership.
+
+Passive removal recovers focus to the history heading (or main content if history disappears) only when the previously focused row/control was removed and focus has fallen to the document body. It never moves an existing user focus. A separate polite status announces that loss; relative-time ticks are not live announcements. Confirmations focus their action; Escape/Cancel restores the invoker, and successful deletion focuses the history heading. See [keyboard evidence](desktop-ux-plan.md#pr-6-history-scanning-and-keyboard-usability).
 
 The shelf derives labels during validated upload preparation: first nonempty trimmed text line, control characters removed, at most 60 Unicode characters plus an ellipsis; empty text uses a fixed label. PNG labels use validated dimensions. Labels stay at most 256 UTF-8 bytes. No AI naming, external title lookup, payload trimming, conversion, or image resizing occurs. A label is content-derived and may itself contain sensitive text: do not log item metadata. Health/legacy PeekMeta remain free of labels and payloads.
 
@@ -64,6 +71,8 @@ The [2026-10-16 Windows native pass](native-history-acceptance.md) confirmed old
 - Keep feedback near transfer controls and constrain scrolling to the content region at the native minimum size.
 - Check the grid's actual bounds with long unbroken connection targets. A hidden document scrollbar can mask a widened implicit column; bound both the grid column and content row.
 - Keep empty-history Refresh enabled and revision-guarded. Visual priority and preview truncation must not change the item/epoch copied or the original payload.
+- Validate timestamp strings before Number conversion; JavaScript rounding must not turn unknown server metadata into a credible exact time.
+- Keep local-clock display independent of server expiry and DOM identity. Do not announce clock ticks or steal focus on ordinary metadata updates.
 
 ## Update Triggers
 

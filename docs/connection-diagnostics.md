@@ -29,6 +29,10 @@ The report describes the last check, not a persistent/live connection. Hide it w
 
 ## Safe Failures
 
+The panel consolidates healthy shelf status into History up to date with Connection details available on demand. Connecting/reconnecting/needs-action text, retry timing, and explicit Reconnect history remain visible; a stale connection does not inherit the healthy indicator. This is presentation only and adds no health/transfer command on navigation. Successful saved-connection reports collapse behind Connection verified; failure reports start expanded, preserving their per-step evidence and hints. Reports still describe the last saved-target check and are withheld while the draft is dirty.
+
+Routine successful Test confirmations are brief and local to their originating settings section. Errors, repair warnings, and unresolved-share recovery do not share that timer; see [feedback lifetime and retention](desktop-notifications.md#preferences-and-delivery). Keep healthy details accessible rather than deleting diagnostic evidence when reducing repeated narration.
+
 Transport failures distinguish missing/unstartable SSH, target/configuration, authentication, host identity, name resolution, connection refusal/network, missing proxy, deadline, framing/version, reply size/encoding/type, and request-ID mismatch. Known SSH messages provide best-effort hints. Wording/localization varies; unrecognized output produces a generic connection error rather than claiming authentication or service health was verified.
 
 The operation continuously drains stderr but retains only its first and last 8 KiB. Raw stderr, terminal controls, decoded values, and server-supplied error text do not appear in the shared diagnostic report. Desktop server errors use static messages selected by protocol error code. Normal legacy CLI/agent protocol-error handlers retain their existing behavior; this is not a claim that every old logging path has been redesigned.

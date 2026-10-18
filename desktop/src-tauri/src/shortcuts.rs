@@ -139,7 +139,7 @@ impl Bindings {
         Ok(if count == 0 {
             "Disabled".into()
         } else {
-            format!("Registered {count} shortcut(s)")
+            "Shortcuts active".into()
         })
     }
 
@@ -272,11 +272,10 @@ mod tests {
             .unwrap();
         let original = os.registered.clone();
         os.reject_add = Some(id("Ctrl+Alt+V"));
-        assert!(
-            bindings
-                .replace(Bindings::requested(&direct()).unwrap(), &mut os)
-                .is_err()
-        );
+        let error = bindings
+            .replace(Bindings::requested(&direct()).unwrap(), &mut os)
+            .unwrap_err();
+        assert!(error.contains("Copy shared clipboard could not be registered"));
         assert_eq!(os.registered, original);
         assert_eq!(bindings.action(id("Ctrl+Alt+C")), None);
         assert!(bindings.open_label().is_some());

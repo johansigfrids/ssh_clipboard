@@ -24,6 +24,8 @@ Open panel has a separate actual-registration ID so a busy transfer cannot swall
 
 ## Registration and Recovery
 
+Shortcuts settings use Share and copy shortcuts with a visible Background only cue. The shorter help retains existing-clipboard Share, latest-item Copy followed by normal paste, foreground panel controls, and recording-without-transfer. Successful registration reports Shortcuts active instead of a count; disabled/unavailable and action-specific registration/rollback errors remain explicit. The test for a rejected Copy binding asserts that the error identifies Copy shared clipboard while restoring the previous OS set.
+
 Parse all enabled bindings before changing the OS. Compare canonical key IDs so aliases cannot assign one key to two actions. Register additions before releasing old bindings; swaps between actions reuse registrations. Keep the old dispatch map until the whole change succeeds. On failure, reconcile the OS set to the previous one and report any restoration failure. Track leftover registrations, but give newly stranded keys no action. A failed file replacement attempts to restore old bindings; if that restoration fails, suspend direct dispatch until recovery/relaunch.
 
 Guardrail: treating shortcuts as independent strings can miss aliases, fail swaps, or activate a partially applied Share binding. Keep OS inventory separate from saved preferences and never dispatch from the requested draft. Failed cleanup must not be hidden by a successful-looking status or forgotten registration.

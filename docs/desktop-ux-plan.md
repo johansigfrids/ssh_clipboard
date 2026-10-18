@@ -4,7 +4,7 @@
 
 Turn the owner's accepted 2026-10-18 UI/UX review into six independently reviewable PRs. Improve settings confidence, use of space, update information, and everyday interaction while retaining the app's visual identity and explicit transfer model.
 
-**Status: PRs 1-3 merged; PR 4 implemented, pending review; PRs 5-6 planned.** The owner accepted all review recommendations, authorized PRs 1-3's merges after CI, and authorized PR 4. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
+**Status: PRs 1-4 merged; PR 5 implemented, pending review; PR 6 planned.** The owner accepted all review recommendations, authorized PRs 1-4's merges after CI, and authorized PR 5. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
 
 ## Key Files
 
@@ -151,7 +151,7 @@ The same layout with the new concise version-specific notes:
 
 ### PR 4: Compact Layout and Consistent Buttons
 
-**Delivery record (2026-10-18):** [GitHub PR #15](https://github.com/johansigfrids/ssh_clipboard/pull/15), pending review on `codex/compact-desktop-layout`. The header/empty states/previews are more compact; shared button treatments retain primary, secondary, and quiet hierarchy. Copy remains above Share, with Share emphasized when nothing can be copied. History Refresh moves beside its heading; single-item/no-history Refresh remains below transfers. Settings navigation now has a fixed shell row above the scrolling form. Port and Identity file move into Advanced with values/SSH inheritance preserved and validation revealing the field.
+**Delivery record (2026-10-18):** [GitHub PR #15](https://github.com/johansigfrids/ssh_clipboard/pull/15), merged as `e71e2d2` after all seven CI jobs passed at head `af4e901`. The header/empty states/previews are more compact; shared button treatments retain primary, secondary, and quiet hierarchy. Copy remains above Share, with Share emphasized when nothing can be copied. History Refresh moves beside its heading; single-item/no-history Refresh remains below transfers. Settings navigation now has a fixed shell row above the scrolling form. Port and Identity file move into Advanced with values/SSH inheritance preserved and validation revealing the field.
 
 `npm test` passes 78 rendered contracts and 25 Node/tooling tests. New cases cover contextual empty-history Refresh, collapsed port/key draft preservation/inheritance, native invalid-field disclosure, and backend validation returning from another section with the whole draft intact. `npm run build` reports zero Svelte errors/warnings; required core/agent Clippy passes.
 
@@ -194,6 +194,26 @@ Minimum-size light settings (340 x 440 at 100%, scrolled to Advanced's end) and 
 **Docs:** refresh layout guidance in `desktop-prototype.md` and `desktop-history.md`.
 
 ### PR 5: Relevant Messages and Better Settings Grouping
+
+**Delivery record (2026-10-18):** implemented on `codex/contextual-feedback`, pending review. Healthy shelf state is one compact status with details on demand. Routine action confirmations stay in their originating section (in the settings save area), clear on navigation, and expire after five seconds. Errors have their own persistent presentation and explicit acknowledgement; timers never erase retained results, cancellation, capability warnings, or uncertain-share recovery. Panel and direct Share/Copy both retain their last backend outcome before returning/hiding; a compact result precedes recovery/history, with extra sentences in Details and failure detail initially expanded.
+
+Behavior now groups Startup first, Clipboard panel, and Shortcut feedback as preferences for this computer across connections. Notification help/Test appear only for notification modes; the explicit test does not apply drafts. Normal tray availability and repeated panel narration are omitted, while unavailable/mismatch/conflict guidance stays. Shortcuts use a Background only cue and shorter complete Share/Copy/recording instructions. Successful registration reports Shortcuts active; errors still identify the affected action.
+
+`npm test` passes 87 rendered contracts and 25 Node/tooling tests. Fake timers check expiry, replacement, newer warnings, navigation, and unmount cleanup; an in-flight Test returning after section navigation cannot resurrect stale success. Checks cover all four feedback modes, unsupported notifications/tray, startup mismatch, shortcut failure, quiet retained results and unresolved/cancelled shares without implicit transfers. Desktop all-feature tests pass 86 tests with the existing live-SSH test ignored. Desktop all-feature/all-target Clippy, required core/agent Clippy, Rust formatting, and frontend production build pass with zero Svelte errors/warnings.
+
+Synthetic browser checks cover six states (healthy, unavailable capabilities, retained transfer, failed transfer, uncertain share, reconnect) across the panel, Behavior and Shortcuts in dark/light at 440 x 670 and 340 x 440: 24 state/theme/size combinations. Navigation issues only the two initial read commands. An explicit mocked notification test issues only its test command, leaves the draft unsaved, and does not transfer. Real browser checks confirm five-second success expiry, navigation cleanup, warning/result retention, and failed results before recovery. A dirty draft plus live confirmation still leaves 121 CSS pixels of usable minimum-size content without overlap or horizontal overflow. No new native notification/clipboard/startup/OS-scaling/installation or publication evidence is claimed; fixtures use mock IPC and production state is untouched.
+
+Before/after at 440 x 670, dark theme, scale 100%, using merged PR 4 (`e71e2d2`) and the same synthetic settings/history:
+
+| Surface | Before | After |
+| --- | --- | --- |
+| Panel | ![Repeated healthy state and routine narration](images/desktop-ux-pr5/panel-before.png) | ![Compact healthy state with details on demand](images/desktop-ux-pr5/panel-after.png) |
+| Behavior | ![Notification text and tray state ahead of startup](images/desktop-ux-pr5/behavior-before.png) | ![Startup first and grouped computer preferences](images/desktop-ux-pr5/behavior-after.png) |
+| Shortcuts | ![Long explanations and registration count](images/desktop-ux-pr5/shortcuts-before.png) | ![Concise help and background-only cue](images/desktop-ux-pr5/shortcuts-after.png) |
+
+A failed uncertain share keeps its outcome and expanded detail above recovery:
+
+![Failed transfer result remains visible before recovery controls](images/desktop-ux-pr5/panel-failed.png)
 
 **Problem:** routine health, success, and explanatory text compete with actual tasks. Settings success follows the user into unrelated screens; important behavior choices sit below low-value diagnostics.
 

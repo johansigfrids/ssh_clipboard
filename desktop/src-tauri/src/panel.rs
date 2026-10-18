@@ -1129,6 +1129,7 @@ async fn share_clipboard(
         .run(share_current(&mut session, &state.clipboard, &operation))
         .await;
     session.after_operation(&operation);
+    session.record_operation(result.clone(), true);
     result?;
     session.view()
 }
@@ -1573,6 +1574,7 @@ async fn copy_item(
         })
         .await;
     session.after_operation(&operation);
+    session.record_operation(result.clone(), false);
     result?;
     if session.settings.close_after_copy
         && let Some(window) = app.get_webview_window("main")
@@ -2518,7 +2520,7 @@ mod tests {
     }
 
     #[test]
-    fn direct_results_are_retained_but_cannot_cross_profiles() {
+    fn transfer_results_are_retained_but_cannot_cross_profiles() {
         let mut session = session();
         session.record_operation(Ok(()), true);
         let first = session.view().unwrap().operation_notice.unwrap();

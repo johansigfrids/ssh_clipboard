@@ -29,6 +29,8 @@ npm run tauri dev
 
 Enter your SSH alias or `user@host` in Settings, apply it, test the connection, then refresh or share. Copy writes the displayed item to your local clipboard. Close hides the panel; Quit exits the app.
 
+Routine action confirmations clear after five seconds or when changing sections; errors and the latest transfer result remain available. Behavior groups startup, panel preferences and shortcut feedback. Notification help and Test notification appear for notification modes; testing sends a separate test without saving the draft.
+
 Apply settings and Discard changes stay visible in every settings section, including Updates. Unsaved changes take effect only after Apply; Back, Escape, and hiding the panel keep your draft for this app session. The panel shows an unsaved-settings notice with Return to settings and Discard changes. Transfers continue using saved settings. Preview visibility and Start at login also wait for Apply. Start at login shows the actual OS state until edited; saving unrelated preferences leaves that startup entry unchanged. If startup state is unavailable, you can still save other settings.
 
 Updates shows installed and available versions with Download update before What's new. Downloaded updates are verified before installation, and installing/restarting requires confirmation. Short version-specific notes appear as a list; longer or older notes can be expanded without hiding the update actions beneath them.

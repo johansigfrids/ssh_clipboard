@@ -78,7 +78,7 @@ Before/after at 440 x 670 in the light theme, with the same unsaved connection-n
 
 ### PR 2: One Save Model for Start at Login
 
-**Delivery record (2026-10-18):** implemented on `codex/startup-settings-draft`; GitHub link pending creation. Start at login now participates in the whole settings draft, and its explicit optional IPC choice joins one prepared save/activation transaction. The persisted schema is unchanged; the immediate-save command is removed.
+**Delivery record (2026-10-18):** [GitHub PR #13](https://github.com/johansigfrids/ssh_clipboard/pull/13), open for review on `codex/startup-settings-draft`. Start at login now participates in the whole settings draft, and its explicit optional IPC choice joins one prepared save/activation transaction. The persisted schema is unchanged; the immediate-save command is removed.
 
 `npm test` passes 64 rendered contracts and 19 Node/tooling tests. `npm run build`, desktop all-feature/all-target Clippy, required core/agent Clippy, and Rust formatting pass. Desktop all-feature tests pass 86 tests, with the existing disposable-SSH test left ignored. Eight focused backend tests use fake native registries and temporary stores to cover startup-only preservation, combined Apply, external/unknown/unavailable startup, stale/invalid/read-only requests, partial startup failure, shortcut failure, commit failure, and failed restoration.
 

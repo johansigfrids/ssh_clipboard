@@ -59,6 +59,22 @@ cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --all-features
 | Desktop | Draft/Apply/Discard, startup/shortcut rollback, preview privacy, selected-item copy, cancellation and retained outcomes. Native adapters are controlled in automated tests. |
 | Release | Exact source/profile/platform/bytes, synthetic signatures, bounded downloads, real draft-handoff refusal and package identity. Normal tests need no production secrets. |
 
+## Desktop IPC Contract
+
+`desktop/src-tauri/src/panel/ipc_contract_tests.rs` serializes real legacy/shelf panel views, operation state and update state into the checked-in `desktop/tests/fixtures/ipc.ts`. The generated file uses TypeScript `satisfies` against the frontend interfaces and is included in the normal Svelte check. Rust tests reject unreviewed fixture drift; rendered tests consume the same backend-shaped history/recovery data. Only host-dependent platform/shortcut availability is normalized for the fixture.
+
+Shared `ipc-requests.json` values are emitted by rendered selection tests and decoded by actual Tauri command wrappers under its mock runtime. The probes check stale revision and malformed argument refusal before native clipboard initialization; they do not establish installed webview/native behavior. UI responders enumerate command response kinds and reject unknown commands instead of returning a successful snapshot for a typo.
+
+After an intentional wire change, review both consumers and regenerate from the repository root in PowerShell:
+
+```powershell
+$env:SSH_CLIPBOARD_WRITE_IPC_FIXTURE = '1'
+try { cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --all-features --bin ssh_clipboard_desktop_prototype ipc_contract_fixture_matches_backend_serialization }
+finally { Remove-Item Env:SSH_CLIPBOARD_WRITE_IPC_FIXTURE }
+```
+
+Then run `npm test` and `npm run build` in `desktop/` and the desktop Rust checks. Normal CI never sets the write variable. Keep fixtures synthetic, deterministic and free of local configuration paths.
+
 ## Transport and Diagnostic Faults
 
 Pipe fixtures use noninteractive PowerShell or `/bin/sh`, with no SSH or clipboard. All transport fixture families share two-slot admission; keep timeout/uncertainty/reaping assertions and production deadlines intact. Linux process cases serialize cases to prevent fork-inherited executable writers causing ETXTBSY, while retaining concurrent clients inside each case. Fixture runtimes cap Tokio workers at two. See [session guardrails](persistent-sessions.md#evidence-and-fixture-guardrails).

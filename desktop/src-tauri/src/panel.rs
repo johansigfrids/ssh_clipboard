@@ -1894,6 +1894,10 @@ fn cleanup_transport(app: &AppHandle) {
 mod startup_tests;
 
 #[cfg(test)]
+#[path = "panel/ipc_contract_tests.rs"]
+mod ipc_contract_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -2426,7 +2430,7 @@ mod tests {
         clipboard.stop();
     }
 
-    fn session() -> Session {
+    pub(super) fn session() -> Session {
         let mut config = Configuration {
             revision: 1,
             ..Default::default()

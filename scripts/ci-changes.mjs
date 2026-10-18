@@ -7,6 +7,8 @@ export function selectChanges(paths) {
   const selected = { core: false, desktop: false, packages: false, maintenance: false };
   for (const file of paths) {
     if (/^(docs\/.*\.md|README\.md|ARCHITECTURE\.md|CHANGELOG\.md|AGENTS\.md|LICENSE)$/.test(file)) continue;
+    // Only documentation images are inert; keys and unfamiliar docs inputs fail closed.
+    if (/^docs\/images\/.*\.(png|jpe?g|gif|webp|svg)$/i.test(file)) continue;
     if (/^(scripts\/test-managed-server\.py|desktop\/scripts\/(smoke-server-(maintenance|package)|build-server|run-remote-service-fixture)\.mjs)$/.test(file)) {
       selected.maintenance = true;
     } else if (/^(src\/|tests\/)/.test(file)) {

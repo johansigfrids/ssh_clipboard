@@ -15,7 +15,9 @@
     "test:server-package": "node scripts/smoke-server-package.mjs",
     "test:server-maintenance": "node scripts/smoke-server-maintenance.mjs",
     "test:package": "node scripts/smoke-installed-build.mjs",
-    "test": "node --test tests/*.test.mjs && vitest run"
+    "test:tooling": "node --test tests/*.test.mjs",
+    "test:ui": "vitest run",
+    "test": "npm run test:tooling && npm run test:ui"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

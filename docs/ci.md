@@ -10,6 +10,14 @@ Document the GitHub Actions setup for tests and releases, including build varian
 - [docs/testing.md](testing.md) (local test commands and Linux deps)
 
 ## CI Overview
+
+CI always checks tracked Markdown links/headings, current guide index coverage and change-selector regressions. Documentation-only changes skip compilation. Unknown paths select all checks; shared Rust changes select core and desktop, frontend source/tests select desktop, and desktop build/configuration/dependency/tooling changes also select synthetic packages. Renames include both paths. Manual CI dispatch runs every check, including packages, before a release when needed.
+
+Superseded PR runs are cancelled; master push runs are retained. The always-run `CI complete` check fails if selection or any selected job fails or is cancelled. Use this stable check for future branch protection rather than a conditionally skipped matrix entry.
+
+Cargo caches use the pinned Rust Cache action, which keys by actual toolchain/environment and prunes workspace binaries and incremental output. Core variants have separate keys, so Linux server and agent no longer compete for one cache.
+
+Platform-sensitive Node tooling tests run on all desktop hosts. Pure Svelte interactions run once on Linux. Default-feature desktop Rust is linted everywhere and tested on Linux; all-feature tests and standalone embedded-asset builds run on every desktop host. Keep default lint and Linux tests: installed features exclude portable-only code.
 - `ci.yml` runs on PRs and pushes to `master`:
   - `cargo fmt -- --check`
   - `cargo clippy --features agent -- -D warnings`

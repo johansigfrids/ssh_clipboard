@@ -55,6 +55,63 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("quick panel contracts", () => {
+  it("curated notes are inert bullets after the primary update action", async () => {
+    state.updateStatus={...state.updateStatus,available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",phase:"offered",detail:"An update is available.",notes:"# 2.0.0\n\n- Faster startup.\n- <script>window.hacked = true</script>\n"};
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Updates",exact:true}));
+    const summary=screen.getByRole("region",{name:"What's new"});
+    expect(summary.querySelectorAll("li")).toHaveLength(2);
+    expect(screen.getByText("<script>window.hacked = true</script>").tagName).toBe("LI");
+    expect(document.querySelector("main script")).toBeNull();
+    expect(screen.getByText("Installed: 1.0.0")).toBeTruthy();
+    expect(screen.getByText("Available: 2.0.0")).toBeTruthy();
+    expect(screen.queryByRole("heading",{name:"Updates",exact:true})).toBeNull();
+    expect(screen.getByRole("button",{name:"Download update"}).compareDocumentPosition(summary)&Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+  });
+
+  it.each(["", "# Changelog\n\n## [Unreleased]\n\n"+"Old release details.\n".repeat(80), "# 9.9.9\n\n- Notes for another version.\n"])("missing or legacy notes keep actions first and preserve full text (%#)", async (notes) => {
+    state.updateStatus={...state.updateStatus,available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",phase:"offered",notes};
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Updates",exact:true}));
+    const action=screen.getByRole("button",{name:"Download update"});
+    const disclosure=document.querySelector("details.update-notes") as HTMLDetailsElement | null;
+    if(notes) {
+      expect(disclosure!.open).toBe(false);
+      const full=disclosure!.querySelector("pre")!;
+      expect(full.textContent).toBe(notes);
+      expect(action.compareDocumentPosition(disclosure!)&Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+      bridge.listen.mock.calls.find(([name])=>name==="update-state")![1]({payload:{...state.updateStatus,phase:"checking",busy:true,detail:"Checking for updates…"}});
+      await waitFor(()=>expect(action.hasAttribute("disabled")).toBe(true));
+      expect(disclosure!.querySelector("pre")).toBe(full);
+    } else {
+      expect(disclosure).toBeNull();
+      expect(screen.queryByText("What's new")).toBeNull();
+    }
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+  });
+
+  it.each([
+    ["checking","Download update",true], ["offered","Download update",false],
+    ["downloading","Downloading…",true], ["verifying","Verifying…",true],
+    ["ready","Install update…",false], ["failed","Download update",false],
+  ] as const)("update phase %s presents the appropriate action without triggering it", async (phase,action,busy) => {
+    state.updateStatus={...state.updateStatus,available:true,currentVersion:"1.0.0",offeredVersion:"2.0.0",phase,busy,detail:`Update phase: ${phase}`,downloadedBytes:512,totalBytes:1024};
+    render(App);
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Updates",exact:true}));
+    expect(screen.getByRole("button",{name:action,exact:true}).hasAttribute("disabled")).toBe(busy);
+    expect(screen.getByRole("button",{name:"Check for updates"}).hasAttribute("disabled")).toBe(busy);
+    if(phase==="downloading")expect(screen.getByText("512 B of 1.0 KiB")).toBeTruthy();
+    if(phase==="failed")expect(screen.getByRole("alert").textContent).toBe("Update phase: failed");
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
+  });
+
   it("Back, Escape, hiding and reopening retain drafts without changing the active connection or previews", async () => {
     state.settings.target = "saved-hub";
     state.settingsSaved = true;
@@ -166,8 +223,8 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Restore default shortcut" }));
     await fireEvent.click(screen.getByRole("button", { name: "Updates" }));
     await fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Download and verify" }).hasAttribute("disabled")).toBe(false));
-    await fireEvent.click(screen.getByRole("button", { name: "Download and verify" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Download update" }).hasAttribute("disabled")).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "Download update" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Back" }).hasAttribute("disabled")).toBe(false));
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
     expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "check_updates", "download_update"]);
@@ -184,7 +241,7 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button",{name:"Updates"}));
     const heading=document.querySelector("main")!.firstElementChild;
     const notes=screen.getByText("Retained release notes");
-    const download=screen.getByRole("button",{name:"Download and verify"});
+    const download=screen.getByRole("button",{name:"Download update"});
     await fireEvent.click(screen.getByRole("button",{name:"Check for updates"}));
     const update=bridge.listen.mock.calls.find(([name])=>name==="update-state")![1];
     const operation=bridge.listen.mock.calls.find(([name])=>name==="operation-state")![1];
@@ -194,7 +251,7 @@ describe("quick panel contracts", () => {
     expect(cancel.closest(".updates-panel")).toBeTruthy();
     expect(document.querySelector("main")!.firstElementChild).toBe(heading);
     expect(screen.getByText("Retained release notes")).toBe(notes);
-    expect(screen.getByRole("button",{name:"Download and verify"})).toBe(download);
+    expect(screen.getByRole("button",{name:"Download update"})).toBe(download);
     expect(download.hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("button",{name:"Check for updates"}).textContent).toBe("Checking…");
     operation({payload:{generation:"2",active:null}});
@@ -230,7 +287,7 @@ describe("quick panel contracts", () => {
     bridge.listen.mock.calls.find(([name])=>name==="update-state")![1]({payload:next});
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
     await fireEvent.click(screen.getByRole("button",{name:"Updates"}));
-    expect(screen.getByRole("button",{name:"Download and verify"})).toBeTruthy();
+    expect(screen.getByRole("button",{name:"Download update"})).toBeTruthy();
     expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
     state.pendingShare={id:"uncertain",canRetry:true};
     state.updateStatus={...next,phase:"ready"};

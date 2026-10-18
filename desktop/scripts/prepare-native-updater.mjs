@@ -70,7 +70,7 @@ try {
     for(const relative of ['target','desktop/node_modules','desktop/src-tauri/target'])symlinkSync(path.join(root,relative),path.join(snapshot,relative),'junction');
     const embeddedKey=['0.3.4','0.3.5'].includes(version)?keyB:keyA;
     const signingKey=version==='0.3.5'?keyB:keyA;
-    const notes=path.join(fixture,'notes-'+version+'.txt');writeFileSync(notes,`Isolated native updater rehearsal ${version}. No production release. Configuration and startup should survive.\n`);
+    const notes=path.join(fixture,'notes-'+version+'.txt');writeFileSync(notes,`# ${version}\n\n- Isolated native updater rehearsal. Configuration and startup should survive.\n`);
     console.log('Building signed native updater rehearsal '+version);
     const args=[path.join(snapshot,'desktop/scripts/build-installed.mjs'),'--test-build','--version',version,'--public-key-file',embeddedKey+'.pub','--native-test-origin',origin,'--notes-file',notes];
     if(version==='0.3.4')args.push('--transition-from-public-key-file',keyA+'.pub');

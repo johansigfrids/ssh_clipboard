@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { cloneSettings, cloneTransport, command, defaultTransport, initialView, subscribe, type OperationView, type PanelView, type Settings, type UpdateView } from "./api";
   import { displayShortcut, shortcutFromEvent } from "./shortcut.js";
+  import { conciseUpdateNotes } from "./update-notes";
 
   let view = $state<PanelView>(initialView);
   let draft = $state<Settings>(cloneSettings(initialView.settings));
@@ -35,6 +36,7 @@
   const staleDraft = $derived(dirty && draftRevision !== view.settingsRevision);
   const applyDisabled = $derived(!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested || (startupDraft !== null && (!view.startupStatus.available || view.startupStatus.enabled === null)));
   const selectedHistory = $derived(view.history?.items.find((item) => item.id === view.history?.selectedId));
+  const updateNotes = $derived(conciseUpdateNotes(view.updateStatus.notes, view.updateStatus.offeredVersion));
 
   function requestHistoryRemoval(kind: "delete" | "clear") {
     if (!view.history?.epoch) return;
@@ -479,30 +481,38 @@
           <p class="field-help">To receive: press your Copy shortcut to put the latest shared item on this computer's clipboard, then paste normally. It doesn't paste into the active app. Recording a shortcut never transfers content.</p>
         {:else if section === "updates"}
           <section class="updates-panel" aria-label="Software updates">
-          <h3>Updates</h3>
-          <p>Current version: {view.updateStatus.currentVersion === "0.0.0" ? "Development prototype" : view.updateStatus.currentVersion}</p>
-          <p class="field-help update-detail" role="status">{view.updateStatus.detail}</p>
-          {#if view.updateStatus.offeredVersion}<p>Available version: <strong>{view.updateStatus.offeredVersion}</strong></p>{/if}
-          {#if view.updateStatus.notes}<pre class="release-notes">{view.updateStatus.notes}</pre>{/if}
-          {#if view.updateStatus.phase === "downloading"}<p>{formatSize(view.updateStatus.downloadedBytes)}{view.updateStatus.totalBytes !== null ? ` of ${formatSize(view.updateStatus.totalBytes)}` : " downloaded"}</p>{/if}
-          <button type="button" class="check-updates" aria-label="Check for updates" disabled={!ready || busy || view.updateStatus.busy || !view.updateStatus.available} onclick={() => updateAction("check_updates")}>{view.updateStatus.busy && view.updateStatus.phase === "checking" ? "Checking…" : "Check for updates"}</button>
+          <div class="update-versions"><span>Installed: {view.updateStatus.currentVersion === "0.0.0" ? "Development prototype" : view.updateStatus.currentVersion}</span>{#if view.updateStatus.offeredVersion}<strong>Available: {view.updateStatus.offeredVersion}</strong>{/if}</div>
+          <p class="field-help update-detail" role={view.updateStatus.phase === "failed" ? "alert" : "status"}>{view.updateStatus.detail}</p>
+          <div class="update-actions">
           {#if view.updateStatus.offeredVersion && view.updateStatus.phase !== "ready"}
-            <button type="button" disabled={!ready || busy || view.updateStatus.busy} onclick={() => updateAction("download_update", view.updateStatus.offeredVersion!)}>Download and verify</button>
+            <button type="button" class="primary" disabled={!ready || busy || view.updateStatus.busy} onclick={() => updateAction("download_update", view.updateStatus.offeredVersion!)}>{view.updateStatus.phase === "downloading" ? "Downloading…" : view.updateStatus.phase === "verifying" ? "Verifying…" : "Download update"}</button>
           {/if}
           {#if view.updateStatus.phase === "ready" && view.updateStatus.offeredVersion}
             {#if confirmingInstall === view.updateStatus.offeredVersion}
               <div class="feedback" role="group" aria-label="Install update confirmation">
-                <p>Install version {confirmingInstall} and restart? Configuration is kept. The current local clipboard owner will close.</p>
+                <p>Install version {confirmingInstall} and restart SSH Clipboard? Your settings are kept.</p>
                 <button type="button" disabled={busy || dirty || !!view.pendingShare || view.updateStatus.busy} onclick={() => updateAction("install_update", confirmingInstall!)}>Install and restart</button>
                 <button type="button" disabled={busy} onclick={() => confirmingInstall = null}>Cancel</button>
               </div>
             {:else}
               <button type="button" class="primary" disabled={busy || dirty || !!view.pendingShare || view.updateStatus.busy} onclick={() => confirmingInstall = view.updateStatus.offeredVersion}>Install update…</button>
             {/if}
+          {/if}
+          <button type="button" aria-label="Check for updates" disabled={!ready || busy || view.updateStatus.busy || !view.updateStatus.available} onclick={() => updateAction("check_updates")}>{view.updateStatus.busy && view.updateStatus.phase === "checking" ? "Checking…" : "Check for updates"}</button>
+          </div>
+          {#if view.updateStatus.phase === "ready" && view.updateStatus.offeredVersion}
             {#if dirty}<p class="field-help">Apply or discard settings changes before installing.</p>{/if}
             {#if view.pendingShare}<p class="field-help">Resolve or discard the uncertain share before installing.</p>{/if}
           {/if}
-          <div class="update-operation">{@render operationProgress()}</div>
+          <div class="update-operation">
+            {@render operationProgress()}
+            {#if view.updateStatus.phase === "downloading"}<p class="field-help">{formatSize(view.updateStatus.downloadedBytes)}{view.updateStatus.totalBytes !== null ? ` of ${formatSize(view.updateStatus.totalBytes)}` : " downloaded"}</p>{/if}
+          </div>
+          {#if updateNotes}
+            <section class="update-summary" aria-label="What's new"><h3>What's new</h3><ul>{#each updateNotes as note}<li>{note}</li>{/each}</ul></section>
+          {:else if view.updateStatus.notes}
+            <details class="update-notes"><summary>What's new</summary><pre class="release-notes">{view.updateStatus.notes}</pre></details>
+          {/if}
           </section>
         {:else}
           <label class="toggle"><input type="checkbox" bind:checked={draft.showPreview} disabled={!ready || busy} />Show content previews</label>

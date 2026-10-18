@@ -5,6 +5,7 @@ import {readFileSync,readdirSync,writeFileSync,mkdirSync,copyFileSync} from "nod
 import {execFileSync,spawnSync} from "node:child_process";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
+import {loadReleaseNotes,validateReleaseNotes} from "./release-notes.mjs";
 
 export const desktopPlatforms=["windows-x86_64","darwin-aarch64"];
 
@@ -29,7 +30,7 @@ export function admitDesktopStage({version,source,repository,keyId,platform},rea
   }
   // Windows Git checkouts may use CRLF while the same Mac source uses LF.
   // Compare the actual notes text without rejecting that platform difference.
-  return {platform,version,keyId,notes:feed.notes.replace(/\r\n/g,"\n"),asset:{url,signature},assets};
+  return {platform,version,keyId,notes:validateReleaseNotes(version,feed.notes),asset:{url,signature},assets};
 }
 
 export function combineDesktopFeed(stages) {
@@ -41,6 +42,7 @@ export function combineDesktopFeed(stages) {
 
 export function createDesktopDraft({root=fileURLToPath(new URL("../../",import.meta.url)),env=process.env,read=readFileSync,list=readdirSync,write=writeFileSync,mkdir=mkdirSync,copy=copyFileSync,run=execFileSync,probe=spawnSync}={}) {
   const {RELEASE_VERSION:version,GITHUB_SHA:source,GITHUB_REPOSITORY:repository}=env;
+  const notes=loadReleaseNotes({version,desktop:path.join(root,"desktop")},read);
   const publicKey=read(path.join(root,"docs/update-signing-public-key.pub"),"utf8").trim();
   const keyId=createHash("sha256").update(publicKey).digest("hex").slice(0,16);
   const inputs=path.join(root,"desktop/artifacts/release-inputs");
@@ -52,6 +54,7 @@ export function createDesktopDraft({root=fileURLToPath(new URL("../../",import.m
     return {...admitDesktopStage({version,source,repository,keyId,platform},(name,encoding)=>read(path.join(stage,name),encoding)),stage};
   });
   const feed=combineDesktopFeed(admitted);
+  if(feed.notes!==notes)throw Error("Desktop platform notes differ from the reviewed version's release notes.");
   const tag=`desktop-v${version}`;
   if(probe("gh",["release","view",tag,"--repo",repository],{stdio:"ignore"}).status===0)throw Error("Never overwrite an existing signed release");
   const output=path.join(root,"desktop/artifacts",`desktop-draft-${version}-${randomUUID()}`);
@@ -63,7 +66,9 @@ export function createDesktopDraft({root=fileURLToPath(new URL("../../",import.m
   }
   const manifest=path.join(output,`desktop-stable-${keyId}.json`);
   write(manifest,JSON.stringify(feed,null,2)+"\n");assets.push(manifest);
-  run("gh",["release","create",tag,...assets,"--repo",repository,"--target",source,"--draft","--title",`SSH Clipboard ${version}`,"--notes-file",path.join(root,"CHANGELOG.md")],{stdio:"inherit"});
+  const notesPath=path.join(output,"release-notes.md");
+  write(notesPath,notes);
+  run("gh",["release","create",tag,...assets,"--repo",repository,"--target",source,"--draft","--title",`SSH Clipboard ${version}`,"--notes-file",notesPath],{stdio:"inherit"});
 }
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))createDesktopDraft();

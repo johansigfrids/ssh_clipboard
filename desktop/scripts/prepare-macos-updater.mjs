@@ -29,7 +29,7 @@ try {
       if(!expression.test(original.get(name)))throw Error('Missing core lock anchor.');
       writeFileSync(path.join(root,name),original.get(name).replace(expression,`name = "ssh_clipboard"\nversion = "${version}"`));
     }
-    const notes=path.join(privateRoot,'notes.txt');writeFileSync(notes,`Disposable Mac update rehearsal ${version}. No production release.\n`);
+    const notes=path.join(privateRoot,'notes.txt');writeFileSync(notes,`# ${version}\n\n- Disposable Mac update rehearsal. No production release.\n`);
     const before=new Set(readdirSync(artifacts));
     execFileSync(process.execPath,[path.join(desktop,'scripts/build-installed.mjs'),'--test-build','--version',version,'--public-key-file',key+'.pub','--native-test-origin',origin,'--notes-file',notes],{cwd:desktop,stdio:'inherit',env:{...process.env,TAURI_SIGNING_PRIVATE_KEY:key,TAURI_SIGNING_PRIVATE_KEY_PASSWORD:''}});
     const stages=readdirSync(artifacts).filter(name=>name.startsWith(`TEST-only-installed-${version}-`)&&!before.has(name));

@@ -40,6 +40,8 @@ jobs:
           $core = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
           if ($core -ne $env:RELEASE_VERSION -or $core -eq '0.0.0') { throw 'Version must match the reviewed core commit' }
           if ((git rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Unexpected source commit' }
+          node desktop/scripts/release-notes.mjs $env:RELEASE_VERSION
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Pin Rust toolchain
         run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt,clippy
       - name: Validate core
@@ -111,7 +113,7 @@ jobs:
           if (-not $env:TAURI_SIGNING_PRIVATE_KEY -or -not $env:DESKTOP_PUBLIC_KEY) { throw 'Protected release trust inputs are missing' }
           $publicKey = Join-Path $env:RUNNER_TEMP 'desktop-public-key.pub'
           Set-Content -LiteralPath $publicKey -Value $env:DESKTOP_PUBLIC_KEY -NoNewline
-          node scripts/build-installed.mjs --version $env:RELEASE_VERSION --public-key-file $publicKey --notes-file ../CHANGELOG.md
+          node scripts/build-installed.mjs --version $env:RELEASE_VERSION --public-key-file $publicKey
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           @'
           import {readFileSync,readdirSync} from 'node:fs';

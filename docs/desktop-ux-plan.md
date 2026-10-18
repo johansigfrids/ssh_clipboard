@@ -4,7 +4,7 @@
 
 Turn the owner's accepted 2026-10-18 UI/UX review into six independently reviewable PRs. Improve settings confidence, use of space, update information, and everyday interaction while retaining the app's visual identity and explicit transfer model.
 
-**Status: PR 1 merged; PR 2 implemented, pending review; PRs 3-6 planned.** The owner accepted all review recommendations, authorized PR 1's merge after CI, and authorized PR 2. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
+**Status: PRs 1-2 merged; PR 3 implemented, pending review; PRs 4-6 planned.** The owner accepted all review recommendations, authorized PRs 1-2's merges after CI, and authorized PR 3. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
 
 ## Key Files
 
@@ -14,6 +14,7 @@ Turn the owner's accepted 2026-10-18 UI/UX review into six independently reviewa
 - `desktop/src-tauri/src/startup.rs`, `startup_native.rs`: actual login-entry state and rollback.
 - `desktop/src-tauri/src/shortcuts.rs`, `notifications.rs`: registration and feedback capabilities.
 - `desktop/scripts/build-installed.mjs`, `desktop-draft.mjs`, `.github/workflows/desktop-release.yml`: release notes and feed generation.
+- `desktop/release-notes/`, `desktop/scripts/release-notes.mjs`, `desktop/src/update-notes.ts`: version-specific note authoring, admission, and safe presentation.
 - `desktop/tests/panel.test.ts`, `shortcut.test.mjs`, `desktop-release.test.mjs`: existing frontend and delivery checks.
 
 ## Review Baseline and Decisions
@@ -78,7 +79,7 @@ Before/after at 440 x 670 in the light theme, with the same unsaved connection-n
 
 ### PR 2: One Save Model for Start at Login
 
-**Delivery record (2026-10-18):** [GitHub PR #13](https://github.com/johansigfrids/ssh_clipboard/pull/13), open for review on `codex/startup-settings-draft`. Start at login now participates in the whole settings draft, and its explicit optional IPC choice joins one prepared save/activation transaction. The persisted schema is unchanged; the immediate-save command is removed.
+**Delivery record (2026-10-18):** [GitHub PR #13](https://github.com/johansigfrids/ssh_clipboard/pull/13), merged as `315b087` after all seven CI checks passed at head `92a21d2`. Start at login now participates in the whole settings draft, and its explicit optional IPC choice joins one prepared save/activation transaction. The persisted schema is unchanged; the immediate-save command is removed.
 
 `npm test` passes 64 rendered contracts and 19 Node/tooling tests. `npm run build`, desktop all-feature/all-target Clippy, required core/agent Clippy, and Rust formatting pass. Desktop all-feature tests pass 86 tests, with the existing disposable-SSH test left ignored. Eight focused backend tests use fake native registries and temporary stores to cover startup-only preservation, combined Apply, external/unknown/unavailable startup, stale/invalid/read-only requests, partial startup failure, shortcut failure, commit failure, and failed restoration.
 
@@ -109,6 +110,24 @@ Synthetic browser checks at 440 x 670 and 340 x 440 confirm combined draft editi
 **Docs:** update `shared-configuration.md`, `desktop-updates.md`, relevant README guidance, and `ARCHITECTURE.md` for the coordinated activation boundary.
 
 ### PR 3: Trustworthy, Actionable Updates
+
+**Delivery record (2026-10-18):** implemented on `codex/actionable-updates`, pending review. Installed/available versions, status, and Download update now precede notes. Short exact-version bullets render as escaped text; longer, mismatched, or legacy notes retain their full inert text in a disclosure using the page's scroll area. Missing notes omit the section. Verification progress, cancellation, offer identity checks, dirty-settings/pending-share blocks, and explicit install confirmation remain in place.
+
+Packaging now validates `desktop/release-notes/<version>.md` before credentials, compilation, or staging. Both platform feeds must match the reviewed source notes, which also supply the desktop draft description. Disposable test packages can use an explicit override under the same version/size/content contract. The checked-in 0.4.2 file is a source reference; existing published packages/feeds are unchanged, and future versions require their own reviewed notes and release authorization.
+
+`npm test` passes 74 rendered contracts and 25 Node/tooling tests, including wrong/missing/oversized/draft notes, cross-platform/source disagreement, inert note content, and update phases. `npm run build` reports zero Svelte errors/warnings. Desktop all-feature tests pass 86 tests, with the existing disposable-SSH test ignored. Desktop all-feature/all-target Clippy, required core/agent Clippy, Rust formatting, and notes preflight pass.
+
+Synthetic browser checks cover dark 440 x 670 and light 340 x 440 CSS viewports at browser scale 100%. At default size, the Download action moves from y=613 (below the scrolling content's y=541 bottom) to y=284. Rechecking keeps its position; keyboard Enter expands legacy notes without nested scrolling. At minimum size all actions are reachable and no horizontal overflow occurs. Checking, downloading, verifying, ready, failed, curated, legacy, and missing-note states were inspected. These checks use mock IPC; no new native installed updater, signed package, publication, or production-settings/clipboard changes were performed.
+
+Before/after at 440 x 670 in the dark theme, with the same legacy changelog payload. The baseline is merged PR 2 (`315b087`); the after image keeps the payload available through What's new:
+
+| Before | After |
+| --- | --- |
+| ![Old update controls below the fold under the raw changelog](images/desktop-ux-pr3/update-before.png) | ![Visible update actions above collapsed legacy notes](images/desktop-ux-pr3/update-after.png) |
+
+The same layout with the new concise version-specific notes:
+
+![Update actions followed by concise user-facing release bullets](images/desktop-ux-pr3/update-curated.png)
 
 **Problem:** the whole repository changelog appears as raw Markdown before update actions. Historical and candidate-only wording contradicts the offered release.
 

@@ -1,10 +1,12 @@
 # Desktop UI/UX Improvement Plan
 
+> Historical record, archived 2026-10-18. Version, latest-release and pending-gate statements below belong to the recorded source/session. Use [the docs index](../index.md) for current guides; preserve exact identities and unobserved limits when adding corrections.
+
 ## Purpose
 
 Turn the owner's accepted 2026-10-18 UI/UX review into six independently reviewable PRs. Improve settings confidence, use of space, update information, and everyday interaction while retaining the app's visual identity and explicit transfer model.
 
-**Status: PRs 1-5 merged; PR 6 implemented, pending review.** The owner accepted all review recommendations, authorized PRs 1-5's merges after CI, and authorized PR 6. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
+**Status: all six PRs merged.** PR 6 (GitHub #17) merged as `4b96a48` on local `master`; the remaining delivery records retain their original validation evidence. PR numbers below describe delivery order. This work is separate from the completed [original rework](implementation-plan.md).
 
 ## Key Files
 
@@ -55,7 +57,7 @@ Before/after at 440 x 670 in the light theme, with the same unsaved connection-n
 
 | Before | After |
 | --- | --- |
-| ![Original settings: save actions below the fold and a misleading saved label](images/desktop-ux-pr1/settings-before.png) | ![Updated settings: visible unsaved state and persistent Apply and Discard](images/desktop-ux-pr1/settings-after.png) |
+| ![Original settings: save actions below the fold and a misleading saved label](../images/desktop-ux-pr1/settings-before.png) | ![Updated settings: visible unsaved state and persistent Apply and Discard](../images/desktop-ux-pr1/settings-after.png) |
 
 **Problem:** "Saved on this computer" describes the existence of a saved file, not whether visible edits are applied. Done retains a draft, while Apply/Discard are below the fold.
 
@@ -87,7 +89,7 @@ Synthetic browser checks at 440 x 670 and 340 x 440 confirm combined draft editi
 
 | Before | After |
 | --- | --- |
-| ![Startup disabled while another preference is edited](images/desktop-ux-pr2/startup-before.png) | ![Startup shares the pending draft while reporting its actual state](images/desktop-ux-pr2/startup-after.png) |
+| ![Startup disabled while another preference is edited](../images/desktop-ux-pr2/startup-before.png) | ![Startup shares the pending draft while reporting its actual state](../images/desktop-ux-pr2/startup-after.png) |
 
 **Problem:** Start at login saves immediately, behaves differently from neighboring controls, and becomes disabled whenever another setting is edited.
 
@@ -107,7 +109,7 @@ Synthetic browser checks at 440 x 670 and 340 x 440 confirm combined draft editi
 - Preserve actual-versus-saved mismatch reporting. Automated reads/reloads must not call native registration.
 - Native evidence, if needed, is a finite isolated installed-test-build check on supported Windows/Mac paths; do not change the owner's production login entry as a side effect of testing.
 
-**Docs:** update `shared-configuration.md`, `desktop-updates.md`, relevant README guidance, and `ARCHITECTURE.md` for the coordinated activation boundary.
+**Docs:** update `shared-configuration.md`, `desktop-updates.md`, relevant README guidance, and [ARCHITECTURE.md](../../ARCHITECTURE.md) for the coordinated activation boundary.
 
 ### PR 3: Trustworthy, Actionable Updates
 
@@ -123,11 +125,11 @@ Before/after at 440 x 670 in the dark theme, with the same legacy changelog payl
 
 | Before | After |
 | --- | --- |
-| ![Old update controls below the fold under the raw changelog](images/desktop-ux-pr3/update-before.png) | ![Visible update actions above collapsed legacy notes](images/desktop-ux-pr3/update-after.png) |
+| ![Old update controls below the fold under the raw changelog](../images/desktop-ux-pr3/update-before.png) | ![Visible update actions above collapsed legacy notes](../images/desktop-ux-pr3/update-after.png) |
 
 The same layout with the new concise version-specific notes:
 
-![Update actions followed by concise user-facing release bullets](images/desktop-ux-pr3/update-curated.png)
+![Update actions followed by concise user-facing release bullets](../images/desktop-ux-pr3/update-curated.png)
 
 **Problem:** the whole repository changelog appears as raw Markdown before update actions. Historical and candidate-only wording contradicts the offered release.
 
@@ -163,14 +165,14 @@ Before/after at 440 x 670, dark theme, scale 100%, using merged PR 3 (`eedb187`)
 
 | Surface | Before | After |
 | --- | --- | --- |
-| Panel | ![Panel with first history row clipped below the fold](images/desktop-ux-pr4/panel-before.png) | ![Compact panel with the first history row visible](images/desktop-ux-pr4/panel-after.png) |
-| Settings | ![Settings navigation inside scrolling content](images/desktop-ux-pr4/settings-before.png) | ![Settings navigation above the scrolling form](images/desktop-ux-pr4/settings-after.png) |
+| Panel | ![Panel with first history row clipped below the fold](../images/desktop-ux-pr4/panel-before.png) | ![Compact panel with the first history row visible](../images/desktop-ux-pr4/panel-after.png) |
+| Settings | ![Settings navigation inside scrolling content](../images/desktop-ux-pr4/settings-before.png) | ![Settings navigation above the scrolling form](../images/desktop-ux-pr4/settings-after.png) |
 
 Minimum-size light settings (340 x 440 at 100%, scrolled to Advanced's end) and the 125%-equivalent light check (352 x 536 CSS, output 440 x 670, with an unsaved Port edit):
 
 | Minimum | Scaled |
 | --- | --- |
-| ![Minimum settings with navigation and save controls visible](images/desktop-ux-pr4/settings-minimum.png) | ![Scaled settings with unsaved draft and persistent controls](images/desktop-ux-pr4/settings-scale125.png) |
+| ![Minimum settings with navigation and save controls visible](../images/desktop-ux-pr4/settings-minimum.png) | ![Scaled settings with unsaved draft and persistent controls](../images/desktop-ux-pr4/settings-scale125.png) |
 
 **Problem:** branding, empty-state space, and large secondary actions push history and settings controls down. Button emphasis is inconsistent, especially when Copy is disabled.
 
@@ -207,13 +209,13 @@ Before/after at 440 x 670, dark theme, scale 100%, using merged PR 4 (`e71e2d2`)
 
 | Surface | Before | After |
 | --- | --- | --- |
-| Panel | ![Repeated healthy state and routine narration](images/desktop-ux-pr5/panel-before.png) | ![Compact healthy state with details on demand](images/desktop-ux-pr5/panel-after.png) |
-| Behavior | ![Notification text and tray state ahead of startup](images/desktop-ux-pr5/behavior-before.png) | ![Startup first and grouped computer preferences](images/desktop-ux-pr5/behavior-after.png) |
-| Shortcuts | ![Long explanations and registration count](images/desktop-ux-pr5/shortcuts-before.png) | ![Concise help and background-only cue](images/desktop-ux-pr5/shortcuts-after.png) |
+| Panel | ![Repeated healthy state and routine narration](../images/desktop-ux-pr5/panel-before.png) | ![Compact healthy state with details on demand](../images/desktop-ux-pr5/panel-after.png) |
+| Behavior | ![Notification text and tray state ahead of startup](../images/desktop-ux-pr5/behavior-before.png) | ![Startup first and grouped computer preferences](../images/desktop-ux-pr5/behavior-after.png) |
+| Shortcuts | ![Long explanations and registration count](../images/desktop-ux-pr5/shortcuts-before.png) | ![Concise help and background-only cue](../images/desktop-ux-pr5/shortcuts-after.png) |
 
 A failed uncertain share keeps its outcome and expanded detail above recovery:
 
-![Failed transfer result remains visible before recovery controls](images/desktop-ux-pr5/panel-failed.png)
+![Failed transfer result remains visible before recovery controls](../images/desktop-ux-pr5/panel-failed.png)
 
 **Problem:** routine health, success, and explanatory text compete with actual tasks. Settings success follows the user into unrelated screens; important behavior choices sit below low-value diagnostics.
 
@@ -248,7 +250,7 @@ A failed uncertain share keeps its outcome and expanded detail above recovery:
 
 ### PR 6: History Scanning and Keyboard Usability
 
-**Delivery record (2026-10-18):** [GitHub PR #17](https://github.com/johansigfrids/ssh_clipboard/pull/17), pending review on `codex/history-keyboard-ux`. Rows show relative receipt/expiry, readable binary sizes, and a separate Exact times disclosure. A visible-panel-only 30-second clock preserves epoch/ID keyed rows, selection, focus and disclosure state without IPC. Invalid/imprecise timestamps remain unknown; elapsed local expiry never removes an item or claims server confirmation.
+**Delivery record (2026-10-18):** [GitHub PR #17](https://github.com/johansigfrids/ssh_clipboard/pull/17), merged as `4b96a48` from `codex/history-keyboard-ux` (confirmed from local Git history; no new CI or native test result is implied). Rows show relative receipt/expiry, readable binary sizes, and a separate Exact times disclosure. A visible-panel-only 30-second clock preserves epoch/ID keyed rows, selection, focus and disclosure state without IPC. Invalid/imprecise timestamps remain unknown; elapsed local expiry never removes an item or claims server confirmation.
 
 Settings now have complete tab semantics, one Tab stop, Left/Right wrapping and Home/End. Opening/returning, Apply/Discard, selection, errors and confirmations have deliberate focus targets. Escape cancels confirmation/recording before navigating. Passive disappearance recovers focus only after the previously focused control is removed and body focus is observed. Field-help associations, named statuses, theme-aware focus outlines and platform-specific key labels are covered; canonical stored shortcuts and transfer guards are unchanged. Light muted text was darkened slightly after measuring 4.48:1 against the page; its minimum is now 4.55:1. Accent focus contrast is at least 5.49:1 light / 5.70:1 dark against page/surface.
 
@@ -264,11 +266,11 @@ Before/after at 440 x 670, dark theme, browser scale 100%, using merged PR 5 (`0
 
 | Before | After |
 | --- | --- |
-| ![Dense absolute timestamps and KiB-only sizes](images/desktop-ux-pr6/history-before.png) | ![Relative times, readable units and exact-time disclosures](images/desktop-ux-pr6/history-after.png) |
+| ![Dense absolute timestamps and KiB-only sizes](../images/desktop-ux-pr6/history-before.png) | ![Relative times, readable units and exact-time disclosures](../images/desktop-ux-pr6/history-after.png) |
 
 | Exact times by keyboard | Focus at minimum size, light theme |
 | --- | --- |
-| ![Independent exact-time disclosure with keyboard focus](images/desktop-ux-pr6/history-exact.png) | ![Focused Shortcuts tab with persistent settings actions](images/desktop-ux-pr6/shortcuts-light-minimum.png) |
+| ![Independent exact-time disclosure with keyboard focus](../images/desktop-ux-pr6/history-exact.png) | ![Focused Shortcuts tab with persistent settings actions](../images/desktop-ux-pr6/shortcuts-light-minimum.png) |
 
 **Problem:** history rows contain dense absolute timestamps, and current focus/navigation behavior has not received a focused review.
 
@@ -299,7 +301,7 @@ Before/after at 440 x 670, dark theme, browser scale 100%, using merged PR 5 (`0
 - Native checks are short and tied to concrete changed behavior. Prepare an isolated test build when needed, state expected outcomes, and guide owner actions one at a time. Keep production settings and published packages separate from test state.
 - Each PR description states the user-visible change, relevant automated/visual evidence, and any native gap. Include representative before/after screenshots for visual changes.
 - Update this plan after each PR: record its URL, status, verified outcomes, and any bounded follow-up. Refresh related docs with root cause and prevention guidance as contracts change.
-- Update `README.md` for changed user workflows and `ARCHITECTURE.md` only where component or activation boundaries change. Implementation PRs should not bundle unrelated refactors, dependency upgrades, or a broad component rewrite.
+- Update [README.md](../../README.md) for changed user workflows and [ARCHITECTURE.md](../../ARCHITECTURE.md) only where component or activation boundaries change. Implementation PRs should not bundle unrelated refactors, dependency upgrades, or a broad component rewrite.
 
 ## Coverage of the Accepted Review
 
@@ -321,7 +323,7 @@ Before/after at 440 x 670, dark theme, browser scale 100%, using merged PR 5 (`0
 
 ## Related Docs
 
-- [Docs index](index.md), [writing conventions](writing-docs.md), [original rework](implementation-plan.md).
-- [Shared configuration](shared-configuration.md), [desktop prototype](desktop-prototype.md), [architecture](../ARCHITECTURE.md).
-- [History](desktop-history.md), [shortcuts](desktop-shortcuts.md), [notifications](desktop-notifications.md), [diagnostics](connection-diagnostics.md).
-- [Desktop updates](desktop-updates.md), [release operations](releasing.md), [testing and native scheduling](testing.md).
+- [Docs index](../index.md), [writing conventions](../writing-docs.md), [original rework](implementation-plan.md).
+- [Shared configuration](../shared-configuration.md), [desktop prototype](../desktop-development.md), [architecture](../../ARCHITECTURE.md).
+- [History](../desktop-history.md), [shortcuts](../desktop-shortcuts.md), [notifications](../desktop-notifications.md), [diagnostics](../connection-diagnostics.md).
+- [Desktop updates](../desktop-updates.md), [release operations](../releasing.md), [testing and native scheduling](../testing.md).

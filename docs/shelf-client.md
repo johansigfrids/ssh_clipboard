@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Document the shared sequential client and explicit experimental CLI. The installed desktop still uses V2; the rework panel now opts into this client per profile as described in [desktop history](desktop-history.md). This client targets `ssh_clipboard session-proxy` deliberately. No service, forced command, or clipboard changes happen merely by using List/Health.
+Document the shared sequential client and explicit shelf CLI. Desktop profiles select either V2 or the shelf client as described in [desktop history](desktop-history.md). This client targets `ssh_clipboard session-proxy` deliberately. No service, forced command, or clipboard changes happen merely by using List/Health.
 
 ## Key Files
 
@@ -44,13 +44,13 @@ A complete snapshot pages under one overall deadline and rejects changing totals
 
 The CLI SSH adapter runs one bounded invocation, with the same session used for every list page. Its deadline covers connection/bootstrap, action, close, child exit, and stderr drainage together. Stderr is continuously drained with fixed chunks and bounded head/tail retention; raw remote text never enters public errors. Failed/timed-out direct children are killed/reaped with separately bounded cleanup. Cancelling the entire call drops its pipes and uses Tokio child kill-on-drop; there is no detached diagnostic reader. This is direct-child lifecycle handling, not a claim about arbitrary grandchildren.
 
-A completed validated protocol result remains authoritative even if SSH later exits nonzero or hangs during cleanup. In particular, a confirmed commit must not become an apparently failed fresh upload. An unacknowledged mutation reports uncertainty, server epoch, and retained operation ID where applicable. Recovery that persists/reconciles a captured upload across reconnects belongs to the next transport slice.
+A completed validated protocol result remains authoritative even if SSH later exits nonzero or hangs during cleanup. In particular, a confirmed commit must not become an apparently failed fresh upload. An unacknowledged mutation reports uncertainty, server epoch, and retained operation ID where applicable. The desktop retains and reconciles one capture in memory across reconnects through [share recovery](share-recovery.md). The CLI does not retain that state after exit.
 
 ## Evidence and Gaps
 
 Stream probes cover 20-item paging, exact Unicode/whitespace, deduplication, selected-item fetch/delete/clear, local size refusal, wrong-item rejection before a missing body, timeout/cancellation poisoning, invalid UTF-8, mismatched PNG descriptors, raised negotiation limits, and changed epochs. Pipe-only subprocess probes cover stderr flooding, nonzero exits after valid replies, correlated errors, timeout cleanup, and missing/option targets before launch.
 
-Native WSL probes run the real CLI through a synthetic SSH executable that execs the real session proxy against a disposable daemon. They verify exact text export, metadata-only list, no-clobber file export, missing-item cleanup, and epoch-guarded mutation with tracing enabled. Portable CLI preflight probes check explicit destinations/epochs and direct-target isolation from corrupt settings. These do not prove a new real SSH connection, desktop history controls, cross-platform clipboard ownership, persistent reconnect, or installation.
+Native WSL probes run the real CLI through a synthetic SSH executable that execs the real session proxy against a disposable daemon. They verify exact text export, metadata-only list, no-clobber file export, missing-item cleanup, and epoch-guarded mutation with tracing enabled. Portable CLI preflight probes check explicit destinations/epochs and direct-target isolation from corrupt settings. These local probes establish CLI/process behavior. Real SSH and native desktop evidence are recorded separately in [testing](testing.md#transport-and-diagnostic-faults) and [Windows history acceptance](history/native-history-acceptance.md); installed service evidence is in [Linux cutover acceptance](history/linux-cutover-acceptance.md).
 
 ## Prevention Guidance
 
@@ -73,4 +73,4 @@ Native WSL probes run the real CLI through a synthetic SSH executable that execs
 - [Shelf service](shelf-service.md)
 - [Native endpoint](shelf-server.md)
 - [Shared configuration](shared-configuration.md)
-- [Implementation plan](implementation-plan.md)
+- [Implementation plan](history/implementation-plan.md)

@@ -1,4 +1,4 @@
-# Protocol
+# Legacy V2 Protocol
 
 ## Purpose
 Document the protocol framing and message types used between:
@@ -13,7 +13,7 @@ Document the protocol framing and message types used between:
 
 ## Framing
 
-This page describes the current version 2 endpoint. The new [shelf core](shelf-core.md) is implemented separately and has not changed these serialized enums or endpoint bytes. Its separate [session/bootstrap contract and codec fixtures](session-protocol.md) now exist; daemon/proxy/client integration remains pending.
+This page describes the current version 2 endpoint. The new [shelf core](shelf-core.md) is implemented separately and has not changed these serialized enums or endpoint bytes. Its [session/bootstrap protocol](session-protocol.md) is integrated with the shelf daemon, client and desktop. V2 and sessions remain explicitly selected endpoints.
 Each request/response is **one-shot** per connection/session.
 
 Wire format:
@@ -84,4 +84,4 @@ The rework one-shot client verifies the request ID and expected reply kind befor
 - Adding binary/image clipboard formats or multi-format metadata.
 
 ## Related Docs
-- `ARCHITECTURE.md`
+- [ARCHITECTURE.md](../ARCHITECTURE.md)

@@ -40,9 +40,9 @@ Wayland preserves preferences and reports launcher/tray fallback; the X11 plugin
 
 Automated checks cover alias conflicts, inactive retained bindings, action swaps without re-registration, partial registration failure, old-key removal failure, stranded-key suppression, and settings persistence. Rendered tests cover independent recorders, native-consumed keys, cancellation/repeats, retained disabled choices, success feedback, and absence of transfer commands while editing. They do not prove native focus, OS conflict handling, or clipboard behavior from a global key press.
 
-The 2026-10-18 PR 6 isolated Windows WebView pass confirms settings arrow/Tab navigation, Ctrl display, draft-only recorder entry/Escape cancellation, Discard focus recovery, End to Updates, and Escape focus back to Open settings. No binding was applied or transferred. Browser fixtures additionally cover macOS labels, full keyboard Apply, confirmations and history; Mac native keyboard/scaling and global registration were not retested. See the [build identity and evidence](desktop-ux-plan.md#pr-6-history-scanning-and-keyboard-usability).
+The 2026-10-18 PR 6 isolated Windows WebView pass confirms settings arrow/Tab navigation, Ctrl display, draft-only recorder entry/Escape cancellation, Discard focus recovery, End to Updates, and Escape focus back to Open settings. No binding was applied or transferred. Browser fixtures additionally cover macOS labels, full keyboard Apply, confirmations and history; Mac native keyboard/scaling and global registration were not retested. See the [build identity and evidence](history/desktop-ux-plan.md#pr-6-history-scanning-and-keyboard-usability).
 
-On 2026-10-14 the user confirmed background direct Share on Windows with `SSHClipboardPrototype-20261014T112019571Z.exe`: copy text normally, hide with X, press Ctrl+Alt+C; the panel opens with the shared text and success feedback. The initial report of failure was an unclear test expectation, not a reproduced dispatch failure. This confirms Share only. Direct Copy followed by paste, empty Copy preservation, occupied bindings, and recording active bindings without transfers remain unconfirmed in this combined milestone.
+On 2026-10-14 the user confirmed background direct Share on Windows with `SSHClipboardPrototype-20261014T112019571Z.exe`: copy text normally, hide with X, press Ctrl+Alt+C; the panel opens with the shared text and success feedback. The initial report of failure was an unclear test expectation, not a reproduced dispatch failure. This confirms Share only. That milestone did not exercise Direct Copy, empty Copy preservation, occupied bindings or recording active bindings. Later direct Copy of newest has [separate Windows history evidence](history/native-history-acceptance.md); the other omissions remain unobserved native paths.
 
 ## Update Triggers
 
@@ -51,7 +51,7 @@ On 2026-10-14 the user confirmed background direct Share on Windows with `SSHCli
 
 ## Related Docs
 
-- [Desktop prototype](desktop-prototype.md)
+- [Desktop development](desktop-development.md)
 - [Shared configuration](shared-configuration.md)
 - [Testing](testing.md)
-- [Implementation plan](implementation-plan.md)
+- [Implementation plan](history/implementation-plan.md)

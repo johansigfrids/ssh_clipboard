@@ -1,5 +1,7 @@
 # Linux 0.4 Clean Cutover Acceptance
 
+> Historical record, archived 2026-10-18. Version, latest-release and pending-gate statements below belong to the recorded source/session. Use [the docs index](../index.md) for current guides; preserve exact identities and unobserved limits when adding corrections.
+
 ## Purpose
 
 Record the owner-authorized live installation of the signed 0.4.0 server and retirement of the old installation, separately from server publication and a full reboot test.
@@ -8,7 +10,7 @@ Record the owner-authorized live installation of the signed 0.4.0 server and ret
 
 - `src/server_management.rs`, `src/server_releases.rs`: managed launcher/unit, pinned options, verified activation and recovery.
 - [0.4.0 artifact acceptance](release-0.4.0-acceptance.md): immutable source/package/trust and isolated service evidence.
-- [Compatibility and cutover](compatibility-and-cutover.md): owner-requested clean replacement and return-path boundaries.
+- [Compatibility and cutover](../compatibility-and-cutover.md): owner-requested clean replacement and return-path boundaries.
 
 ## Exact Artifact
 
@@ -38,7 +40,7 @@ Pinned policy: 20 items, one-hour retention, 64 MiB encoded item, 256 MiB decode
 
 After separate owner approval, [server-v0.4.0](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) was published on 2026-10-16 with `--latest=false`. Anonymous HTTPS downloads of all five canonical assets matched the admitted draft bytes, sizes and digests. Independent retained-key signature/release-identity verification passed for the public executable again. The repository's latest-release API still selects desktop-v0.4.1, and its public keyed feed is byte-for-byte unchanged. Publication did not reinstall or restart the service.
 
-The [reviewed public verification key](security.md#signed-package-trust) is now documented for first installation. Immutable build evidence retains its original build-time `installed:false`/`published:false` fields; later deployment/publication does not rewrite signed package assets or their source.
+The [reviewed public verification key](../security.md#signed-package-trust) is now documented for first installation. Immutable build evidence retains its original build-time `installed:false`/`published:false` fields; later deployment/publication does not rewrite signed package assets or their source.
 
 ## Remaining Boundaries
 
@@ -57,5 +59,5 @@ Inspect old-install ownership, contents and references before retirement. Back u
 
 ## Related Docs
 
-- [Server maintenance](server-maintenance.md), [release readiness](release-readiness.md), [release operations](releasing.md).
-- [Architecture](../ARCHITECTURE.md), [implementation plan](implementation-plan.md), [docs index](index.md).
+- [Server maintenance](../server-maintenance.md), [release readiness](release-readiness.md), [release operations](../releasing.md).
+- [Architecture](../../ARCHITECTURE.md), [implementation plan](implementation-plan.md), [docs index](../index.md).

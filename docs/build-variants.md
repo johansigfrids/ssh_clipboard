@@ -34,11 +34,7 @@ The default build tree also rejects old agent/tray/startup dependencies, and the
 
 CI checks the headless runtime tree for clipboard, tray, hotkey, X11/Wayland, GTK, and registry integration libraries. The Linux server job does not install agent GUI prerequisites. Keep optional dependencies out of normal imports and test types; adapter contract tests use the shared pixel type so they also run headlessly.
 
-At the initial dependency-split checkpoint on 2026-10-14, Windows headless (42 unit + 5 executable checks), legacy agent (56 + 4), and desktop backend (18) tests passed, with required lint/format checks. Subsequent migration adds its own probes; see [migration evidence](configuration-migration.md#evidence). The Linux-target normal dependency tree remains free of OS clipboard/desktop libraries after those additions. This is dependency evidence, not a native Linux build: the authorized test server has no Cargo available in its SSH environment, and no toolchain was installed. CI's Linux compilation/native platform checks remain required. No running server was replaced or restarted.
-
-Subsequent 2026-10-14 evidence closes the headless Linux compilation gap: the existing Ubuntu WSL Rust 1.97.1 toolchain runs native unit, migration, settings/doctor, and real shelf/legacy daemon-proxy process probes without GUI libraries. Output uses `target/linux-wsl` to avoid mixing Windows artifacts. See [native evidence and limits](shelf-server.md#evidence-and-remaining-work). This does not establish a Linux desktop GUI session or a remote-host rollout.
-
-Mac packaging has a separate CI probe: `npm run test:package -- --release` builds installed features with a disposable updater key and test app identifier, then inspects the archived app/CLI and their code signatures without launching or installing the GUI. It needs no production signing secrets or build tools on the owner's Mac. See [Mac cutover](macos-cutover.md) for scope and pending native gates.
+Headless tests run under Linux/WSL without GUI libraries; keep Windows and WSL output separate using `target/linux-wsl`. [Testing](testing.md) lists commands, and [dependency-split checkpoints](history/testing-checkpoints.md#configuration-and-build-checkpoints) retain the dated counts and native limits. Mac packaging CI inspects a disposable signed archive without launching/installing its GUI; later installed results remain in [Mac cutover](history/macos-cutover.md).
 
 ## Update Triggers
 
@@ -48,6 +44,6 @@ Mac packaging has a separate CI probe: `npm run test:package -- --release` build
 
 ## Related Docs
 
-- [Architecture](../ARCHITECTURE.md), [implementation plan](implementation-plan.md)
+- [Architecture](../ARCHITECTURE.md), [implementation plan](history/implementation-plan.md)
 - [Testing](testing.md), [CI](ci.md), [dependency decisions](dependency-decisions.md)
-- [Desktop prototype](desktop-prototype.md), [server setup](server-setup.md)
+- [Desktop development](desktop-development.md), [server setup](server-setup.md)

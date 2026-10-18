@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Explain the shared metadata-only health check, safe failure reporting, and the legacy transport guardrails used by desktop and CLI. Persistent sessions/reconnection remain separate Phase 5 work.
+Explain metadata-only health checks, safe failure reporting and V2 one-shot transport guardrails. Shelf session ownership and reconnection are covered by [persistent sessions](persistent-sessions.md).
 
 ## Key Files
 
@@ -23,7 +23,7 @@ The report separates the SSH executable, SSH connection, proxy, daemon, framing/
 
 ## Desktop Report
 
-Test saved connection uses the same health service and revision/operation guard as transfers. It stores a report but never creates a clipboard snapshot or enables Copy by itself. Failure updates the last connection state, returns a safe next-step message, and makes the per-step report available in Connection settings. Transfer errors use typed hints; server error messages are selected from static error-code mappings.
+Test saved connection selects the profile's endpoint under the same revision/operation guard as transfers. Legacy profiles use `diagnose`/PeekMeta. Shelf profiles use `diagnose_shelf`, negotiating a session and issuing metadata-only Health; CLI `doctor` continues to diagnose V2 even when a profile also supports shelf mode. It stores a report but never creates a clipboard snapshot or enables Copy by itself. Failure updates the last connection state, returns a safe next-step message, and makes the per-step report available in Connection settings. Transfer errors use typed hints; server error messages are selected from static error-code mappings.
 
 The report describes the last check, not a persistent/live connection. Hide it while a settings draft is dirty: a verified report for the saved target must not appear to certify another target being edited. Profile/connection/policy activation clears it with the cached item; a name-only or preference-only change can retain it. Opening settings and reloading configuration do not initiate a health check.
 
@@ -48,7 +48,7 @@ Do not disable host verification or invent an authentication prompt to make a te
 - Reject unsupported frame versions, oversized lengths before frame allocation, malformed payloads, unmatched IDs, and response kinds inconsistent with the request. This protects CLI/agent callers as well as the desktop.
 - A correlated framed `Response::Error` remains authoritative when the proxy exits nonzero. A successful reply without successful process completion is not reported as a successful operation.
 - After stream/protocol failure, kill and wait for the direct SSH child. Deadline cleanup has its own two-second bound. The child retains `kill_on_drop`; stderr drainage is part of the operation future, with no detached reader task. Caller cancellation uses drop cleanup; a user-facing Cancel control and process-group management are not implemented here.
-- An unacknowledged attempted share is conservatively reported as possibly committed. Refresh before sharing it again; there is no automatic replay or exactly-once guarantee. New-protocol operation-ID deduplication belongs to later phases.
+- An unacknowledged attempted share is conservatively reported as possibly committed. Refresh before sharing it again; there is no automatic replay or exactly-once guarantee. Shelf operation-ID deduplication and explicit captured retry are implemented separately in [share recovery](share-recovery.md); V2 does not gain those guarantees.
 
 ## Evidence
 
@@ -56,7 +56,7 @@ On 2026-10-14, Windows pipe-process probes pass for a 1 MiB stderr flood, EOF-de
 
 A real `doctor --target <authorized-server> --timeout-ms 12000` passed all seven checks against the existing Linux 0.3.0 service, using ordinary SSH credentials. It fetched no clipboard payload and changed no settings or services. A live forced-command key and native macOS/Linux builds were not exercised here. Unix pipe fixtures are included for CI; a simulated sender proves the shared health path issues only `PeekMeta`, not a live restricted-key deployment.
 
-Rendered desktop probes verify missing-daemon versus verified SSH/proxy rows, unverified status, safe recovery presentation, report hiding/clearing during a connection edit, and successful health without enabling Copy or fetching an item. The native diagnostic/advanced-settings UI check is deferred to the combined daily-use milestone.
+Rendered desktop probes verify missing-daemon versus verified SSH/proxy rows, unverified status, safe recovery presentation, report hiding/clearing during a connection edit, and successful health without enabling Copy or fetching an item. Those rendered checks do not establish native advanced-control behavior. The [closed delivery scope](history/implementation-plan.md#future-work-and-verification-budget) records how to choose any future targeted native check.
 
 ## Update Triggers
 
@@ -67,5 +67,5 @@ Rendered desktop probes verify missing-daemon versus verified SSH/proxy rows, un
 ## Related Docs
 
 - [Protocol](protocol.md), [shared settings](shared-configuration.md), [security](security.md)
-- [CLI](cli.md), [testing](testing.md), [implementation plan](implementation-plan.md)
-- [Architecture](../ARCHITECTURE.md), [desktop prototype](desktop-prototype.md)
+- [CLI](cli.md), [testing](testing.md), [implementation plan](history/implementation-plan.md)
+- [Architecture](../ARCHITECTURE.md), [desktop development](desktop-development.md)

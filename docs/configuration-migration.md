@@ -37,7 +37,7 @@ Legacy target, port, key-file reference, SSH options, encoded-frame limit, timeo
 
 The desktop and doctor prepend `BatchMode=yes` so a migrated `BatchMode=no` cannot trigger hidden authentication prompts. SSH's configured host-verification policy is preserved. Ordinary CLI transfers retain the selected profile's interactive behavior unless overridden.
 
-The desktop uses the selected encoded limit for capture and full-request validation, including metadata. Its separate 64 MiB decoded-pixel safety budget remains. Increasing a client setting does not reconfigure the remote proxy/daemon; coordinated larger defaults/capability negotiation remain Phase 4 work.
+The desktop uses the selected encoded limit for capture and full-request validation, including metadata. Its separate 64 MiB decoded-pixel safety budget remains. Increasing a client setting does not reconfigure the remote proxy/daemon. Shelf profiles separately negotiate their encoded/decoded limits; see [endpoint selection](desktop-history.md#endpoint-selection-and-compatibility).
 
 Autostart choice and legacy push/pull bindings are retained in schema 2. Direct shortcuts start disabled in the new app, and import neither changes OS startup registration nor stops the old agent. Direct shortcuts now have explicit opt-in desktop controls; installed builds also expose explicit start-at-login controls with actual-registration/save recovery. Portable prototypes cannot register startup. The import summary explains the retained choices. Unknown legacy fields, unsupported versions, or invalid policy values fail rather than being silently dropped. See [cutover ownership](compatibility-and-cutover.md#configuration-and-startup) before replacing the old agent.
 
@@ -47,7 +47,7 @@ Schema 2 also carries a device display name, a device UUID assigned once at the 
 
 An unreviewed legacy import shows a summary in the panel and Settings. It identifies the current saved connection, device display name, panel shortcut and retained direct bindings/startup choice, with the recovery-backup path in a disclosure. The summary explains that the original agent/startup entry remain in place and that shortcut/startup ownership must be reviewed before switching. It describes current saved choices, not an immutable snapshot of the original import. Text and paths remain inert and wrap inside the scrolling content area.
 
-`Got it` persists `legacy_import.reviewed = true` through the normal coordinated store; it does not delete the source, backup or import provenance. Earlier schema 2 receipts without this optional-on-read boolean default to unreviewed, and reading does not rewrite them. This extends the unreleased schema 2 receipt; older rework builds that reject unknown fields are not a supported downgrade path for the extended receipt.
+`Got it` persists `legacy_import.reviewed = true` through the normal coordinated store; it does not delete the source, backup or import provenance. Earlier schema 2 receipts without this optional-on-read boolean default to unreviewed, and reading does not rewrite them. The receipt is part of schema 2; older experimental builds that reject its fields are not a supported downgrade path.
 
 Acknowledgment checks both the displayed revision and the complete saved snapshot under the writer lock. It changes only the receipt and revision, retaining active settings, clipboard/history snapshots, pending shares and shortcut registration. It neither registers startup nor accesses SSH/the clipboard. Unsaved edits must be applied or discarded before dismissal; failed/stale writes leave the summary visible and report the failure. The summary stays dismissed after reload/relaunch; a deliberate new import has its own unreviewed receipt. Existing configurations without legacy-import provenance show no import summary.
 
@@ -66,22 +66,18 @@ Automatic startup migration only writes configuration/backups; it does not insta
 
 ## Evidence
 
-On 2026-10-15, rendered frontend and temporary-store/backend tests pass for discoverability before opening Settings, retained binding/startup explanations, inert names/paths, dirty-draft blocking, guarded explicit dismissal, failure retention, reload persistence, idempotency and stale-write refusal. A desktop session probe confirms acknowledgment preserves the active setup and clipboard snapshot; exact source/backup bytes remain unchanged. The shared CLI lockfile also reads older receipts without rewriting them. On 2026-10-16 the owner confirmed the review card, explicit dismissal, and saved dismissal/profile after Quit/relaunch in an isolated Windows build with synthetic legacy settings. See the [closed native session](native-history-acceptance.md). Import of the actual legacy user file and installed startup cutover remain separate.
+Temporary-file/executable tests cover exact source/backup bytes, current-agent serialization, missing/invalid sources, idempotency, backup conflicts, shared-file precedence, schema upgrades, strict fields, stable identity and advanced policy. Rendered/backend probes cover import-review discoverability, inert content, dirty-draft guards, stale writes, dismissal and retention of active session state.
 
-On 2026-10-14, temporary-file/executable probes pass for exact backup bytes, current-agent serialization, missing/invalid sources, idempotency, backup conflicts/retry, shared-file precedence, schema 1 read-only upgrade/backup, strict schema 2 fields, stable device IDs, advanced-option overrides, and preserved preferences. Desktop probes confirm migrated transport values, forced GUI batch mode, and snapshot clearing when advanced connection options change. Existing version 2 wire fixtures and PNG pixel/ownership contracts still pass.
-
-`tests/fixtures/legacy-agent.toml` is imported under both CLI and desktop dependency lockfiles, which currently select different compatible TOML parser patch releases. Keep that fixture check when changing either graph; a compatible version range alone is not migration evidence. Local OpenSSH `-G` with an empty configuration also confirms that the prepended batch-mode value wins without connecting to a host.
-
-A metadata-only CLI probe through the user's existing prototype profile succeeded. The settings file's SHA-256 was identical before/after, confirming that the saved file was unchanged. No legacy user file was imported by the automated probes, and no server was replaced/restarted. On 2026-10-14 the user confirmed the native Windows schema 2 Apply/Quit/relaunch check and small-image Share/Copy/paste into Paint in `SSHClipboardPrototype-20261014T064745955Z.exe`. This confirms the prototype upgrade path and native RGBA adapter; live legacy TOML import and other platforms' migration checks remain unverified.
+Keep the legacy TOML fixture under both dependency lockfiles; compatible parser ranges alone do not establish migration compatibility. The [configuration checkpoints](history/testing-checkpoints.md#configuration-and-build-checkpoints) retain dated Windows and controlled-adapter results. [Windows native history](history/native-history-acceptance.md) records synthetic import review/relaunch, while [Mac cutover](history/macos-cutover.md) separately records actual-user import and installation. Preserve these source and platform boundaries.
 
 ## Update Triggers
 
 - Configuration or legacy formats, defaults, file paths, or backup rules change.
-- Start-at-login/direct shortcuts/updater become active rather than preserved preferences.
+- Imported startup, shortcut or update preferences change their activation or preservation rules.
 - Migration source selection or native/platform evidence changes.
 
 ## Related Docs
 
 - [Shared configuration](shared-configuration.md), [build variants](build-variants.md)
-- [Implementation plan](implementation-plan.md), [architecture](../ARCHITECTURE.md)
-- [CLI](cli.md), [agent](agent.md), [testing](testing.md)
+- [Implementation plan](history/implementation-plan.md), [architecture](../ARCHITECTURE.md)
+- [CLI](cli.md), [agent](legacy/agent.md), [testing](testing.md)

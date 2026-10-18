@@ -7,7 +7,7 @@ Capture high-impact dependency choices, their rationale, and guardrails for futu
 - `Cargo.toml`
 - `src/framing.rs`
 - `src/protocol.rs`
-- `docs/protocol.md`
+- [docs/protocol.md](protocol.md)
 
 ## bincode -> wincode (2026-02)
 
@@ -36,7 +36,7 @@ Capture high-impact dependency choices, their rationale, and guardrails for futu
 - If wire bytes change:
   - decide whether this is acceptable,
   - bump protocol version if needed,
-  - update `docs/protocol.md` and release notes.
+  - update [docs/protocol.md](protocol.md) and release notes.
 
 ## Desktop Foundation (2026-10)
 
@@ -46,19 +46,19 @@ The installed desktop uses a direct, Windows-only optional `auto-launch` depende
 
 ### Accepted Decision for Shipped Platforms
 
-Tauri 2 with Svelte/TypeScript is the shipped Windows/Apple Silicon desktop. Actual owner migration, settings, native text, login/shortcut and installed update acceptance are recorded in [publication acceptance](release-0.4.2-acceptance.md). Separate lockfiles and an explicit desktop identifier remain. The old agent is [retired](legacy-retirement.md); Linux desktop and additional rare manual checks are deferred, not an unresolved framework-selection gate.
+Tauri 2 with Svelte/TypeScript is the shipped Windows/Apple Silicon desktop. Actual owner migration, settings, native text, login/shortcut and installed update acceptance are recorded in [publication acceptance](history/release-0.4.2-acceptance.md). Separate lockfiles and an explicit desktop identifier remain. The old agent is [retired](legacy-retirement.md); Linux desktop and additional rare manual checks are deferred, not an unresolved framework-selection gate.
 
 ### Guardrails
 
 - Preserve the native clipboard ownership, focus/tray/shortcut and package contracts established during acceptance. For a relevant change, use automated evidence first and a targeted native check only where needed.
 - Keep clipboard ownership on one worker thread for the process lifetime; initialize access only on an explicit transfer action. Validate native paste separately from adapter tests.
-- Select a TypeScript version supported by `svelte-check`; the latest TypeScript major was outside its peer range, so the prototype uses TypeScript 6. Commit the npm lockfile and use `npm ci` for reproducibility.
-- Keep the existing client's `time` version in the prototype lockfile while evaluating it, avoiding an unrelated CLI deprecation from a newer compatible release.
+- Select a TypeScript version supported by `svelte-check`; the latest TypeScript major was outside its peer range, so the desktop uses TypeScript 6. Commit the npm lockfile and use `npm ci` for reproducibility.
+- Avoid unrelated dependency churn between root and desktop lockfiles. Recheck both graphs when updating shared APIs or codec/parser dependencies.
 - Check legacy codec fixtures with both dependency graphs; a separate Cargo lockfile can choose a newer compatible `wincode` version.
 - A host consuming the library on Windows opts into `external-resource-owner`. Tauri embeds the executable's resources; embedding them again in the library causes duplicate VERSION records at link time. Normal CLI builds keep their original resources.
 - Wayland currently uses visible alternate entry points, with portal support pending. Do not claim OS shortcut or tray capability from a browser screenshot or a successful compile.
 
-See [the prototype guide](desktop-prototype.md) for recorded evidence and its limits; the [implementation plan](implementation-plan.md) defines the closed scope and deferred work.
+See [desktop development](desktop-development.md) for build guardrails and links to dated evidence; the [implementation plan](history/implementation-plan.md) defines the closed scope and deferred work.
 
 ## Shared Configuration Storage
 
@@ -82,15 +82,15 @@ Signed desktop/server packages use the locked `minisign-verify` implementation f
 
 ## Update Triggers
 
-- Desktop prototype/framework selection and native platform results.
+- Desktop framework/dependency policy or native platform contracts change.
 - Serialization dependency upgrades or replacements.
 - Protocol encoding/config changes.
 - New compatibility incidents discovered in CI or release testing.
 
 ## Related Docs
 
-- [Desktop prototype](desktop-prototype.md)
-- `docs/protocol.md`
-- `docs/testing.md`
-- `docs/releasing.md`
-- `docs/index.md`
+- [Desktop development](desktop-development.md)
+- [docs/protocol.md](protocol.md)
+- [docs/testing.md](testing.md)
+- [docs/releasing.md](releasing.md)
+- [docs/index.md](index.md)

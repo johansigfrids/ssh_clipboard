@@ -5,7 +5,7 @@ Concise command/flag reference for the `ssh_clipboard` CLI.
 
 ## Key Files
 - `src/main.rs`
-- `README.md`
+- [README.md](../README.md)
 
 ## Current and Retired Commands
 
@@ -19,17 +19,17 @@ The cross-platform `shelf` namespace provides `list`, `health`, `share --file|--
 
 `shelf-daemon [--socket-path <private-path>]` serves the new item-aware protocol. `session-proxy` bridges it over binary stdio. Add `--legacy-socket-path <private-path>` to the shelf daemon to serve the same store to V2 clients; `--legacy-max-frame-bytes` defaults to 10 MiB. Existing `proxy` clients use that compatibility socket, while new sessions use the separate shelf socket. Startup refuses an occupied socket. This does not install or replace the current server. See [endpoint policy and native evidence](shelf-server.md).
 
-### `server-maintenance` (Linux Rework Branch)
+### `server-maintenance` (Linux only)
 
 `verify --version <version> --public-key <trusted.pub> --package <binary> --signature <binary.sig>` authenticates bounded files without executing/installing them.
 
-`install --version <version> --public-key <trusted.pub> --acknowledge-clipboard-loss` creates a separate per-user signed shelf installation and accepts the `shelf-daemon` socket/limit options. `update --version <newer-version> --acknowledge-clipboard-loss` retains pinned trust/options and restores the previous executable after failed service/protocol health. Both accept paired `--package` / `--signature` local inputs; omit both to download the exact GitHub `server-v<version>` asset. Signed server 0.4.0 assets are published; see [live/public acceptance](linux-cutover-acceptance.md).
+`install --version <version> --public-key <trusted.pub> --acknowledge-clipboard-loss` creates a separate per-user signed shelf installation and accepts the `shelf-daemon` socket/limit options. `update --version <newer-version> --acknowledge-clipboard-loss` retains pinned trust/options and restores the previous executable after failed service/protocol health. Both accept paired `--package` / `--signature` local inputs; omit both to download the exact GitHub `server-v<version>` asset. Signed server 0.4.0 assets are published; see [live/public acceptance](history/linux-cutover-acceptance.md).
 
 `status` prints saved selection/recovery metadata, without asserting live health. `recover --acknowledge-clipboard-loss` resolves an unfinished transition by restoring the retained predecessor or disabling a failed first installation. These four commands accept `--root <absolute-path>`; default storage is the user's data directory under `ssh_clipboard/server`. Restart/rollback loses in-memory items. Existing global/legacy installs are not adopted. See [maintenance and migration gates](server-maintenance.md).
 
-### `settings` (Rework Branch)
+### `settings`
 
-Edit the versioned configuration shared with the desktop prototype. This command is available without the old agent feature; the existing `config` command still edits the legacy agent file.
+Edit the versioned configuration shared with the desktop. This command is available without the old agent feature; the existing `config` command still edits the legacy agent file.
 
 ```powershell
 ssh_clipboard settings path
@@ -47,7 +47,7 @@ Advanced Set flags are `--ssh-option` (repeatable, appended), `--clear-ssh-optio
 
 `settings migrate-agent [--legacy-file <path>]` initializes only missing shared settings and saves an exact legacy backup. Existing shared settings win. Default desktop startup/target-less CLI discovery can do this automatically; custom files require the explicit command. Schema 1 prototype settings upgrade in memory and get an exact backup before schema 2 is saved. See [migration/recovery](configuration-migration.md) before returning to an older prototype binary.
 
-Rework push/pull/peek/doctor commands accept `--profile <id>` and `--settings-file <path>`. Without a destination, they use the selected saved profile. An explicit profile allows command-line target/host/port/key overrides. With an explicit destination and no profile flag, they use an independent connection and do not inherit another profile's port/key. The desktop reloads CLI edits approximately every two seconds, deferring them during a transfer. It preserves edited drafts and blocks stale saves/transfers. See [shared configuration](shared-configuration.md) for the complete precedence and recovery rules.
+Push/pull/peek/doctor commands accept `--profile <id>` and `--settings-file <path>`. Without a destination, they use the selected saved profile. An explicit profile allows command-line target/host/port/key overrides. With an explicit destination and no profile flag, they use an independent connection and do not inherit another profile's port/key. The desktop reloads CLI edits approximately every two seconds, deferring them during a transfer. It preserves edited drafts and blocks stale saves/transfers. See [shared configuration](shared-configuration.md) for the complete precedence and recovery rules.
 
 ### `push`
 Send local clipboard to server (text or PNG).
@@ -112,12 +112,7 @@ Common usage:
 ssh_clipboard doctor --target user@server
 ```
 
-Checks include:
-- local `ssh` binary availability
-- target resolution
-- non-interactive SSH auth (`ssh -T ... true`)
-- remote proxy command availability (`ssh_clipboard proxy --help`)
-- protocol roundtrip (`PeekMeta`)
+Checks resolve the selected target and perform one V2 `PeekMeta` exchange through `ssh_clipboard proxy`. The report distinguishes the executable, SSH, proxy, daemon, protocol and metadata layers; failed/unknown layers remain explicit. It does not run remote `true`, `proxy --help`, or `ssh -V`.
 
 Flags:
 - `--target user@host[:port]` (for simple hostnames; use `--port` for IPv6)
@@ -128,8 +123,12 @@ Flags:
 - `--timeout-ms <ms>` (default 7000)
 
 Notes:
-- On the rework branch, `doctor` uses the same shared settings/migration discovery as transfers, including saved transport policy. It does not use the old default-creating agent loader. Explicit destinations do not inherit profile defaults. Corrupt settings produce an error rather than silently selecting another target. Probes force batch mode so diagnostics remain non-interactive even when an imported option requests prompts.
+- `doctor` uses the same shared settings/migration discovery as transfers, including saved transport policy. It does not use the old default-creating agent loader. Explicit destinations do not inherit profile defaults. Corrupt settings produce an error rather than silently selecting another target. Probes force batch mode so diagnostics remain non-interactive even when an imported option requests prompts.
 - Doctor sends only `PeekMeta` through the clipboard proxy, so proxy-only forced-command keys do not need permission for `true` or `--help`. Empty clipboard is healthy. Failed checks return exit status 2, including a missing daemon; later unverified steps are shown as warnings. Reports include static next steps and exclude raw SSH/server output. See [connection diagnostics](connection-diagnostics.md).
+
+## Retired Agent Commands
+
+This section requires `--features agent` or a frozen legacy archive. Use the installed desktop for new Windows/Apple Silicon setups; [legacy agent guidance](legacy/agent.md) owns startup and Linux platform details.
 
 ### `agent` (Windows/macOS/Linux)
 Run the background agent (tray icon + hotkeys).
@@ -219,6 +218,10 @@ Subcommands:
 - `autostart status`
 - `autostart refresh`
 
+## V2 Server Compatibility Commands
+
+These commands run or install the standalone single-item server. New server installations use [managed shelf maintenance](server-maintenance.md).
+
 ### `daemon` (Linux only)
 Run the per-user daemon that stores clipboard contents in memory.
 
@@ -272,8 +275,13 @@ Flags:
 - `5`: SSH failure
 - `6`: clipboard read/write failure
 
+## Update Triggers
+
+- Commands, feature gates, flags, defaults, output formats or exit status change.
+- Endpoint selection or configuration precedence changes.
+
 ## Related Docs
-- `docs/client-setup.md`
-- `docs/linux-client.md`
-- `docs/server-setup.md`
-- `docs/protocol.md`
+- [docs/legacy/client-setup.md](legacy/client-setup.md)
+- [docs/legacy/agent.md](legacy/agent.md#linux-platform-notes)
+- [docs/server-setup.md](server-setup.md)
+- [docs/protocol.md](protocol.md)

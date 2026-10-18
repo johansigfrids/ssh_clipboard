@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Track Phase 7's signed package policy, per-user installation/update commands, and release recovery. The commands integrate bounded downloads, pinned trust, a stable launcher/unit, and user-systemd/proxy health. Protected production signing and isolated real-service acceptance pass, including the exact optimized 0.4.0 artifact. The later owner-authorized persistent live installation/legacy retirement also passes; actual reboot/last-session logout remains separate. See [production artifact acceptance](release-0.4.0-acceptance.md) and [live cutover acceptance](linux-cutover-acceptance.md).
+Track Phase 7's signed package policy, per-user installation/update commands, and release recovery. The commands integrate bounded downloads, pinned trust, a stable launcher/unit, and user-systemd/proxy health. Protected production signing and isolated real-service acceptance pass, including the exact optimized 0.4.0 artifact. The later owner-authorized persistent live installation/legacy retirement also passes; actual reboot/last-session logout remains separate. See [production artifact acceptance](history/release-0.4.0-acceptance.md) and [live cutover acceptance](history/linux-cutover-acceptance.md).
 
 ## Key Files
 
@@ -14,7 +14,7 @@ Track Phase 7's signed package policy, per-user installation/update commands, an
 - `desktop/scripts/smoke-server-maintenance.mjs`, `scripts/test-managed-server.py`: disposable signed binaries, fake systemctl, and real daemon/proxy lifecycle evidence.
 - `desktop/scripts/run-remote-service-fixture.mjs`, `scripts/live-managed-service-fixture.py`: explicitly selected SSH host, isolated real user-systemd lifecycle and cleanup checks.
 - `src/cli/install_daemon.rs`: existing installer; its shared global link and extracted-directory unit remain unchanged.
-- [Implementation plan](implementation-plan.md), [server setup](server-setup.md), and [release operations](releasing.md).
+- [Implementation plan](history/implementation-plan.md), [server setup](server-setup.md), and [release operations](releasing.md).
 
 ## Current Engine
 
@@ -24,7 +24,7 @@ Executable selection is one relative `current -> releases/<canonical-stable-vers
 
 Recovery accepts only selection matching the journal's previous/next version, conservatively restores the verified previous release, and records the outcome. It cannot restore in-memory clipboard items lost on restart. The CLI must disclose that before activation. No automatic pruning of old versions or unfinished staging directories is implemented.
 
-## Evidence and Remaining Integration
+## Package Verification
 
 Eight WSL filesystem/service-adapter probes pass: retained bytes after source removal, version immutability/lock exclusion, rejected admission leaving current untouched, healthy selection with retained predecessor, failed restart/protocol health, interrupted switch and subsequent recovery, failed outcome write/rollback, and unsafe/tampered paths. The full headless suite also passes. These use a deliberately fake verifier and service; they neither prove server artifact cryptography nor exercise a real systemd installation. The desktop's cryptographic tests are separate evidence.
 
@@ -54,13 +54,13 @@ Default storage is `$XDG_DATA_HOME/ssh_clipboard/server` (normally `~/.local/sha
 
 Install accepts all `shelf-daemon` options. It retains an immutable executable, links `~/.local/bin/ssh_clipboard` to `<root>/current/ssh_clipboard`, and writes an actual `ssh_clipboard-shelf.service` file under the user's systemd configuration directory. Existing conflicting launcher/unit files are refused. No unit points into a download folder. Literal paths are quoted with systemd environment substitution disabled and percent specifiers escaped; see [systemd execution rules](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html). The selected signed binary must report the expected version before any service switch.
 
-Omit **both** local package/signature flags to download the exact requested `server-v<version>` asset and `.sig` from this repository's GitHub Releases. The signed [0.4.0 server assets](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) are public, with anonymous exact-byte/signature verification recorded in [live acceptance](linux-cutover-acceptance.md#server-publication). Downloads use the existing `curl` command with default TLS validation, HTTPS-only redirects (maximum five), connect/total deadlines and byte limits. User curl configuration is disabled; an independent bounded pipe reader also caps streamed output. Signature reads cap at 16 KiB/20 seconds; packages at 256 MiB/300 seconds. No latest-version discovery or unattended restart is performed. See [curl options](https://curl.se/docs/manpage.html).
+Omit **both** local package/signature flags to download the exact requested `server-v<version>` asset and `.sig` from this repository's GitHub Releases. The signed [0.4.0 server assets](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) are public, with anonymous exact-byte/signature verification recorded in [live acceptance](history/linux-cutover-acceptance.md#server-publication). Downloads use the existing `curl` command with default TLS validation, HTTPS-only redirects (maximum five), connect/total deadlines and byte limits. User curl configuration is disabled; an independent bounded pipe reader also caps streamed output. Signature reads cap at 16 KiB/20 seconds; packages at 256 MiB/300 seconds. No latest-version discovery or unattended restart is performed. See [curl options](https://curl.se/docs/manpage.html).
 
 Every mutating command requires `--acknowledge-clipboard-loss` and discloses that restart/rollback loses the in-memory shelf. Initial service enablement occurs only after a durable transition journal and executable selection. Failed enable/start/health stops and disables a failed first installation; later update failure restores/restarts the retained predecessor. A failed requested update returns a failure exit even when rollback succeeds. Interrupted recovery can be retried while the journal remains. Protocol health runs the stable `session-proxy` against the saved socket and requires the selected server version, rather than accepting another healthy server or only checking systemd active state. Direct subprocesses have bounded output/deadlines and are killed/reaped on failure; no shell command strings are constructed.
 
 The SSH command resolution must select this launcher: verify the noninteractive user's PATH, or use an explicitly reviewed absolute forced command. A custom socket also needs matching `session-proxy --socket-path` / compatibility `proxy --socket-path` arguments in that setup. Managed local health does not prove the SSH PATH/key route. A running legacy service or an occupied compatibility socket is never displaced automatically. Review [server setup](server-setup.md) before migration.
 
-## Integrated Evidence and Remaining Gates
+## Disposable Integration Validation
 
 `node desktop/scripts/smoke-server-maintenance.mjs` uses the existing Windows Tauri signer and Ubuntu WSL Rust/Python/systemd tools. It builds isolated 0.3.0/0.3.1/0.3.2 headless source snapshots, signs actual binaries with a disposable key, then deletes the private key. All installations live under an owned temporary Linux HOME with a **fake systemctl**. Real daemon/proxy processes validate signed install/update, custom socket/limit preservation, executable survival after download removal, failed initial enable/restart cleanup, tampered/forged/replayed-package rejection before service calls, failed-restart rollback, and recovery from a modeled interrupted journal. The real `systemd-analyze --user verify` parses the generated unit. Temporary daemons, installations and signing files are cleaned up.
 
@@ -74,7 +74,7 @@ On 2026-10-14 this passed over real SSH on the supplied Ubuntu host: user-unit e
 
 The rate-limit probe first reproduced a real bug: restoring the previous executable could still leave systemd refusing its restart. Maintenance now queries failed state and clears it before an explicit restart. It avoids blindly resetting unloaded inactive units, which systemd rejects. Keep this fault in acceptance; a successful process restart alone or a short default rate window does not prove rollback.
 
-The first fixture attempt also confirmed that the existing persistent user-unit directory has mode `0775`; the installer correctly refuses group-writable directories. No permissions were changed. A live migration needs an explicit ownership/permission review before installing there. Later exact-artifact 0.4.0 checks pass optimized production-package verification, isolated runtime service behavior and released-client protocol compatibility; see [production acceptance](release-0.4.0-acceptance.md). Runtime fixtures alone do not prove a live migration. The separate [live cutover](linux-cutover-acceptance.md) now establishes persistent installation, reviewed permissions, fresh SSH routes and old-installation retirement. Public server delivery is verified; actual reboot/last-session logout remain open.
+The first fixture attempt also confirmed that the existing persistent user-unit directory has mode `0775`; the installer correctly refuses group-writable directories. No permissions were changed. A live migration needs an explicit ownership/permission review before installing there. Later exact-artifact 0.4.0 checks pass optimized production-package verification, isolated runtime service behavior and released-client protocol compatibility; see [production acceptance](history/release-0.4.0-acceptance.md). Runtime fixtures alone do not prove a live migration. The separate [live cutover](history/linux-cutover-acceptance.md) now establishes persistent installation, reviewed permissions, fresh SSH routes and old-installation retirement. Public server delivery is verified; actual reboot/last-session logout remain open.
 
 ## Update Triggers
 

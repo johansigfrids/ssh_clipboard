@@ -1,121 +1,66 @@
-# Server Setup (Linux)
-
-## Current Installation
-
-For new Linux installations use the signed [managed server maintenance](server-maintenance.md) path. The commands below document the retained single-item daemon/proxy compatibility path; the owner's live server has completed its [clean 0.4 cutover](linux-cutover-acceptance.md). See [legacy retirement](legacy-retirement.md).
+# Managed Linux Server Setup
 
 ## Purpose
-Explain how to run the daemon on the Linux server and how the SSH-invoked proxy interacts with it.
+
+Install the signed Linux x86_64 shelf server under the intended user's account, with private sockets, an explicit SSH route and a recoverable service. [Server maintenance](server-maintenance.md) owns command/storage details; [legacy setup](legacy/server-setup.md) covers the retained standalone V2 installer.
 
 ## Key Files
-- `src/main.rs`
-- `src/daemon.rs`
-- `src/proxy.rs`
-- `README.md`
 
-## Build
-Preferred: download the [signed Linux x86_64 server 0.4.0 release](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) and use the [managed installer and verification instructions](server-maintenance.md). The repository-wide latest release contains the Windows desktop installer. The legacy daemon examples below are an explicit compatibility alternative.
+- `src/cli/server_maintenance.rs`, `src/server_management.rs`: signed installation, unit and launcher.
+- `src/server_releases.rs`, `src/server_package.rs`: immutable executables, verification and recovery.
+- `src/shelf_daemon.rs`, `src/session_proxy.rs`, `src/proxy.rs`: session and optional V2 routes.
+- [Public verification key](update-signing-public-key.pub): reviewed production trust; see [fingerprint and trust procedure](security.md#signed-package-trust).
 
-Build from source on the Linux server:
-```
-cargo build --release --no-default-features
-```
+## Prerequisites and Trust
 
-The resulting binary is `target/release/ssh_clipboard`.
+Use a Linux x86_64 account with a functioning user systemd manager and system OpenSSH. The signed [server 0.4.0 package](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) has recorded acceptance; the repository-wide latest release belongs to the desktop. Do not use latest-release discovery to select server assets.
 
-The rework exposes explicit signed `server-maintenance install|update|status|recover|verify` commands. They retain per-user versioned executables, create a stable launcher and actual `ssh_clipboard-shelf.service`, pin trust/socket/limits, and restore the previous executable if proxy protocol health fails. Signed production 0.4.0 installation and clean live migration now pass; anonymous public server delivery also passes, while actual reboot/last-session logout remain separate. This is a separately reviewed migration from the legacy installer below; see [commands](server-maintenance.md), [public verification trust](security.md#signed-package-trust) and [live acceptance](linux-cutover-acceptance.md).
+Obtain the public key through a reviewed checkout or independent owner confirmation. Download the exact requested version's binary and detached signature. Verify them without execution using an already trusted verifier:
 
-## Legacy daemon
-
-The rework branch also has a separate experimental [shelf daemon/session proxy](shelf-server.md). It is not installed automatically. Its optional explicit V2 compatibility socket lets existing clients share the shelf; running separate old/new daemon modes without that adapter produces separate stores. Both current-source daemon modes reject duplicate ownership/live sockets and require an owner-only final socket directory; custom paths should use a dedicated private directory. Startup no longer unlinks a live socket or chmods an arbitrary existing parent.
-Run as the target user (per-user daemon):
-```
-ssh_clipboard daemon
+```sh
+ssh_clipboard server-maintenance verify --version <version> \
+  --public-key <trusted.pub> --package <signed-binary> --signature <signed-binary.sig>
 ```
 
-Optional timeouts:
-```
-ssh_clipboard daemon --io-timeout-ms 7000
-```
+A key supplied only by an untrusted package/feed does not establish first-install trust. Source builds use `cargo build --release --no-default-features`; compiling source is separate from admitting a signed managed release.
 
-## Legacy quick setup (Ubuntu)
-From the extracted release folder (e.g., `~/ssh_clipboard`):
-```
-./ssh_clipboard install-daemon
-```
+## Install and Check
 
-This will:
-- create/update `/usr/local/bin/ssh_clipboard` (via sudo)
-- write `./ssh_clipboard.service`
-- link it into `~/.config/systemd/user/ssh_clipboard.service`
-- enable and start the service
+Run as the intended non-root user. Existing launcher/unit conflicts and unsafe directories are refused. Review an existing service or global link before changing it; the installer does not adopt or stop a legacy service.
 
-Note:
-- Do not move or delete the extracted folder after install; rerun `install-daemon` if you do.
-
-### Uninstall
-```
-./ssh_clipboard uninstall-daemon
+```sh
+ssh_clipboard server-maintenance install --version <version> \
+  --public-key <trusted.pub> --package <signed-binary> --signature <signed-binary.sig> \
+  --acknowledge-clipboard-loss
+ssh_clipboard server-maintenance status
+systemctl --user status ssh_clipboard-shelf.service
 ```
 
-### Socket location
-The daemon binds a UNIX socket under:
-- `$XDG_RUNTIME_DIR/ssh_clipboard/daemon.sock` (preferred)
-- `$TMPDIR/ssh_clipboard-$UID/daemon.sock` or `/tmp/ssh_clipboard-$UID/daemon.sock` (fallback)
+The installer stores immutable executables under `$XDG_DATA_HOME/ssh_clipboard/server` (normally `~/.local/share/ssh_clipboard/server`), creates `~/.local/bin/ssh_clipboard` and writes a stable user unit. No service points into a download folder. `status` reports saved selection/recovery metadata; actual service and protocol health need separate checks.
 
-Permissions are owner-only (`0700` directory, `0600` socket).
+Installation accepts shelf socket/count/retention/size/deadline options; review them before installation because updates retain the saved policy. To support V2 clients, explicitly include `--legacy-socket-path <private-path>` and ensure it is free. Without the adapter, a separate old daemon and shelf hold separate stores. Defaults and ownership rules are in [shelf server](shelf-server.md).
 
-## Use the Proxy over SSH
-The proxy is meant to be executed via SSH and will:
-1. Read one request frame from stdin
-2. Forward it to the daemon over the UNIX socket
-3. Write one response frame to stdout
-4. Exit
+Verify the noninteractive SSH command path or reviewed absolute forced command, then from a client:
 
-Example:
-```
-ssh user@server ssh_clipboard proxy
+```text
+ssh_clipboard shelf --target <alias-or-user@host> health
+ssh_clipboard shelf --target <alias-or-user@host> list
 ```
 
-Optional timeouts:
-```
-ssh user@server ssh_clipboard proxy --io-timeout-ms 7000
-```
+For an explicitly configured V2 compatibility route, also run `ssh_clipboard doctor --target <legacy-alias-or-user@host>`. A key forced to `proxy` cannot reach `session-proxy`; preserve distinct fixed routes and keep maintenance privileges separate. Custom socket arguments must match the saved service. See [route/privilege boundaries](compatibility-and-cutover.md#ssh-route-and-privilege-boundary).
 
-Optional auto-start (off by default):
-```
-ssh user@server ssh_clipboard proxy --autostart-daemon
-```
+## Updates, Migration and Recovery
 
-Ensure `ssh_clipboard` is on the server `PATH` for that SSH user, or invoke it via an absolute path.
+Use explicit versioned `server-maintenance update` and `recover` commands from [server maintenance](server-maintenance.md#managed-commands). Every mutating maintenance command acknowledges clipboard loss. Restart/rollback restores executable availability, not in-memory history. Inspect the journal and pinned trust before recovery; do not replace the key or remove records to bypass admission.
 
-## Client Usage (Windows/macOS/Linux)
-From a client machine, use:
-```
-ssh_clipboard push --target user@server
-ssh_clipboard pull --target user@server
-ssh_clipboard peek --target user@server
-```
-
-The client invokes the proxy using the system `ssh` binary (with `ssh -T`) and speaks the framed protocol over stdin/stdout.
-
-## Legacy systemd (user service)
-The legacy installer generates its unit in the extracted folder. A manually managed legacy unit should:
-- set `Restart=on-failure`
-- ensure `XDG_RUNTIME_DIR` exists (systemd user services typically do)
-- run `ssh_clipboard daemon`
-
-The rework maintenance command instead writes a stable actual user unit; it does not adopt an existing legacy unit or `/usr/local/bin` link. Before a separately authorized cutover, record the old service/launcher, target UID, socket and limits; verify independent trust and the noninteractive SSH command path. Review a compatibility-socket plan so old/new clients reach the same shelf. Retain the old installation/configuration for an explicit return path. Changing services clears the in-memory clipboard; rollback restores executable availability only. A fixed legacy forced-command key needs an explicitly reviewed endpoint change. No migration or linger change is automatic.
-
-## Troubleshooting
-- **Proxy says daemon not running:** start the daemon first, or ensure the socket path matches on both ends (`--socket-path`).
-- **Permission denied on socket:** ensure daemon and proxy run as the same Linux user.
-- **Payload too large:** default max payload is 10 MiB; adjust via `--max-size` (both sides should match).
+For existing installations, follow [compatibility and cutover](compatibility-and-cutover.md) to record the old unit, binaries, routes, sockets and return path before an authorized transition. Linger or privileged legacy-link cleanup is a separate reviewed action. The completed owner [Linux cutover](history/linux-cutover-acceptance.md) records exact package/service evidence; it does not prove an actual reboot or last-session logout.
 
 ## Update Triggers
-- Changes to socket path logic, permissions, or exit codes.
-- Changes to proxy auto-start behavior (`--autostart-daemon`).
+
+- Supported package/runtime, trust/bootstrap procedure, launcher/unit or endpoint selection changes.
+- A setup failure reveals a new migration, ownership or health-check guardrail.
 
 ## Related Docs
-- `docs/protocol.md`
-- `ARCHITECTURE.md`
+
+- [Server maintenance](server-maintenance.md), [shelf endpoint](shelf-server.md), [security](security.md).
+- [Troubleshooting](troubleshooting.md), [release operations](releasing.md), [legacy server setup](legacy/server-setup.md).

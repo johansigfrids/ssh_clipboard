@@ -1,5 +1,7 @@
 # macOS Clean Cutover
 
+> Historical record, archived 2026-10-18. Version, latest-release and pending-gate statements below belong to the recorded source/session. Use [the docs index](../index.md) for current guides; preserve exact identities and unobserved limits when adding corrections.
+
 ## Purpose
 
 Replace the owner's legacy 0.3 Mac client with one installed 0.4 desktop client. Completion includes settings migration, connection to the managed history server, working login startup, and removal of obsolete active binaries, startup entries and configuration. A second permanently installed test client is not the target.
@@ -74,6 +76,6 @@ The owner completed actual sign-out/sign-in and confirmed one menu-bar icon with
 
 ## Related Docs
 
-- [Implementation plan](implementation-plan.md), [architecture](../ARCHITECTURE.md)
-- [Compatibility and cutover](compatibility-and-cutover.md), [configuration migration](configuration-migration.md)
-- [Desktop updates](desktop-updates.md), [release operations](releasing.md), [security](security.md)
+- [Implementation plan](implementation-plan.md), [architecture](../../ARCHITECTURE.md)
+- [Compatibility and cutover](../compatibility-and-cutover.md), [configuration migration](../configuration-migration.md)
+- [Desktop updates](../desktop-updates.md), [release operations](../releasing.md), [security](../security.md)

@@ -1,5 +1,7 @@
 # Mac Native Updater Acceptance
 
+> Historical record, archived 2026-10-18. Version, latest-release and pending-gate statements below belong to the recorded source/session. Use [the docs index](../index.md) for current guides; preserve exact identities and unobserved limits when adding corrections.
+
 ## Purpose
 
 Exercise actual application replacement and restart on the owner's Mac without replacing the accepted production 0.4.2 installation. This is separate from the completed [clean migration](macos-cutover.md) and from production publication.
@@ -51,5 +53,5 @@ No production signing credentials were used or transferred. Public HTTPS/native 
 
 ## Related Docs
 
-- [Mac clean cutover](macos-cutover.md), [desktop updates](desktop-updates.md).
-- [Release readiness](release-readiness.md), [release operations](releasing.md).
+- [Mac clean cutover](macos-cutover.md), [desktop updates](../desktop-updates.md).
+- [Release readiness](release-readiness.md), [release operations](../releasing.md).

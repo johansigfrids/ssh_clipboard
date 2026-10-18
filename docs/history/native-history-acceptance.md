@@ -1,5 +1,7 @@
 # Windows Native History Acceptance
 
+> Historical record, archived 2026-10-18. Version, latest-release and pending-gate statements below belong to the recorded source/session. Use [the docs index](../index.md) for current guides; preserve exact identities and unobserved limits when adding corrections.
+
 ## Purpose
 
 Record the completed 2026-10-16 manual session without treating unobserved behaviors as passed. This pass is closed; remaining fault and release gates do not extend it into another series of user checkpoints.
@@ -8,7 +10,7 @@ Record the completed 2026-10-16 manual session without treating unobserved behav
 
 - `desktop/src/App.svelte`: history, migration review, cancellation and recovery controls.
 - `desktop/src-tauri/src/panel.rs`, `history.rs`, `migration_review.rs`: desktop state and explicit actions.
-- `docs/testing.md`: scheduling and distinctions between automated, native and installed evidence.
+- [docs/testing.md](../testing.md): scheduling and distinctions between automated, native and installed evidence.
 
 ## Build and Isolation
 
@@ -57,5 +59,5 @@ This portable synthetic migration pass does not prove import of the owner's actu
 
 ## Related Docs
 
-- [Desktop history](desktop-history.md), [persistent sessions](persistent-sessions.md), and [share recovery](share-recovery.md).
-- [Configuration migration](configuration-migration.md), [testing](testing.md), and [implementation plan](implementation-plan.md).
+- [Desktop history](../desktop-history.md), [persistent sessions](../persistent-sessions.md), and [share recovery](../share-recovery.md).
+- [Configuration migration](../configuration-migration.md), [testing](../testing.md), and [implementation plan](implementation-plan.md).

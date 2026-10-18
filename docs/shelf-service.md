@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe the transport-independent service connecting both session and legacy codecs to one shelf. It is tested over local byte streams, with no SSH/clipboard/server installation. The [native Linux listener/proxy](shelf-server.md) has separate process evidence; item-aware clients remain integration work.
+Describe the transport-independent service connecting session and V2 compatibility codecs to one shelf. The [Linux listener/proxy](shelf-server.md), [item-aware client](shelf-client.md) and desktop integrate this service; stream tests establish its own lifecycle and resource contracts.
 
 ## Key Files
 
@@ -14,7 +14,7 @@ Describe the transport-independent service connecting both session and legacy co
 
 ## Lifecycle and Operations
 
-The service accepts one stream, negotiates Hello/Welcome, then handles sequential share/list/fetch/delete/clear/health requests until EOF or failure. It checks epoch on every action and echoes request IDs in replies. Concurrent connections share the same shelf and retry records. A new service instance creates a new epoch; no service restart/deployment occurs merely by building the library.
+The service accepts one stream, negotiates Hello/Welcome, then handles sequential share/list/fetch/delete/clear/health, metadata Watch and operation-status requests, including deadline-protected retries until EOF or failure. It checks epoch on every action and echoes request IDs in replies. Concurrent connections share the same shelf and retry records. A new service instance creates a new epoch; no service restart/deployment occurs merely by building the library.
 
 Admission is nonwaiting: default 16 active streams, configurable from 1 to 64. No frame allocation precedes the service semaphore. The native accept loop must additionally cap accepted/task-queued sockets before spawning handlers. Defaults are 5 seconds for the entire handshake, 5 minutes of ready-session header inactivity, and 30 seconds from a ready header through metadata/body/validation/action/reply. The constructor bounds configurable durations. A deadline closes the stream and releases its connection slot and payload leases.
 
@@ -30,7 +30,7 @@ The shelf mutex is never held over stream I/O or image validation. Reply metadat
 
 `maintenance()` expires items/retry records and returns epoch/sequence. The native shelf daemon calls it every second even with no traffic. Authentication is outside this generic stream layer: a native listener must enforce private socket/directory permissions, same-UID peers, exclusive daemon ownership, bounded accepted tasks, and safe stale-socket recovery before calling `serve`.
 
-The service now supports bounded metadata Watch requests. A watch channel retains only the latest sequence, notifications include legacy mutations and maintenance expiry, and no shelf mutex is held while waiting. Slow consumers resnapshot rather than accumulating events. Each observer occupies one normal bounded connection slot. No cancellation request, reconnection driver, or OS clipboard access exists in this service layer. New endpoint command wiring and its optional V2 socket have native WSL evidence. The [item-aware CLI/shared client](shelf-client.md) now has stream/process evidence; [desktop history](desktop-history.md) now has automated/browser evidence, with native acceptance pending. The installed legacy daemon still holds one value and retains its existing limits.
+The service now supports bounded metadata Watch requests. A watch channel retains only the latest sequence, notifications include legacy mutations and maintenance expiry, and no shelf mutex is held while waiting. Slow consumers resnapshot rather than accumulating events. Each observer occupies one normal bounded connection slot. No cancellation request, reconnection driver, or OS clipboard access exists in this service layer. The [native endpoint](shelf-server.md) supplies the listener and optional V2 socket; [persistent sessions](persistent-sessions.md) own client reconnection and cancellation. Installed/native evidence is recorded separately in [Linux cutover acceptance](history/linux-cutover-acceptance.md) and [Windows history acceptance](history/native-history-acceptance.md). The standalone legacy daemon remains single-item; its behavior must not be confused with the shelf adapter.
 
 ## Legacy Adapter
 
@@ -63,4 +63,4 @@ These tests prove generic stream/service behavior. They do not prove native sock
 - [Session protocol](session-protocol.md)
 - [Shelf core](shelf-core.md)
 - [Testing](testing.md)
-- [Implementation plan](implementation-plan.md)
+- [Implementation plan](history/implementation-plan.md)

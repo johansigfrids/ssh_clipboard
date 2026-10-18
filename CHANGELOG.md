@@ -51,7 +51,7 @@ All notable changes to this project will be documented in this file.
 - Linux x86_64 server 0.4.0 is published after independent signature verification and clean live installation/SSH acceptance. Anonymous public-delivery checks pass. The superseded Windows desktop 0.4.0 remains a draft; desktop 0.4.1 was the repository's latest release at server publication.
 - Sharing and copying remain explicit; background history updates do not overwrite the local clipboard or upload its contents.
 - Existing V2 clients and the legacy agent remain available. Installing the rework does not automatically replace a running server, change SSH key restrictions, or take over startup registration.
-- Windows x64 has native and installed-update evidence; the Linux server has exact signed persistent-installation and public-delivery evidence. New macOS/Linux desktop packages and actual server reboot/last-session logout retain their separate gaps; see [release readiness](docs/release-readiness.md).
+- Windows x64 has native and installed-update evidence; the Linux server has exact signed persistent-installation and public-delivery evidence. New macOS/Linux desktop packages and actual server reboot/last-session logout retain their separate gaps; see [release readiness](docs/history/release-readiness.md).
 
 ## [0.3.0] - 2026-02-07
 ### Added

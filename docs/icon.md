@@ -8,7 +8,8 @@ Document how to create and regenerate the project icon assets used by the tray a
 - `assets/icon.png` (tray icon)
 - `assets/icon.ico` (Windows app icon)
 - `build.rs` (embeds Windows icon)
-- `src/agent/run.rs` (loads tray icon from `assets/icon.png`)
+- `src/agent/run.rs` (legacy tray loads `assets/icon.png`)
+- `desktop/src-tauri/tauri.conf.json`, `tauri.installed.conf.json` (desktop bundle icon inputs and installed overlay)
 
 ## Source Icon (SVG)
 Keep the source icon as a simple, flat SVG at 1024×1024:
@@ -23,7 +24,7 @@ Suggested workflow (pick one):
 Save as: `assets/icon.svg`.
 
 ## Generate PNG (tray icon)
-The tray icon is loaded from `assets/icon.png`.
+The legacy tray and desktop icon configuration use `assets/icon.png`; the desktop base configuration also lists `assets/icon.ico` for bundling. Keep these shared inputs synchronized.
 
 Recommended size: **256×256** (scales down well).
 If you update the SVG, regenerate the PNG:
@@ -44,8 +45,8 @@ magick assets/icon.png -define icon:auto-resize=256,128,64,48,32,16 assets/icon.
 Notes:
 - If `assets/icon.ico` is missing, the build prints a warning and uses the default Windows icon.
 
-## Generate macOS ICNS (packaging)
-macOS app icons are part of an app bundle (Info.plist + `.icns`).
+## Optional macOS ICNS Export
+Current Tauri bundling derives the Mac app icon from the base configuration's shared icon inputs. The optional manual export below is for external packaging tools; `assets/icon.icns` is generated output, not a required checked-in input.
 
 Example workflow on macOS:
 ```
@@ -63,12 +64,12 @@ sips -z 1024 1024 assets/icon.png --out icon.iconset/icon_512x512@2x.png
 iconutil -c icns icon.iconset -o assets/icon.icns
 ```
 
-Then update your macOS packaging to reference `assets/icon.icns` (Info.plist `CFBundleIconFile`).
+Only external packaging that uses this export needs an explicit Info.plist `CFBundleIconFile` reference. Normal Tauri staging uses its existing configuration. Keep executable resource ownership aligned with [desktop development](desktop-development.md#layout-and-resource-guardrails).
 
 ## Update Triggers
 - Changing the tray icon appearance.
 - Packaging changes for Windows or macOS.
 
 ## Related Docs
-- `docs/agent.md`
-- `docs/releasing.md`
+- [docs/legacy/agent.md](legacy/agent.md)
+- [docs/releasing.md](releasing.md)

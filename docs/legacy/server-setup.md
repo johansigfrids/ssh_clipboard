@@ -1,0 +1,121 @@
+# Legacy Standalone V2 Server Setup
+
+## Current Installation
+
+For new Linux installations use the signed [managed server maintenance](../server-maintenance.md) path. The commands below document the retained single-item daemon/proxy compatibility path; the owner's live server has completed its [clean 0.4 cutover](../history/linux-cutover-acceptance.md). See [legacy retirement](../legacy-retirement.md).
+
+## Purpose
+Explain how to run the daemon on the Linux server and how the SSH-invoked proxy interacts with it.
+
+## Key Files
+- `src/main.rs`
+- `src/daemon.rs`
+- `src/proxy.rs`
+- [README.md](../../README.md)
+
+## Build
+Preferred: download the [signed Linux x86_64 server 0.4.0 release](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) and use the [managed installer and verification instructions](../server-maintenance.md). The repository-wide latest release contains the Windows desktop installer. The legacy daemon examples below are an explicit compatibility alternative.
+
+Build from source on the Linux server:
+```
+cargo build --release --no-default-features
+```
+
+The resulting binary is `target/release/ssh_clipboard`.
+
+The rework exposes explicit signed `server-maintenance install|update|status|recover|verify` commands. They retain per-user versioned executables, create a stable launcher and actual `ssh_clipboard-shelf.service`, pin trust/socket/limits, and restore the previous executable if proxy protocol health fails. Signed production 0.4.0 installation and clean live migration now pass; anonymous public server delivery also passes, while actual reboot/last-session logout remain separate. This is a separately reviewed migration from the legacy installer below; see [commands](../server-maintenance.md), [public verification trust](../security.md#signed-package-trust) and [live acceptance](../history/linux-cutover-acceptance.md).
+
+## Legacy daemon
+
+Current source also provides the managed [shelf daemon/session proxy](../shelf-server.md). It is not installed automatically. Its optional explicit V2 compatibility socket lets existing clients share the shelf; running separate old/new daemon modes without that adapter produces separate stores. Both current-source daemon modes reject duplicate ownership/live sockets and require an owner-only final socket directory; custom paths should use a dedicated private directory. Startup no longer unlinks a live socket or chmods an arbitrary existing parent.
+Run as the target user (per-user daemon):
+```
+ssh_clipboard daemon
+```
+
+Optional timeouts:
+```
+ssh_clipboard daemon --io-timeout-ms 7000
+```
+
+## Legacy quick setup (Ubuntu)
+From the extracted release folder (e.g., `~/ssh_clipboard`):
+```
+./ssh_clipboard install-daemon
+```
+
+This will:
+- create/update `/usr/local/bin/ssh_clipboard` (via sudo)
+- write `./ssh_clipboard.service`
+- link it into `~/.config/systemd/user/ssh_clipboard.service`
+- enable and start the service
+
+Note:
+- Do not move or delete the extracted folder after install; rerun `install-daemon` if you do.
+
+### Uninstall
+```
+./ssh_clipboard uninstall-daemon
+```
+
+### Socket location
+The daemon binds a UNIX socket under:
+- `$XDG_RUNTIME_DIR/ssh_clipboard/daemon.sock` (preferred)
+- `$TMPDIR/ssh_clipboard-$UID/daemon.sock` or `/tmp/ssh_clipboard-$UID/daemon.sock` (fallback)
+
+Permissions are owner-only (`0700` directory, `0600` socket).
+
+## Use the Proxy over SSH
+The proxy is meant to be executed via SSH and will:
+1. Read one request frame from stdin
+2. Forward it to the daemon over the UNIX socket
+3. Write one response frame to stdout
+4. Exit
+
+Example:
+```
+ssh user@server ssh_clipboard proxy
+```
+
+Optional timeouts:
+```
+ssh user@server ssh_clipboard proxy --io-timeout-ms 7000
+```
+
+Optional auto-start (off by default):
+```
+ssh user@server ssh_clipboard proxy --autostart-daemon
+```
+
+Ensure `ssh_clipboard` is on the server `PATH` for that SSH user, or invoke it via an absolute path.
+
+## Client Usage (Windows/macOS/Linux)
+From a client machine, use:
+```
+ssh_clipboard push --target user@server
+ssh_clipboard pull --target user@server
+ssh_clipboard peek --target user@server
+```
+
+The client invokes the proxy using the system `ssh` binary (with `ssh -T`) and speaks the framed protocol over stdin/stdout.
+
+## Legacy systemd (user service)
+The legacy installer generates its unit in the extracted folder. A manually managed legacy unit should:
+- set `Restart=on-failure`
+- ensure `XDG_RUNTIME_DIR` exists (systemd user services typically do)
+- run `ssh_clipboard daemon`
+
+The rework maintenance command instead writes a stable actual user unit; it does not adopt an existing legacy unit or `/usr/local/bin` link. Before a separately authorized cutover, record the old service/launcher, target UID, socket and limits; verify independent trust and the noninteractive SSH command path. Review a compatibility-socket plan so old/new clients reach the same shelf. Retain the old installation/configuration for an explicit return path. Changing services clears the in-memory clipboard; rollback restores executable availability only. A fixed legacy forced-command key needs an explicitly reviewed endpoint change. No migration or linger change is automatic.
+
+## Troubleshooting
+- **Proxy says daemon not running:** start the daemon first, or ensure the socket path matches on both ends (`--socket-path`).
+- **Permission denied on socket:** ensure daemon and proxy run as the same Linux user.
+- **Payload too large:** default max payload is 10 MiB; adjust via `--max-size` (both sides should match).
+
+## Update Triggers
+- Changes to socket path logic, permissions, or exit codes.
+- Changes to proxy auto-start behavior (`--autostart-daemon`).
+
+## Related Docs
+- [docs/protocol.md](../protocol.md)
+- [ARCHITECTURE.md](../../ARCHITECTURE.md)

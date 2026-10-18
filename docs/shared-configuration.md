@@ -1,8 +1,8 @@
-# Shared Configuration Foundation
+# Shared Configuration
 
 ## Purpose
 
-Describe shared configuration, desktop connection profiles and advanced policy, CLI parity, and live reload. [Configuration migration](configuration-migration.md) covers legacy/schema 1 conversion and backups; [build variants](build-variants.md) cover the headless boundary. OS startup/updater controls and broader platform acceptance remain pending.
+Describe shared configuration, desktop connection profiles and advanced policy, CLI parity, and live reload. [Configuration migration](configuration-migration.md) covers legacy/schema 1 conversion and backups; [build variants](build-variants.md) cover the headless boundary. Installed startup, updates and native acceptance have their own [runtime guide](desktop-updates.md) and [release evidence](history/release-readiness.md).
 
 ## Key Files
 
@@ -15,11 +15,11 @@ Describe shared configuration, desktop connection profiles and advanced policy, 
 
 ## Current Behavior
 
-The prototype reads `ssh_clipboard/settings-v1.json` beneath the platform user configuration directory: `%APPDATA%` on Windows, `~/Library/Application Support` on macOS, and `$XDG_CONFIG_HOME` or `~/.config` on Linux. The historical filename is stable; schema 2 is now written, with a backed-up schema 1 upgrade. The file is separate from old agent configuration and replaceable executables. Startup can initialize a missing shared file from a valid, backed-up legacy agent file; it never overwrites the original. See [migration source selection](configuration-migration.md#source-selection).
+The desktop reads `ssh_clipboard/settings-v1.json` beneath the platform user configuration directory: `%APPDATA%` on Windows, `~/Library/Application Support` on macOS, and `$XDG_CONFIG_HOME` or `~/.config` on Linux. The historical filename is stable; schema 2 is now written, with a backed-up schema 1 upgrade. The file is separate from old agent configuration and replaceable executables. Startup can initialize a missing shared file from a valid, backed-up legacy agent file; it never overwrites the original. See [migration source selection](configuration-migration.md#source-selection).
 
-Opening the app reads existing settings, or initializes from a legacy source when the shared file is missing. With neither source present it waits for setup/Apply. Schema 2 includes revisions, stable profile IDs, target/port/key reference, advanced transport settings, device identity, panel preferences, retained startup/direct-shortcut choices, and future update policy. Desktop Connection settings add/select/rename/remove profiles and edit basic/advanced policy without dropping other profiles. The CLI also edits connection/transport/preview/dismissal/device-name settings. Actual startup/updater activation and optional direct shortcuts remain later work.
+Opening the app reads existing settings, or initializes from a legacy source when the shared file is missing. With neither source present it waits for setup/Apply. Schema 2 includes revisions, stable profile IDs, target/port/key reference, advanced transport settings, device identity, panel preferences, retained startup/direct-shortcut choices, and future update policy. Desktop Connection settings add/select/rename/remove profiles and edit basic/advanced policy without dropping other profiles. The CLI also edits connection/transport/preview/dismissal/device-name settings. Installed startup is activated only through explicit Apply intent; direct shortcuts require opt-in, and installed release builds perform bounded update checks.
 
-The file contains configuration only; clipboard payloads and SSH key contents are not persisted. Starting the app does not connect, download, share, or write the clipboard. Clipboard snapshots remain process-local.
+The file contains configuration only; clipboard payloads and SSH key contents are not persisted. Starting a configured shelf profile starts metadata-only SSH monitoring. Installed release builds also check for updates after a startup delay. Neither path downloads clipboard payloads or update packages, samples/shares the local clipboard, or writes it without an explicit action. Clipboard snapshots remain process-local.
 
 Corrupt, unsupported-version, oversized, or unrecognized-field documents produce a visible recovery message. Apply is disabled; the existing file is preserved. Repair the named file or move it aside after making a backup; the watcher reloads valid settings automatically. Never automatically replace unreadable settings with defaults: that would lose connection choices while appearing to recover successfully.
 
@@ -75,7 +75,7 @@ Restore advanced defaults only edits the current draft; Discard can undo it befo
 
 `TransportDraft` carries numeric values as decimal **strings** across IPC, then parses positive integers into Rust's actual field types and calls the shared policy validator. The schema 2 file still uses JSON numbers. Never convert these IPC fields through JavaScript `Number`: an unrelated preference edit could otherwise round a large saved timeout/byte count. Deep-copy nested transport/options when creating a draft or choosing a profile, or bindings could mutate the active view and make dirty detection fail. Keep raw multiline editor text separate from parsed options so a trailing newline can be typed while blank lines stay out of submitted arguments.
 
-### CLI Selection and Edits (Rework Branch)
+### CLI Selection and Edits
 
 `ssh_clipboard settings path` prints the shared location. `settings show` prints effective JSON, or defaults without creating a file when absent. Schema 1 reads show their upgraded in-memory representation. `settings set` updates supplied fields only; see [CLI](cli.md) for basic/advanced flags. `settings migrate-agent` explicitly initializes from a backed-up legacy source only when shared settings do not already exist.
 
@@ -93,7 +93,9 @@ Without `--profile`, an explicit `--target` or `--host` is an independent connec
 
 All these commands accept `--settings-file <path>` for a separate file. Paths may be relative. `remove-profile <id>` rejects missing/last profiles without writing; deleting the default selects the first remaining profile. With an explicit destination and no `--profile`, transfers bypass saved configuration even when a path was supplied. The old `config`, agent, and autostart commands still operate on the legacy agent file. Do not confuse those with the new shared `settings` namespace.
 
-The desktop checks the shared file every two seconds and notifies the frontend only when settings or their recovery state change. It defers activation while a transfer/settings operation holds the operation lock. Valid CLI edits take effect without restart. Connection or selected-profile changes clear the old snapshot and connection status, including when two profiles have the same target. Preference-only changes preserve the snapshot. Reload never connects, fetches content, reads the OS clipboard, or replays a write.
+The desktop checks the shared file every two seconds and notifies the frontend only when settings or their recovery state change. It defers activation while a transfer/settings operation holds the operation lock. Valid CLI edits take effect without restart. Connection or selected-profile changes clear the old snapshot and connection status, including when two profiles have the same target. Preference-only changes preserve the snapshot. Reload can reconfigure/reconnect the metadata monitor for the new active profile. It never fetches payload content, reads the OS clipboard, shares, or replays a clipboard write.
+
+Subscribe before reading the initial state, queue startup notifications until it completes, and keep controls disabled until ready. Otherwise a startup edit can be missed or initialization can replace an early draft. Clean up successful subscriptions if another listener fails.
 
 An edited frontend draft is preserved when external settings arrive, but Apply is blocked until the user discards the stale draft. Drafts and transfer/test actions carry the displayed settings revision as a string; the backend rejects an obsolete revision before any SSH/clipboard access. This closes the race between backend activation and frontend notification. A rejected action refreshes the panel state without retrying the transfer. Unchanged files do not repeatedly register shortcuts or generate preview work.
 
@@ -111,23 +113,15 @@ The saved connection's diagnostic report follows the same profile/policy isolati
 - Explicitly unlock before closing the writer handle. A duplicated/fork-inherited descriptor can otherwise retain Linux ownership after the save ends; the retained-descriptor regression probe and parallel WSL suites cover this. Closing a handle alone is not a sufficient guard. See [lock-release guidance](shelf-server.md#file-lock-release-guardrail).
 - Preserve a saved shortcut preference on Wayland, report its unavailability, and allow other settings to be edited. Launcher/tray access remains available.
 
-Locking is advisory and coordinates cooperating writers. Manual editors do not take this lock; concurrent manual editing is outside this contract. Atomic replacement is supported by the underlying filesystem and `tempfile`; arbitrary network filesystems and power-loss durability are not proven here. Migration backups exist; installer/OS rollback remains separate future work. Polling can observe a manually truncated file as invalid before a later valid replacement; preserve the last active state while reporting recovery.
+Locking is advisory and coordinates cooperating writers. Manual editors do not take this lock; concurrent manual editing is outside this contract. Atomic replacement is supported by the underlying filesystem and `tempfile`; arbitrary network filesystems and power-loss durability are not proven here. Migration backups exist; configuration backups do not imply automatic desktop installer rollback. Polling can observe a manually truncated file as invalid before a later valid replacement; preserve the last active state while reporting recovery.
 
 Implementation references: [Rust file locks](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock) (requires Rust 1.89 or later) and [temporary-file replacement](https://docs.rs/tempfile/latest/tempfile/struct.NamedTempFile.html#method.persist).
 
 ## Validation
 
-Temporary-directory Rust probes cover restoration, stale writers, competing handles, abandoned preparation, corrupt/future/unknown fields, invalid profile identity/selection, byte budgets, and failed replacement. Desktop mapping tests check profile/preference restoration and preservation of other profiles. Frontend tests check startup restoration without transfers, blocked corrupt-file saves, and failed-save drafts. Executable-level CLI tests check persisted selection, shared-store parity, relative paths, rejected/corrupt edits, and missing-profile failure before SSH/clipboard access; resolution probes cover direct destinations and explicit override precedence.
+Temporary-store tests cover exact persistence, stale writers, competing locks, abandoned preparations, corrupt/future files, identity/profile isolation and failed replacement. Executable CLI checks cover precedence, shared-store parity, direct-target isolation and profile removal. Rendered controls and backend adapters cover draft retention, subscription races, advanced integer precision, activation failure and save rollback.
 
-These tests never access the user's settings or OS clipboard. The user confirmed the native Windows Quit/relaunch flow on 2026-10-13: applied settings are remembered in the persistent-settings artifact. Other platforms' native persistence checks remain pending.
-
-Live-reload backend probes cover profile isolation, preference-only retention, unchanged-file silence, corrupted-file recovery, rejected OS activation, and deletion back to setup. Frontend probes cover preserving/invalidating drafts, clean-form reload, notifications during startup/a pending transfer, subscription-failure cleanup, and stale transfer guards. Subscribe before the initial state read, queue startup notifications until it completes, and keep controls disabled until ready; otherwise an edit can be missed or an early draft replaced by initialization. Clean up successful subscriptions if another registration fails. On 2026-10-14 the user confirmed the native Windows app/CLI live-reload check: changing preview visibility through CLI updates the open app, and restoring it works. Fault probes still use controlled activation callbacks.
-
-The 2026-10-13 target-less CLI `peek --ssh-option BatchMode=yes --json` also reached the server using the saved desktop profile and returned PNG metadata. This probe fetched no payload and changed neither clipboard.
-
-On 2026-10-14, temporary-store desktop probes cover creating/renaming/removing connections, UUID stability, preserved device/preferences/transport, same-target profile isolation, stale saves, activation rejection, and replacement rollback. Executable CLI checks cover deleting selected/inactive profiles and refusing missing/last profiles without changing bytes. Rendered frontend checks cover draft selection, cancelling creation, confirmation/cancellation, failed removal, and recovery after external deletion. Separately, on 2026-10-14 the user confirmed native Windows creation/Test, switching with preview clearing, rename/relaunch persistence, and removal back to the original connection in SSHClipboardPrototype-20261014T070735201Z.exe.
-
-Advanced-policy probes cover exact integers beyond JavaScript's safe range, rejected zero/negative/fractional/overflowing values and embedded option control characters, per-profile persistence and actual client policy, retained batch mode, isolated nested drafts, multiline option editing, reset/Discard, strict-budget retention, and stale-draft recovery. These are temporary-store/rendered UI checks; native advanced-control persistence/Test remains pending.
+These checks use temporary settings and controlled native adapters. The [configuration checkpoints](history/testing-checkpoints.md#configuration-and-build-checkpoints) retain the earlier Windows save/reload/profile observations and dated test results. Later actual Mac import/persistence is in [Mac cutover](history/macos-cutover.md); an old controlled-adapter pass does not establish every native advanced-control or combined startup Apply path.
 
 ## Endpoint Selection
 
@@ -136,12 +130,12 @@ Per-profile endpoint selection now defaults to legacy without rewriting missing 
 ## Update Triggers
 
 
-- CLI uses this schema or live reload is added.
+- CLI editing, desktop activation or live reload behavior changes.
 - Legacy configuration migration, profiles, or additional settings are implemented.
 - Schema versions, file locations, save guarantees, or dependency boundaries change.
 
 ## Related Docs
 
-- [Implementation plan](implementation-plan.md), [architecture](../ARCHITECTURE.md)
-- [Desktop prototype](desktop-prototype.md), [agent](agent.md), [CLI](cli.md)
+- [Implementation plan](history/implementation-plan.md), [architecture](../ARCHITECTURE.md)
+- [Desktop development](desktop-development.md), [agent](legacy/agent.md), [CLI](cli.md)
 - [Testing](testing.md), [dependency decisions](dependency-decisions.md)

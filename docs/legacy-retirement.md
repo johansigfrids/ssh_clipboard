@@ -10,7 +10,7 @@ Record the owner's 2026-10-18 decision to retire the old tray agent and close th
 - `.github/workflows/ci.yml`: default CLI contract and retained compatibility regression checks.
 - `src/agent/`, `src/bin/ssh_clipboard_agent.rs`: retained opt-in source, not the supported desktop.
 - `src/protocol.rs`, `src/shelf_service/legacy.rs`, `src/configuration/migration.rs`: retained V2 and import contracts.
-- [Compatibility matrix](compatibility-and-cutover.md), [implementation plan](implementation-plan.md).
+- [Compatibility matrix](compatibility-and-cutover.md), [implementation plan](history/implementation-plan.md).
 
 ## Retirement Decision
 
@@ -45,6 +45,6 @@ Linux desktop/AppImage/Wayland work is deferred because the owner has no Linux d
 
 ## Related Docs
 
-- [Implementation plan](implementation-plan.md), [architecture](../ARCHITECTURE.md).
+- [Implementation plan](history/implementation-plan.md), [architecture](../ARCHITECTURE.md).
 - [Build variants](build-variants.md), [release operations](releasing.md), [testing](testing.md).
-- [Mac migration](macos-cutover.md), [live Linux cutover](linux-cutover-acceptance.md).
+- [Mac migration](history/macos-cutover.md), [live Linux cutover](history/linux-cutover-acceptance.md).

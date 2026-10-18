@@ -67,4 +67,4 @@ This establishes the tested Linux x86_64 `v0.3.0` protocol pairing. It does not 
 ## Related Docs
 
 - [Compatibility and cutover](compatibility-and-cutover.md), [testing](testing.md), and [CI](ci.md)
-- [Shelf server](shelf-server.md), [session protocol](session-protocol.md), and [implementation plan](implementation-plan.md)
+- [Shelf server](shelf-server.md), [session protocol](session-protocol.md), and [implementation plan](history/implementation-plan.md)

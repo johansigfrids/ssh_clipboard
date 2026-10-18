@@ -1,5 +1,7 @@
 # Desktop 0.4.1 Acceptance
 
+> Historical record, archived 2026-10-18. Version, latest-release and pending-gate statements below belong to the recorded source/session. Use [the docs index](../index.md) for current guides; preserve exact identities and unobserved limits when adding corrections.
+
 ## Purpose
 
 Record the signed desktop correction, real-profile Windows upgrade, startup setter acceptance and separately authorized public delivery. The Linux live transition remains separate.
@@ -9,7 +11,7 @@ Record the signed desktop correction, real-profile Windows upgrade, startup sett
 - `desktop/src-tauri/src/startup_native.rs`: current-user Windows startup adapter and native argument-parser regression.
 - `.github/workflows/desktop-release.yml`: protected exact-source draft builder.
 - [0.4.0 acceptance](release-0.4.0-acceptance.md): original rework, production text round trip, legacy removal, actual login and isolated signed Linux service evidence.
-- [Release readiness](release-readiness.md) and [release operations](releasing.md).
+- [Release readiness](release-readiness.md) and [release operations](../releasing.md).
 
 ## Source and Signed Package
 
@@ -55,5 +57,5 @@ Anonymous HTTPS requests verified the public latest-release API, repository-wide
 
 ## Related Docs
 
-- [Desktop updates](desktop-updates.md), [compatibility and cutover](compatibility-and-cutover.md), [server maintenance](server-maintenance.md).
-- [Implementation plan](implementation-plan.md), [architecture](../ARCHITECTURE.md), [docs index](index.md).
+- [Desktop updates](../desktop-updates.md), [compatibility and cutover](../compatibility-and-cutover.md), [server maintenance](../server-maintenance.md).
+- [Implementation plan](implementation-plan.md), [architecture](../../ARCHITECTURE.md), [docs index](../index.md).

@@ -2,20 +2,24 @@
 
 ## Project Structure & Module Organization
 
-- `src/` holds the Rust source code. The current entry point is `src/main.rs`.
-- `Cargo.toml` defines the crate metadata and dependencies; `Cargo.lock` pins versions.
-- `target/` is generated build output and should not be edited by hand.
-
-As the project grows, prefer adding Rust modules under `src/` (for example `src/client.rs`, `src/server.rs`) and wire them from `main.rs` or a new `lib.rs`.
+- `src/` contains the shared library, CLI, V2 compatibility, shelf/session services and opt-in retired agent. Entry points are `src/main.rs`, `src/lib.rs` and `src/bin/ssh_clipboard_agent.rs`.
+- `tests/` contains CLI and process integration tests; Rust modules also contain unit/property tests.
+- `desktop/` contains Svelte/TypeScript, Node release tooling and a separate Tauri Rust project with its own lockfile.
+- `Cargo.toml` defines core dependencies/features; default builds include the clipboard CLI. The retired agent requires `--features agent`; headless server/stdio builds use `--no-default-features`.
+- Cargo `target/`, frontend build output and ignored `desktop/artifacts/` are generated output; do not edit them by hand.
 
 ## Build, Test, and Development Commands
 
 - `cargo build` — compiles the project in debug mode.
-- `cargo run` — builds and runs the binary.
-- `cargo test` — runs the test suite (currently no tests are defined).
+- `cargo run --bin ssh_clipboard -- --help` — inspect the CLI command surface.
+- `cargo test --locked` — run core/default CLI tests.
+- `cargo test --locked --features agent` — include retired-agent compatibility tests.
+- `cargo test --locked --no-default-features` — headless tests; Linux-only cases require Linux.
 - `cargo fmt` — format the codebase with rustfmt.
 - `cargo clippy --features agent -- -D warnings` — lint the codebase (CI-required).
 - `cargo build --release` — produces optimized release binaries in `target/release/`.
+- From `desktop/`, `npm test` runs Node tooling and Vitest/Svelte interactions; `npm run build` runs Svelte checks and Vite.
+- [Testing](docs/testing.md) has desktop Rust, platform/package and documentation-only checks. Run checks appropriate to the changed component; builds and rendered UI tests do not prove native clipboard, login or installer behavior.
 
 ## Coding Style & Naming Conventions
 
@@ -26,22 +30,23 @@ As the project grows, prefer adding Rust modules under `src/` (for example `src/
 
 ## Testing Guidelines
 
-- No test framework is configured beyond Rust’s built-in test harness.
+- Rust uses its built-in test harness and `proptest`; desktop frontend/tooling uses Vitest, Testing Library and Node's test runner.
 - For new tests, place unit tests in `mod tests` within the relevant module, or integration tests in `tests/`.
 - Name test functions descriptively (e.g., `copies_clipboard_over_ssh`).
 
 ## Commit & Pull Request Guidelines
 
-- Current history uses short, imperative summaries (e.g., “Add readme”, “init”). Keep commit messages concise and action-oriented.
+- Keep commit messages concise and action-oriented.
 - Pull requests should include: a clear description of changes, how to run/verify them, and any relevant usage notes.
-- If behavior changes, include updated docs or examples in `README.md`.
+- If behavior changes, include updated docs or examples in [README.md](README.md).
 
 ## Documentation Knowledge Base
 
-- Docs entrypoint: `docs/index.md` (follow `docs/writing-docs.md`).
-- At minimum, read `docs/index.md` before making changes; for major changes, skim relevant `docs/*.md` for context.
-- As you learn: update existing docs or add `docs/<topic>.md`, then link it in `docs/index.md`.
-- Keep `ARCHITECTURE.md` up to date as the system design or component boundaries change.
+- Docs entrypoint: [docs/index.md](docs/index.md); follow [docs/writing-docs.md](docs/writing-docs.md).
+- At minimum, read [docs/index.md](docs/index.md) before making changes; for major changes, skim relevant `docs/*.md` for context.
+- Update the current feature/runbook that owns a contract, rather than copying release chronology into several guides. Add new documents to the index.
+- `docs/history/` preserves dated plans, acceptance and exact source/package evidence. `docs/legacy/` covers retained compatibility workflows. Historical omissions are not automatic new manual-test assignments.
+- Keep [ARCHITECTURE.md](ARCHITECTURE.md) up to date as the system design or component boundaries change.
 - After behavior changes or bug fixes: refresh related docs and keep cross-links current.
 - When fixing issues, capture the prevention guidance in docs (root cause + guardrail) so the same mistake is less likely to recur.
 - Do not include secrets in docs; reference where secrets/config are managed instead.

@@ -1,24 +1,24 @@
-# Client Setup (Windows/macOS)
+# Legacy V2 Client Setup (Windows/macOS)
 
 ## Purpose
 Document how to run the client CLI on Windows and macOS, including SSH prerequisites and common troubleshooting.
-For Linux desktop specifics (Wayland/X11, tray/hotkeys), see `docs/linux-client.md`.
+For Linux desktop specifics (Wayland/X11, tray/hotkeys), see [docs/legacy/agent.md](agent.md#linux-platform-notes).
 
 ## Key Files
-- `README.md`
+- [README.md](../../README.md)
 - `src/main.rs`
 - `src/client/ssh.rs`
 - `src/client/clipboard.rs`
 
 ## Prerequisites
-- The Linux server is running `ssh_clipboard daemon`.
+- The Linux server exposes V2 through a standalone legacy daemon or a shelf with an explicit V2 compatibility socket.
 - The Linux server user can run `ssh_clipboard proxy` (binary is on `PATH` or invoked via an absolute path).
 - The client machine has a working `ssh` binary on `PATH`.
   - Windows: typically “OpenSSH Client” (built-in on recent Windows versions).
   - macOS: OpenSSH is included.
 
 ## Basic Usage
-For new Windows/Apple Silicon installations use the [signed desktop](../README.md#windows-and-apple-silicon-desktop). The following `install-client` procedure is retained only for frozen archives or an explicit `--features agent` compatibility build; see [retirement](legacy-retirement.md).
+For new Windows/Apple Silicon installations use the [signed desktop](../../README.md#install-the-desktop). The following `install-client` procedure is retained only for frozen archives or an explicit `--features agent` compatibility build; see [retirement](../legacy-retirement.md).
 
 Legacy first-time setup:
 ```
@@ -116,7 +116,7 @@ ssh_clipboard push --target user@server --ssh-option "ConnectTimeout=5" --ssh-op
 - Changes to SSH argument handling (target parsing, options, defaults).
 
 ## Related Docs
-- `docs/server-setup.md`
-- `docs/protocol.md`
-- `ARCHITECTURE.md`
-- `docs/linux-client.md`
+- [docs/server-setup.md](../server-setup.md)
+- [docs/protocol.md](../protocol.md)
+- [ARCHITECTURE.md](../../ARCHITECTURE.md)
+- [docs/legacy/agent.md](agent.md#linux-platform-notes)

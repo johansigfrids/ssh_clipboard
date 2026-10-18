@@ -1,5 +1,7 @@
 # Desktop 0.4.2 Publication Acceptance
 
+> Historical record, archived 2026-10-18. Version, latest-release and pending-gate statements below belong to the recorded source/session. Use [the docs index](../index.md) for current guides; preserve exact identities and unobserved limits when adding corrections.
+
 ## Purpose
 
 Record the owner-authorized publication of the verified Windows x64 and Apple Silicon packages, independently of native migration/update evidence and later documentation commits.
@@ -8,8 +10,8 @@ Record the owner-authorized publication of the verified Windows x64 and Apple Si
 
 - `.github/workflows/desktop-release.yml`, `desktop/scripts/desktop-draft.mjs`: protected exact-source multi-platform draft staging.
 - `docs/update-signing-public-key.pub`: independently pinned production verification key.
-- `docs/macos-cutover.md`, `docs/macos-updater-acceptance.md`: completed Mac migration, installed update and cleanup boundaries.
-- `docs/releasing.md`, `CHANGELOG.md`, `README.md`: publication policy and current downloads.
+- [docs/history/macos-cutover.md](macos-cutover.md), [docs/history/macos-updater-acceptance.md](macos-updater-acceptance.md): completed Mac migration, installed update and cleanup boundaries.
+- [docs/releasing.md](../releasing.md), `CHANGELOG.md`, [README.md](../../README.md): publication policy and current downloads.
 
 ## Source and Merge Gates
 
@@ -47,6 +49,6 @@ The completed [clean Mac migration](macos-cutover.md) proves production text sha
 
 ## Related Docs
 
-- [Release readiness](release-readiness.md), [release operations](releasing.md).
+- [Release readiness](release-readiness.md), [release operations](../releasing.md).
 - [Mac migration](macos-cutover.md), [Mac updater acceptance](macos-updater-acceptance.md).
-- [Architecture](../ARCHITECTURE.md), [implementation plan](implementation-plan.md).
+- [Architecture](../../ARCHITECTURE.md), [implementation plan](implementation-plan.md).

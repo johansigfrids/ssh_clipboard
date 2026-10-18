@@ -38,7 +38,7 @@ Existing schema 2 settings without `notifications` read as `panel` without a wri
 
 Native messages are fixed application-owned strings: shared, copied, or action failed/open the app. Never pass clipboard text, image labels, previews, device/SSH names, paths, raw errors, or remote response text to the native builder. Detailed errors stay in the local panel. Opening/settings edits do not request OS permission or send a notification; Test notification is a separate explicit button with synthetic content.
 
-[Tauri documents](https://v2.tauri.app/plugin/notification/#supported-platforms) that Windows notifications require an installed app and development may use PowerShell identity. Portable/debug Windows prototypes report this capability as unavailable and use the panel fallback. The future release installer build must opt into `installed-desktop`; do not turn that flag on in the portable build helper. Linux/macOS use the plugin's native adapter, pending native validation.
+[Tauri documents](https://v2.tauri.app/plugin/notification/#supported-platforms) that Windows notifications require an installed app and development may use PowerShell identity. Portable/debug Windows prototypes report this capability as unavailable and use the panel fallback. Installed release builds opt into `installed-desktop`; do not turn that flag on in the portable build helper. Linux/macOS use the plugin's native adapter, pending native validation.
 
 The locked Tauri notification plugin's desktop `permission_state`/`request_permission` always return Granted. That is not evidence of OS permission or delivery. Settings describe system settings/quiet modes and provide Test notification instead of claiming to have checked permissions. A successful submission cannot prove that the user saw a notification.
 
@@ -48,7 +48,7 @@ Prevention: one shared feedback slot previously carried Settings applied into un
 
 ## Evidence
 
-Automated policy checks cover all preference/success/failure/capability combinations. Shared store tests cover missing-field compatibility, persistence, invalid-value preservation, and unchanged read bytes. Desktop tests cover retained outcomes, IDs, profile isolation, and model mapping. Rendered tests cover draft-only edits, unsupported capability, explicit test dispatch, retained drafts, and repeated-result presentation. Build/lint evidence is in the [prototype guide](desktop-prototype.md#validation-status).
+Automated policy checks cover all preference/success/failure/capability combinations. Shared store tests cover missing-field compatibility, persistence, invalid-value preservation, and unchanged read bytes. Desktop tests cover retained outcomes, IDs, profile isolation, and model mapping. Rendered tests cover draft-only edits, unsupported capability, explicit test dispatch, retained drafts, and repeated-result presentation. The [prototype snapshot](history/desktop-prototype.md#validation-status) retains early build/lint counts; [current testing](testing.md) owns check commands.
 
 Native Windows notifications require an installed artifact and belong to the OS integration milestone. Linux/macOS delivery, quiet modes, system denial, and send failure fallback remain native checks. No notification was sent or OS preference changed by the automated suite.
 
@@ -62,4 +62,4 @@ Native Windows notifications require an installed artifact and belong to the OS 
 - [Desktop shortcuts](desktop-shortcuts.md)
 - [Shared configuration](shared-configuration.md)
 - [Testing](testing.md)
-- [Implementation plan](implementation-plan.md)
+- [Implementation plan](history/implementation-plan.md)

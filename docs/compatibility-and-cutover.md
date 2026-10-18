@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Record the rework's protocol/configuration boundaries and the sequence for an owner-authorized installation cutover. The [live Linux report](linux-cutover-acceptance.md) records completed managed installation/SSH acceptance and legacy retirement; checklist steps alone are not acceptance evidence.
+Record the rework's protocol/configuration boundaries and the sequence for an owner-authorized installation cutover. The [live Linux report](history/linux-cutover-acceptance.md) records completed managed installation/SSH acceptance and legacy retirement; checklist steps alone are not acceptance evidence.
 
 ## Key Files
 
@@ -42,7 +42,7 @@ Legacy agent TOML imports only when the new shared file is missing, with an exac
 
 The installed rework and legacy agent can otherwise both own startup/shortcuts. During cutover, explicitly quit the old agent, review its startup registration and enable the new installed registration only after the new app works. Keep the old executable/configuration for a return path. Restoring an old configuration backup restores that snapshot, not subsequent edits. See [migration recovery](configuration-migration.md).
 
-Imported settings now have a one-time review in the panel and Settings showing the saved connection/device, panel/direct shortcuts, retained startup choice and recovery backup. Explicit dismissal saves only a guarded receipt; it never stops the old agent or changes native registration. Automated persistence/race/rendered checks pass; the [2026-10-16 Windows session](native-history-acceptance.md) confirms synthetic import review and saved dismissal/profile after relaunch. Actual user-file import and installed cutover remain separate from the installed updater tests.
+Imported settings now have a one-time review in the panel and Settings showing the saved connection/device, panel/direct shortcuts, retained startup choice and recovery backup. Explicit dismissal saves only a guarded receipt; it never stops the old agent or changes native registration. Automated persistence/race/rendered checks pass; the [2026-10-16 Windows session](history/native-history-acceptance.md) confirms synthetic import review and saved dismissal/profile after relaunch. Actual user-file import and installed cutover remain separate from the installed updater tests.
 
 ## Server-First Sequence
 
@@ -64,15 +64,15 @@ The owner requested a clean Linux 0.4 upgrade on 2026-10-16, including removal o
 
 The new shelf's explicit V2 adapter provides the retained 0.4 compatibility commitment; keeping the protocol does not require retaining the old daemon or executable on an active route. Verify the user-scoped SSH route before removing an obsolete global link, and check fixed absolute forced-command references without exposing key material. Never widen key restrictions to make cleanup succeed. Root-owned link cleanup and linger may require a human sudo command; do not collect passwords. Finish health/routing acceptance before retiring the old files, and document when post-cleanup rollback requires restoring a privileged link.
 
-The owner-authorized live transition is now complete: signed persistent 0.4.0 installation, fresh session/V2 SSH routes, and removal of the old active installation pass. The owner also confirmed selecting and saving the installed Windows history endpoint. See [live evidence and return-path limits](linux-cutover-acceptance.md). Server 0.4.0 publication/public delivery also pass; actual reboot/last-session logout remain separate.
+The owner-authorized live transition is now complete: signed persistent 0.4.0 installation, fresh session/V2 SSH routes, and removal of the old active installation pass. The owner also confirmed selecting and saving the installed Windows history endpoint. See [live evidence and return-path limits](history/linux-cutover-acceptance.md). Server 0.4.0 publication/public delivery also pass; actual reboot/last-session logout remain separate.
 
 ## Accepted Delivery and Recorded Limits
 
-The published Windows/Apple Silicon desktop and Linux server, owner clean migrations and old active installation retirement are complete. [Desktop publication](release-0.4.2-acceptance.md), [Mac installed updater](macos-updater-acceptance.md) and [live Linux acceptance](linux-cutover-acceptance.md) distinguish exact artifacts, native observations and public delivery.
+The published Windows/Apple Silicon desktop and Linux server, owner clean migrations and old active installation retirement are complete. [Desktop publication](history/release-0.4.2-acceptance.md), [Mac installed updater](history/macos-updater-acceptance.md) and [live Linux acceptance](history/linux-cutover-acceptance.md) distinguish exact artifacts, native observations and public delivery.
 
 The owner deferred Linux desktop work and broad further manual checks on 2026-10-18. Native Mac image/Gatekeeper, interrupted replacement, omitted native recovery paths and actual server reboot/last-session logout remain evidence limits, not a blocking checklist. Existing automated and compatibility tests remain useful; revisit only for a concrete change or observed defect. No new manual migration/sign-out session is scheduled.
 
-The old agent is no longer the default build or an automatically published product. Retaining V2, import readers and explicit opt-in agent source through 0.4 preserves the existing compatibility commitment; it does not keep an old agent running on the owner machines. See [retirement policy](legacy-retirement.md) and the [closed plan](implementation-plan.md).
+The old agent is no longer the default build or an automatically published product. Retaining V2, import readers and explicit opt-in agent source through 0.4 preserves the existing compatibility commitment; it does not keep an old agent running on the owner machines. See [retirement policy](legacy-retirement.md) and the [closed plan](history/implementation-plan.md).
 
 ## Update Triggers
 
@@ -82,5 +82,5 @@ The old agent is no longer the default build or an automatically published produ
 
 ## Related Docs
 
-- [Architecture](../ARCHITECTURE.md), [implementation plan](implementation-plan.md), and [testing](testing.md)
+- [Architecture](../ARCHITECTURE.md), [implementation plan](history/implementation-plan.md), and [testing](testing.md)
 - [Shelf server](shelf-server.md), [desktop history](desktop-history.md), [security](security.md), and [docs index](index.md)

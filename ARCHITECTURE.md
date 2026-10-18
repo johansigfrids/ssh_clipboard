@@ -4,9 +4,9 @@
 
 Describe the delivered Windows/Apple Silicon desktop and Linux server rework. SSH remains the transport and account boundary. The desktop provides a discoverable quick panel, usable settings, temporary history and signed updates.
 
-**Status: Windows/Apple Silicon desktop 0.4.2 published; Linux 0.4.0 server cut over.** The new desktop supports explicit transfers, saved settings, history and signed updates. The signed managed shelf now serves history and the legacy compatibility socket. The owner selected and saved the installed desktop's history endpoint. [The implementation plan](docs/implementation-plan.md) closes the agreed delivery and records deferred platforms and non-blocking evidence limits. The [Phase 1 prototype guide](docs/desktop-prototype.md) retains source-build context.
+**Status: Windows/Apple Silicon desktop 0.4.2 published; Linux 0.4.0 server cut over.** The new desktop supports explicit transfers, saved settings, history and signed updates. The signed managed shelf now serves history and the legacy compatibility socket. The owner selected and saved the installed desktop's history endpoint. [The implementation plan](docs/history/implementation-plan.md) closes the agreed delivery and records deferred platforms and non-blocking evidence limits. The [desktop development guide](docs/desktop-development.md) owns source-build instructions.
 
-Clean Windows/Mac client and Linux server cutovers are accepted, with the old active installations retired and private recovery backups retained. Package/source identities, native results and untested limits remain in the [release record](docs/release-readiness.md), [Mac cutover](docs/macos-cutover.md), [Mac updater rehearsal](docs/macos-updater-acceptance.md) and [Linux cutover](docs/linux-cutover-acceptance.md). Architecture describes current boundaries; those reports retain the installation history.
+Clean Windows/Mac client and Linux server cutovers are accepted, with the old active installations retired and private recovery backups retained. Package/source identities, native results and untested limits remain in the [release record](docs/history/release-readiness.md), [Mac cutover](docs/history/macos-cutover.md), [Mac updater rehearsal](docs/history/macos-updater-acceptance.md) and [Linux cutover](docs/history/linux-cutover-acceptance.md). Architecture describes current boundaries; those reports retain the installation history.
 
 ## Scope Closure and Legacy Retirement
 
@@ -24,7 +24,7 @@ The old tray agent is retired from default builds and automatic releases. Normal
 - `src/daemon.rs`, `src/proxy.rs`: retained single-item daemon/proxy compatibility.
 - `src/cli/`: commands, diagnostics, configuration, and installation.
 - `.github/workflows/ci.yml`, `desktop-release.yml`, `server-release.yml`: regression checks and protected signed packaging.
-- [Implementation plan](docs/implementation-plan.md): completed phases, retirement decision and deferred scope.
+- [Implementation plan](docs/history/implementation-plan.md): completed phases, retirement decision and deferred scope.
 
 ## Current System
 
@@ -162,7 +162,7 @@ The installed runtime now checks stable metadata quietly through bounded HTTPS, 
 
 A separate native updater rehearsal can compile a loopback transport into the exact Update Test app identity. Its build script rejects production/prototype identities and inherited staging inputs; normal builds contain no fixture dispatch. The rehearsal preserves canonical signed selectors and the bounded reader/real installer, while an owned capability-routed server supplies same-key and key-transition packages or injected network/byte faults. It never publishes or installs automatically and does not prove public HTTPS delivery. See [native rehearsal boundaries](docs/desktop-updates.md#isolated-native-updater-rehearsal).
 
-Mac fixture builds additionally select a separate settings store and skip legacy discovery at compile time, so actual replacement/restart can be tested alongside the preserved production app. A credential-free CI job prepares two disposable signed archives; [Mac updater acceptance](docs/macos-updater-acceptance.md) records the successful installed replacement/restart, settings retention, production preservation and cleanup separately from package proof.
+Mac fixture builds additionally select a separate settings store and skip legacy discovery at compile time, so actual replacement/restart can be tested alongside the preserved production app. A credential-free CI job prepares two disposable signed archives; [Mac updater acceptance](docs/history/macos-updater-acceptance.md) records the successful installed replacement/restart, settings retention, production preservation and cleanup separately from package proof.
 
 GitHub Releases is the initial distribution source. Windows/macOS use the desktop framework's supported updater packages. Linux desktop packaging/update work is deferred. Initial installation still needs a trusted source. HTTPS and checksums do not replace artifact signatures. Publisher signing/notarization is a separate decision and is not provided by updater signing.
 
@@ -172,7 +172,7 @@ The [documented key rotation policy](docs/releasing.md#key-rotation-and-recovery
 
 Use user-owned versioned release directories and a stable launcher/service path instead of symlinks into an extracted download or a shared global binary. A maintenance command stages and verifies a signed server package, switches the active executable, restarts the service, checks health, and rolls back the executable if health fails.
 
-The Linux `server-maintenance` namespace now exposes signed install/update, metadata status, explicit recovery, and read-only verification. It pins trust/UID/socket/limits, retains private immutable releases, generates a stable user launcher and actual unit, bounds downloads/processes, and journals executable selection before initial enable/restart. Health requires the selected version through the saved proxy/socket. Failed update restores the verified predecessor; failed first install disables the attempted service. Interrupted/failed outcome writes retain recovery state and block new updates. Disposable signed executable/real proxy tests and real user-systemd runtime acceptance pass, including crash-loop rate-limit rollback, journal recovery and owned cleanup. The exact signed 0.4.0 optimized artifact also passes independent admission, released-client compatibility, real SSH and isolated real-service install/restart checks. The exact signed live 0.4.0 persistent installation, SSH routes and old-install retirement now pass. Startup persistence is configured and public server delivery is verified; actual reboot/last-session logout remain unobserved and non-blocking. See [live acceptance](docs/linux-cutover-acceptance.md). See [maintenance evidence](docs/server-maintenance.md).
+The Linux `server-maintenance` namespace now exposes signed install/update, metadata status, explicit recovery, and read-only verification. It pins trust/UID/socket/limits, retains private immutable releases, generates a stable user launcher and actual unit, bounds downloads/processes, and journals executable selection before initial enable/restart. Health requires the selected version through the saved proxy/socket. Failed update restores the verified predecessor; failed first install disables the attempted service. Interrupted/failed outcome writes retain recovery state and block new updates. Disposable signed executable/real proxy tests and real user-systemd runtime acceptance pass, including crash-loop rate-limit rollback, journal recovery and owned cleanup. The exact signed 0.4.0 optimized artifact also passes independent admission, released-client compatibility, real SSH and isolated real-service install/restart checks. The exact signed live 0.4.0 persistent installation, SSH routes and old-install retirement now pass. Startup persistence is configured and public server delivery is verified; actual reboot/last-session logout remain unobserved and non-blocking. See [live acceptance](docs/history/linux-cutover-acceptance.md). See [maintenance evidence](docs/server-maintenance.md).
 
 Signed server staging builds headless packages, authenticates canonical version/platform names, verifies them with the concrete policy and records source/key/hash evidence. The master-only `server-release` workflow creates protected Linux x64 drafts; protected production signing and independent exact-package verification passed after owner approval. Signed server 0.4.0 persistent installation and public delivery now pass; actual reboot/last-session logout retain their separate gap. Local synthetic-key package staging passes without installation.
 
@@ -180,7 +180,7 @@ Transfer-only keys remain transfer-only. Remote maintenance uses a separately au
 
 ## Validation Boundaries
 
-Protocol/configuration/shelf tests, real SSH integration, native desktop behavior, and packaged update tests provide different evidence. A green unit suite does not prove another application can paste on Wayland or that an installed application can update itself. Keep tested results and untested limits distinct. The [closed implementation plan](docs/implementation-plan.md) defers Linux desktop and further broad rare-scenario checks; future native checks are limited to a concrete change or observed issue.
+Protocol/configuration/shelf tests, real SSH integration, native desktop behavior, and packaged update tests provide different evidence. A green unit suite does not prove another application can paste on Wayland or that an installed application can update itself. Keep tested results and untested limits distinct. The [closed implementation plan](docs/history/implementation-plan.md) defers Linux desktop and further broad rare-scenario checks; future native checks are limited to a concrete change or observed issue.
 
 ## Update Triggers
 
@@ -191,10 +191,10 @@ Protocol/configuration/shelf tests, real SSH integration, native desktop behavio
 
 ## Related Docs
 
-- [Implementation plan](docs/implementation-plan.md)
+- [Implementation plan](docs/history/implementation-plan.md)
 - [Protocol](docs/protocol.md)
 - [Dependency decisions](docs/dependency-decisions.md)
-- [Agent](docs/agent.md) and [Linux desktop](docs/linux-client.md)
+- [Agent](docs/legacy/agent.md) and [Linux desktop](docs/legacy/agent.md#linux-platform-notes)
 - [Security](docs/security.md)
 - [Server setup](docs/server-setup.md)
 - [Releasing](docs/releasing.md) and [CI](docs/ci.md)

@@ -1,77 +1,90 @@
 # Docs Index
 
 ## Purpose
-Internal knowledge base for maintainers and AI agents working on `ssh_clipboard`. These are not end-user docs.
+
+Maintainer and agent navigation for current behavior, development, operations, retained compatibility and dated evidence. Start with the guide that owns the affected contract; history records earlier builds and decisions.
 
 ## Key Files
-- `docs/index.md`
-- `docs/writing-docs.md`
-- `AGENTS.md`
-- `ARCHITECTURE.md`
 
-## Where To Start
-- Skim this index, then jump to any topic docs listed below as they are added.
+- [README](../README.md): downloads and short usage/setup.
+- [Architecture](../ARCHITECTURE.md): current components and system boundaries.
+- [AGENTS.md](../AGENTS.md): repository working instructions.
+- [Writing docs](writing-docs.md): document ownership, lifecycle and validation.
 
-## Docs Map
-- `docs/writing-docs.md`: How to write and maintain internal docs in this repo.
-- [ARCHITECTURE.md](../ARCHITECTURE.md): Current system and planned rework architecture.
-- [docs/implementation-plan.md](implementation-plan.md): Closed rework phases, supported delivery, deferred Linux desktop and non-blocking evidence limits.
-- [docs/desktop-ux-plan.md](desktop-ux-plan.md): Accepted UI/UX review, six scoped implementation PRs, dependencies, and validation criteria.
-- [docs/legacy-retirement.md](legacy-retirement.md): Retired default agent/distribution, preserved 0.4 compatibility and recovery boundaries.
-- [docs/desktop-prototype.md](desktop-prototype.md): Phase 1 source-build prototype, controls, limitations, and platform validation status.
-- [docs/desktop-shortcuts.md](desktop-shortcuts.md): Platform key labels, settings keyboard navigation, optional direct transfers, safe recording, and registration recovery.
-- [docs/desktop-notifications.md](desktop-notifications.md): Feedback preferences, private native messages, capability fallback, and retained outcomes.
-- [docs/shared-configuration.md](shared-configuration.md): Shared store, desktop profiles/advanced policy, CLI overrides, live reload, and save/recovery contracts.
-- [docs/configuration-migration.md](configuration-migration.md): Legacy/prototype migration, one-time import review, exact backups, schema 2 settings, preserved preferences, and recovery.
-- [docs/compatibility-and-cutover.md](compatibility-and-cutover.md): Client/server protocol matrix, forced-command boundaries, upgrade order, return paths, and recorded acceptance limits.
-- [docs/released-compatibility.md](released-compatibility.md): Pinned v0.3.0 Linux CLI/proxy/daemon compatibility, repeatable private process probes, and evidence boundaries.
-- `docs/protocol.md`: Protocol framing, message types, and error codes.
-- [docs/shelf-core.md](shelf-core.md): New bounded shelf state, upload reservations, expiry, retry contracts, and service integration.
-- [docs/session-protocol.md](session-protocol.md): Separate shelf bootstrap, precision-safe metadata, negotiated limits, raw payload framing, and compatibility boundary.
-- [docs/shelf-service.md](shelf-service.md): Transport-independent shelf actions, connection admission, deadlines, and stream-based lifecycle evidence.
-- [docs/shelf-server.md](shelf-server.md): Linux endpoint commands, safe socket ownership, bounded stdio bridge, and native process evidence.
-- [docs/shelf-client.md](shelf-client.md): Item-aware session validation, explicit CLI inputs/exports, epoch guards, and bounded SSH lifecycle.
-- [docs/desktop-history.md](desktop-history.md): Relative/exact times, stable focus/selection, endpoint profiles, safe mutations/copy, private labels, and layout evidence.
-- [docs/native-history-acceptance.md](native-history-acceptance.md): Closed Windows shelf/migration/cancellation session, observed native results, fixture cleanup, and explicit remaining gaps.
-- [docs/persistent-sessions.md](persistent-sessions.md): Reused SSH ownership, explicit Cancel, bounded metadata Watch/recovery, and no-replay guards.
-- [docs/share-recovery.md](share-recovery.md): Frozen uncertain shares, read-only acknowledgment lookup, explicit retry/discard, and server-enforced deadlines.
-- [docs/desktop-updates.md](desktop-updates.md): Installed staging/startup, bounded signed updater, framework handoff, protected drafts, and native/release gates.
-- [docs/server-maintenance.md](server-maintenance.md): Signed user installation/update, stable launcher/unit, bounded proxy health, crash-limit rollback/recovery, and disposable real-service evidence.
-- [docs/linux-cutover-acceptance.md](linux-cutover-acceptance.md): Signed live 0.4.0 server, persistent unit/SSH health, old-installation retirement and separate rollback backup.
-- [docs/macos-cutover.md](macos-cutover.md): Owner-requested complete Mac 0.3-to-0.4 replacement, package/SSH/startup gates and legacy cleanup scope.
-- [docs/macos-updater-acceptance.md](macos-updater-acceptance.md): Isolated Mac update/restart rehearsal, disposable CI packages, settings separation and cleanup evidence.
-- [docs/connection-diagnostics.md](connection-diagnostics.md): Desktop/CLI metadata health, safe per-step failures, one-shot SSH deadlines/drainage, and fault evidence.
-- `docs/dependency-decisions.md`: Rationale and guardrails for high-impact dependency choices.
-- [docs/build-variants.md](build-variants.md): Headless, clipboard-only, agent, and desktop dependency boundaries and validation evidence.
-- `docs/server-setup.md`: Linux daemon setup and proxy usage.
-- `docs/client-setup.md`: Windows/macOS client usage and SSH troubleshooting.
-- `docs/linux-client.md`: Linux desktop client notes (Wayland/X11, tray, hotkeys).
-- `docs/security.md`: Security model and recommended SSH hardening.
-- [docs/update-signing-public-key.pub](update-signing-public-key.pub): Public production verification key; pin its reviewed [fingerprint and trust procedure](security.md#signed-package-trust).
-- `docs/cli.md`: CLI command and flag reference.
-- `docs/ci.md`: CI workflows, build variants, and release packaging.
-- `docs/releasing.md`: Protected signed draft staging, verification and publication.
-- [docs/release-0.4.0-acceptance.md](release-0.4.0-acceptance.md): Merged source, protected production drafts, independent signatures, Windows install/paste and isolated Linux service evidence.
-- [docs/release-0.4.1-acceptance.md](release-0.4.1-acceptance.md): Signed desktop correction, real-profile upgrade/startup, publication and anonymous public-delivery verification.
-- [docs/release-0.4.2-acceptance.md](release-0.4.2-acceptance.md): Windows/Apple Silicon publication, immutable package identity, anonymous combined-feed delivery and acceptance boundaries.
-- [docs/release-readiness.md](release-readiness.md): Rework candidate notes, refreshed automated evidence, desktop draft admission, and remaining release gates.
-- `docs/troubleshooting.md`: Common errors and fixes.
-- `docs/testing.md`: How to run tests and what’s covered.
-- `docs/icon.md`: Icon assets and regeneration steps.
-- Retired agent compatibility references:
-  - `docs/cli.md` includes `agent`, `config`, and `autostart` command notes.
-  - `docs/agent.md`: Agent setup, config, hotkeys, tray UX, and logs.
-  - `docs/autostart.md`: Start-at-login behavior and refresh strategy.
+## Development
 
-## Doc Conventions
-- Each doc includes: `Purpose`, `Key Files`, `Update Triggers`, `Related Docs`.
-- Prefer concrete paths and commands (e.g., `src/`, `cargo test`).
-- Avoid secrets; reference where secrets/config are managed instead.
+- [Desktop development](desktop-development.md): source builds, standalone artifacts, layout and native-resource guardrails.
+- [Build variants](build-variants.md): default clipboard CLI, headless server/stdio, retired agent and desktop dependencies.
+- [Testing](testing.md): check commands, fixture isolation, evidence boundaries and documentation checks.
+- [CI](ci.md): platform matrices, prerequisites, package checks and protected release workflows.
+- [Dependency decisions](dependency-decisions.md): codec, framework, configuration, adapters and signature-verifier rationale.
+- [Icon assets](icon.md): shared asset generation and executable/bundle ownership.
+
+## Desktop and Configuration
+
+- [Shared configuration](shared-configuration.md): schema, profiles, draft/save transaction, CLI precedence and reload.
+- [Configuration migration](configuration-migration.md): source selection, one-time review, exact backups and recovery.
+- [History](desktop-history.md): endpoint selection, labels/privacy, selection, safe copy and mutations.
+- [Shortcuts](desktop-shortcuts.md): registration, recording, background actions and keyboard behavior.
+- [Feedback and notifications](desktop-notifications.md): preferences, capability fallback and retained outcomes.
+- [Persistent sessions](persistent-sessions.md): SSH ownership, metadata Watch/reconnect, cancellation and no replay.
+- [Share recovery](share-recovery.md): frozen captures, acknowledgment lookup and explicit protected retry/discard.
+- [Desktop updates](desktop-updates.md): installed identity, startup, bounded verified downloads and installer handoff.
+
+## Shelf and Protocol
+
+- [Shelf core](shelf-core.md): bounded state, allocation, expiry, ordering and deduplication.
+- [Session protocol](session-protocol.md): SCBS bootstrap, negotiated messages, decimal precision and payload framing.
+- [Session service](shelf-service.md): stream admission, deadlines, actions and V2 adapter.
+- [Linux shelf endpoint](shelf-server.md): commands, private sockets, ownership and stdio lifecycle.
+- [Shelf client](shelf-client.md): session validation, explicit CLI input/export and process lifecycle.
+- [V2 protocol](protocol.md): preserved SCB1 framing and latest-item compatibility contract.
+
+## Operations and Reference
+
+- [Managed server setup](server-setup.md): trust, user-service installation and actual SSH-route checks.
+- [Server maintenance](server-maintenance.md): pinned signed releases, stable launcher/unit and rollback/recovery.
+- [CLI reference](cli.md): current commands, endpoint selection and explicitly marked legacy command sections.
+- [Connection diagnostics](connection-diagnostics.md): endpoint-aware metadata health and safe transport failures.
+- [Troubleshooting](troubleshooting.md): desktop, settings, shelf, V2 and updater repair paths.
+- [Security](security.md): SSH boundaries, private sockets and [public-key trust](security.md#signed-package-trust).
+- [Production public key](update-signing-public-key.pub): public verification material; it contains no secret.
+- [Releasing](releasing.md): protected signed draft staging, release notes, publication and key operations.
+- [Compatibility and cutover](compatibility-and-cutover.md): protocol matrix, fixed SSH routes, migration order and return paths.
+- [Released compatibility](released-compatibility.md): pinned actual v0.3.0 Linux probes and isolation.
+- [Legacy retirement policy](legacy-retirement.md): current default/distribution boundary and retained 0.4 contracts.
+
+## Legacy Compatibility
+
+These describe explicit compatibility builds or frozen archives, not the recommended new desktop/server installation.
+
+- [Retired agent](legacy/agent.md): configuration, tray, notifications, consolidated autostart and Linux platform notes.
+- [V2 client setup](legacy/client-setup.md): older CLI/agent setup, SSH and explicit input/output.
+- [Standalone V2 server setup](legacy/server-setup.md): old installer/unit/socket workflow.
+
+## History and Acceptance
+
+Historical pending gates and test counts apply to the source/session named in each record. They are not new manual assignments or current-head validation. Preserve package identities, dates, screenshots and unobserved limits.
+
+- [Closed implementation plan](history/implementation-plan.md): delivered phases, compatibility commitments and deferred/non-blocking scope.
+- [Completed desktop UX plan](history/desktop-ux-plan.md): six merged PRs, review criteria, screenshots and bounded validation.
+- [Prototype development snapshot](history/desktop-prototype.md): original development controls, early counts and native checklist.
+- [Testing checkpoints](history/testing-checkpoints.md): earlier automated/process/native results and fixture lessons.
+- [Release evidence overview](history/release-readiness.md): original rework validation, draft admission and delivery closure.
+- [Windows native history](history/native-history-acceptance.md): isolated migration, text/PNG, cancellation and acknowledgment recovery.
+- [Windows development installer/updater](history/desktop-update-acceptance.md): actual login, native faults, key transition and cleanup.
+- [0.4.0 artifact acceptance](history/release-0.4.0-acceptance.md): exact production source/packages and Windows installation correction.
+- [0.4.1 desktop acceptance](history/release-0.4.1-acceptance.md): real-profile upgrade/startup and public delivery.
+- [0.4.2 desktop acceptance](history/release-0.4.2-acceptance.md): immutable Windows/Apple Silicon packages and anonymous combined-feed delivery.
+- [Linux cutover acceptance](history/linux-cutover-acceptance.md): signed persistent service, SSH routes and old-install retirement.
+- [Mac cutover](history/macos-cutover.md): actual import, text, login/shortcut and legacy cleanup.
+- [Mac updater acceptance](history/macos-updater-acceptance.md): isolated replacement/restart, settings retention and production preservation.
 
 ## Update Triggers
-- Behavior changes (clipboard transfer, SSH handling, client/server workflows).
-- New or changed dependencies or OS-specific steps.
-- Bug fixes that clarified edge cases or error handling.
+
+- A document is added, moved, merged or retired.
+- Contract ownership, supported scope or lifecycle/navigation conventions change.
 
 ## Related Docs
-- `docs/writing-docs.md`
+
+- [Writing docs](writing-docs.md), [documentation checks](testing.md#documentation-checks).

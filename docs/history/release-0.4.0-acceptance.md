@@ -1,5 +1,7 @@
 # 0.4.0 Production Artifact Acceptance
 
+> Historical record, archived 2026-10-18. Version, latest-release and pending-gate statements below belong to the recorded source/session. Use [the docs index](../index.md) for current guides; preserve exact identities and unobserved limits when adding corrections.
+
 ## Purpose
 
 Record acceptance of the immutable signed 0.4.0 drafts, separately from source tests, earlier disposable-trust rehearsals, publication and live migration.
@@ -8,7 +10,7 @@ Record acceptance of the immutable signed 0.4.0 drafts, separately from source t
 
 - `.github/workflows/desktop-release.yml`, `server-release.yml`: protected draft builders.
 - `desktop/src-tauri/src/bin/verify_desktop_update.rs`, `src/server_package.rs`: independent package admission.
-- [Release readiness](release-readiness.md) and [cutover procedure](compatibility-and-cutover.md): remaining gates.
+- [Release readiness](release-readiness.md) and [cutover procedure](../compatibility-and-cutover.md): remaining gates.
 
 ## Source and Trust
 
@@ -33,7 +35,7 @@ The owner completed installation. Read-only checks confirmed one production desk
 
 The owner confirmed the saved server connection and this native round trip through the existing legacy endpoint: Share `SSH Clipboard production 0.4.0`, replace the local clipboard with another marker, Copy the shared item, then paste the original shared text into Notepad. This admits production installation and that text path. It does not claim production startup/sign-in, a production-to-production update, actual legacy-file import, shelf cutover or interrupted installation.
 
-The [closed native history session](native-history-acceptance.md) and [installed updater rehearsals](desktop-updates.md) retain their original evidence boundaries; they were not repeated.
+The [closed native history session](native-history-acceptance.md) and [installed updater rehearsals](../desktop-updates.md) retain their original evidence boundaries; they were not repeated.
 
 After that successful production check, the owner explicitly requested complete removal of the old agent. Its own uninstaller removed the legacy startup/PATH entries, agent/CLI binaries and bin directory with seven successful checks and no warnings. A temporary copy of the CLI avoided deferred self-deletion and was then removed. The validated legacy configuration subtree contained only the agent TOML and empty dated logs; it and the empty old installation root were removed after verifying the retained recovery backup and rejecting reparse points. The new shared settings hash was unchanged and one production desktop process remained. The Linux service was untouched. The real-profile startup cleanup and login result are recorded below.
 
@@ -67,5 +69,5 @@ Guardrail: source, protected signing, independent byte verification, native past
 
 ## Related Docs
 
-- [Release operations](releasing.md), [desktop updates](desktop-updates.md), [server maintenance](server-maintenance.md).
-- [Implementation plan](implementation-plan.md), [architecture](../ARCHITECTURE.md), [docs index](index.md).
+- [Release operations](../releasing.md), [desktop updates](../desktop-updates.md), [server maintenance](../server-maintenance.md).
+- [Implementation plan](implementation-plan.md), [architecture](../../ARCHITECTURE.md), [docs index](../index.md).

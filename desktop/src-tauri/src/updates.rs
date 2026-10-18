@@ -163,7 +163,7 @@ impl Updates {
                             .as_ref()
                             .map_or_else(String::new, |value| value.notes.clone());
                         view.detail = if release.is_some() {
-                            "An update is available. Download to verify it before installing."
+                            "An update is available."
                         } else {
                             "You have the latest available stable version."
                         }

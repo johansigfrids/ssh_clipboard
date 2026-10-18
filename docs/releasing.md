@@ -6,6 +6,7 @@ Describe legacy releases, staged signed desktop releases, key operations, and ve
 ## Key Files
 - `.github/workflows/desktop-release.yml`
 - `desktop/scripts/build-installed.mjs`
+- `desktop/scripts/release-notes.mjs`, `desktop/release-notes/<version>.md`
 - `Cargo.toml`
 - `CHANGELOG.md` (if used)
 
@@ -45,6 +46,25 @@ Desktop production staging requires clean Git state before and after building, p
 The combined draft has twelve canonical assets: each platform's package, `.sig`, `.sha256`, `candidate-<platform>.json` and `build-evidence-<platform>.json`; the Mac archive inspection receipt; and one `desktop-stable-<key-id>.json`. Historical Windows-only releases retain their original six-asset layout. Inert-adapter tests execute the actual handoff function, including partial-platform refusal and feed agreement; package smoke checks use the real builder. These checks do not replace protected signing or native acceptance. See [admission and prevention guidance](release-readiness.md#desktop-draft-admission).
 
 Review a complete draft before publishing: exact source SHA/version, expected platform, independent public key, signatures, checksums, CLI parity, notes, and native acceptance results. The offline `verify_desktop_update` tool takes public-key file, current version, candidate JSON, and package; verify against your independently retained public key. Downloaded public-key text alone does not establish initial trust. Publication is a separate explicitly authorized step after reviewing the applicable automated/artifact checks and relevant native acceptance. The [implementation plan](implementation-plan.md) records deferred platforms and non-blocking omitted scenarios; do not reopen a broad manual campaign for unrelated changes. A draft is not discoverable by the stable feed.
+
+## Desktop Release Notes
+
+For each desktop version, commit `desktop/release-notes/<version>.md` alongside the core version change. Use an exact first heading and plain user-facing bullets, for example:
+
+```markdown
+# 1.2.3
+
+- Describe a concrete user-visible change.
+- Describe another change in this version.
+```
+
+Run `node desktop/scripts/release-notes.mjs <version>` from the repository root before staging. This preflight needs no signing inputs. The protected workflow runs it before compilation, and the installed builder repeats it before accessing signing inputs or creating a stage. A missing file, mismatched/non-stable version, empty body, extra headings/prose, draft/publication-pending wording, or text above 16 KiB of UTF-8 is rejected. LF and CRLF normalize to the same text. Keep bullets concise and plain; the app displays recognized short notes as escaped text, not arbitrary Markdown or HTML.
+
+Production always selects the exact committed version file and never falls back to `CHANGELOG.md`. Explicit `--notes-file` overrides are reserved for `--test-build` packages and obey the same version/format/budget rules. The disposable Windows/Mac updater helpers generate versioned fixture notes accordingly.
+
+Both admitted platform feeds must match the reviewed source notes. The handoff revalidates that agreement and writes the same text to the desktop draft description's `--notes-file`. This description input is not an extra release asset; the twelve canonical assets and package/signature admission remain unchanged. Server release notes and tooling are separate.
+
+The source's 0.4.2 notes file does not change the published 0.4.2 release or feed. Apply this contract when staging a newly versioned release; publication and any change to existing release metadata still require their separate authorization. Do not rewrite signed assets to fix historical notes.
 
 ## Signed Server Drafts
 

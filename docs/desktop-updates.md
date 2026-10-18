@@ -11,6 +11,8 @@ Track Phase 6 implementation and distinguish package verification from installed
 - `desktop/scripts/generate-update-test-fixtures.mjs`: disposable synthetic fixture generation and checked cleanup.
 - `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/Cargo.lock`: separate desktop dependencies; updater/startup are opt-in installed-build features.
 - `desktop/scripts/build-installed.mjs`, `smoke-installed-build.mjs`: stage/sign/verify packages; isolated synthetic-key build smoke.
+- `desktop/release-notes/<version>.md`, `desktop/scripts/release-notes.mjs`: curated exact-version notes, preflight validation, and test-only overrides.
+- `desktop/src/update-notes.ts`: safe small-bullet display, with complete legacy text retained in a disclosure.
 - `desktop/src-tauri/tauri.installed.conf.json`, `build.rs`: installed identity, CLI sidecar, per-user NSIS, explicit release trust inputs.
 - `desktop/src-tauri/src/startup.rs`, `startup_native.rs`, `panel.rs`: actual native startup state, explicit changes, and coordinated-save rollback.
 - `desktop/src-tauri/src/panel/startup_tests.rs`: unified Apply transaction probes with fake native registries and temporary configuration stores.
@@ -23,6 +25,8 @@ Track Phase 6 implementation and distinguish package verification from installed
 ## Runtime Update Path
 
 Installed release builds check after a short startup delay and every six hours without opening the panel, sampling the clipboard, or downloading/installing a package. Checking uses independent state, so a quiet network request does not hold the transfer/session lock. The Updates page offers an explicit check, download/verify, then separate install confirmation. Notes are bounded inert text. A prepared verified package is retained in RAM until install, a new explicit check, or Quit; quiet polling does not invalidate it.
+
+The page puts installed/available versions, status, and Download update or Install update before What's new. Downloading and Verifying states precede the existing guarded install confirmation. Short notes with an exact offered-version heading and up to six plain bullets (at most 1,200 characters) render as escaped text in a list. Longer, mismatched-format, or historical changelog notes retain their complete inert text in a collapsed disclosure. Opening it uses the main content scroll area; it does not add a nested notes scroller. Missing notes omit that section. No Markdown HTML or scripts execute, and displaying notes does not authenticate their contents or weaken package verification.
 
 Native rehearsal exposed a flash when rechecking a visible offer: checking immediately removed the offered version/notes/buttons, while a global operation banner pushed the settings content down, then both changes reversed on the fast response. Rechecks now retain the displayed card while invalidating cached install bytes/offer and disabling actions. The result replaces the card once; failure/cancellation clears the stale display, while a failed download retains valid retry metadata. Progress/Cancel stay in a reserved inline area within Updates, with an inline Checking button state rather than inserting a banner above Settings. Rendered regression tests retain actual header/card nodes across a pending check; Rust tests cover failed-check versus download-retry metadata. On installed test 0.3.3, the owner confirmed that rechecking the 0.3.4 offer kept the card/notes in place without a flash or page jump.
 
@@ -49,6 +53,10 @@ The workflow is manual, master-only, checks the immutable dispatch SHA/version, 
 ## Package Staging
 
 Production desktop stages require clean source before and after the build and record immutable source SHA, dirty state, release profile, matching CLI and package size/SHA-256. Debug packages require explicit test identity. The workflow checks this evidence and canonical assets before creating a draft; source/profile/byte substitution and overwrite refusals have executable tests. See [release readiness](release-readiness.md#desktop-draft-admission).
+
+Before compilation or signing, the builder validates `desktop/release-notes/<core-version>.md`. Notes require the exact stable version heading, nonempty plain user-facing bullets, no draft/publication-pending wording, and at most 16 KiB of UTF-8 including canonical output. Both platform feeds must match the reviewed source notes; the draft description uses the same normalized text. Production has no changelog fallback or notes-path override. Disposable `--test-build` packages can pass `--notes-file` with the same format/version/budget contract. See [authoring and preflight](releasing.md#desktop-release-notes).
+
+Prevention: passing the entire changelog embedded historical and candidate-only status into an offered stable release and could exhaust the notes budget as history grew. Select notes by the exact requested version before expensive work, and compare both admitted feeds with the reviewed source again before draft creation. The new 0.4.2 notes file is a source reference for the current checkout; it does not replace the notes or assets already published for 0.4.2. Future versions need their own reviewed notes file and separate release authorization.
 
 `cd desktop; npm run build:installed -- --version <core-version> --public-key-file <public-key>` builds the matching native CLI and desktop installer. The helper requires protected `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` inputs. Production private key files must be outside the checkout. It never installs, tags, pushes, or publishes. Release builds require explicit public-key/feed inputs; ordinary portable prototypes have no updater or startup registration.
 

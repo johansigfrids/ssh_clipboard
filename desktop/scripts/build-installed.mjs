@@ -7,6 +7,7 @@ import {fileURLToPath} from "node:url";
 import {nativeOrigin} from "./native-update-config.mjs";
 import {releaseSource} from "./release-source.mjs";
 import {verifyMacPackage} from "./verify-macos-package.mjs";
+import {loadReleaseNotes} from "./release-notes.mjs";
 
 const desktop=fileURLToPath(new URL("../",import.meta.url));
 const root=path.dirname(desktop);
@@ -24,6 +25,8 @@ const version=values.get("--version");
 const coreVersion=readFileSync(path.join(root,"Cargo.toml"),"utf8").match(/^version\s*=\s*"([^"]+)"/m)?.[1];
 if(!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(version??"") || version!==coreVersion || version==="0.0.0")throw new Error("Pass a stable --version matching the shared core's Cargo.toml.");
 if(flags.has("--debug")&&!flags.has("--test-build"))throw new Error("Debug desktop packages require --test-build.");
+// Reject missing, stale or draft notes before compilation or signing inputs.
+const notes=loadReleaseNotes({version,desktop,notesFile:values.get("--notes-file"),testOnly:flags.has("--test-build")});
 const sourceProof=releaseSource(root,{testOnly:flags.has("--test-build"),expectedSource:process.env.GITHUB_SHA});
 if(!values.get("--public-key-file"))throw new Error("An explicit public signing key file is required.");
 if(!process.env.TAURI_SIGNING_PRIVATE_KEY || process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD===undefined)throw new Error("Set protected signing key/password environment variables before staging packages.");
@@ -83,7 +86,6 @@ const candidatePath=path.join(stage,"candidate.json");writeFileSync(candidatePat
 const verifyKey=path.join(stage,"signing-public-key.pub");writeFileSync(verifyKey,signingPublicKey+"\n");
 const verifyEnv={...env};delete verifyEnv.SSH_CLIPBOARD_NATIVE_TEST_ORIGIN;
 run("cargo",["run","--locked","--manifest-path","src-tauri/Cargo.toml","--features","release-tools","--bin","verify_desktop_update","--",verifyKey,"0.0.0",candidatePath,output],desktop,verifyEnv);
-const notes=values.get("--notes-file")?readFileSync(values.get("--notes-file"),"utf8"):"";if(Buffer.byteLength(notes)>16384)throw new Error("Release notes exceed 16 KiB.");
 const manifest={version,notes,pub_date:new Date().toISOString(),platforms:{[platform]:{url:candidate.url,signature:candidate.signature}}};
 writeFileSync(path.join(stage,`desktop-stable-${keyId(signingPublicKey)}.json`),JSON.stringify(manifest,null,2)+"\n");
 const sha256=createHash("sha256").update(readFileSync(output)).digest("hex");

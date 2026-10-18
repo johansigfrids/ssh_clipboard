@@ -5,6 +5,7 @@ import path from "node:path";
 import {admitDesktopStage,combineDesktopFeed,createDesktopDraft,desktopPlatforms} from "../scripts/desktop-draft.mjs";
 
 const source="a".repeat(40),version="0.4.2",repository="johansigfrids/ssh_clipboard";
+const releaseNotes=`# ${version}\n\n- Reviewed Windows and Mac release notes.\n`;
 const publicKey="independently pinned synthetic public trust",keyId=createHash("sha256").update(publicKey).digest("hex").slice(0,16);
 function fixture(platform="windows-x86_64") {
   const bytes=Buffer.from(`synthetic verified ${platform} package`);
@@ -12,7 +13,7 @@ function fixture(platform="windows-x86_64") {
   const name=`SSHClipboard-stable-${platform}-${version}${platform.startsWith("windows")?"-setup.exe":".app.tar.gz"}`;
   const signature=`synthetic-${platform}-signature`,url=`https://github.com/${repository}/releases/download/desktop-v${version}/${name}`;
   const proof={source,sourceDirty:false,profile:"release",testOnly:false,nativeTestOrigin:null,installed:false,published:false,platform,version,cliVersion:`ssh_clipboard ${version}`,signingPublicKeyId:keyId,embeddedPublicKeyId:keyId,bytes:bytes.length,sha256};
-  const feed={version,notes:"Reviewed release notes",pub_date:"2026-10-16T00:00:00Z",platforms:{[platform]:{url,signature}}};
+  const feed={version,notes:releaseNotes,pub_date:"2026-10-16T00:00:00Z",platforms:{[platform]:{url,signature}}};
   const inspection={source,version,platform,testOnly:false,sha256,bytes:bytes.length,application:"SSH Clipboard.app",identifier:"io.github.johansigfrids.sshclipboard",architecture:"arm64",archiveInspected:true,codeSignaturesVerified:true,cliVersionVerified:true,installed:false};
   const files=new Map([[name,bytes],[`${name}.sig`,signature],[`${name}.sha256`,`${sha256}  ${name}\n`],["build-evidence.json",JSON.stringify(proof)],["candidate.json",JSON.stringify({version,platform,url,signature})],[`desktop-stable-${keyId}.json`,JSON.stringify(feed)],["macos-package-inspection.json",JSON.stringify(inspection)]]);
   const read=(file)=>{if(!files.has(file))throw Error("Missing staged asset");return files.get(file);};
@@ -70,16 +71,16 @@ test("combined feed preserves both platforms and refuses missing, duplicate or i
 
 test("same release notes from Windows CRLF and Mac LF checkouts combine without losing text",()=>{
   const windows=fixture(),mac=fixture("darwin-aarch64");
-  windows.edit(`desktop-stable-${keyId}.json`,{notes:"Reviewed\r\nrelease notes\r\n"});
-  mac.edit(`desktop-stable-${keyId}.json`,{notes:"Reviewed\nrelease notes\n"});
-  assert.equal(combineDesktopFeed([windows.admit(),mac.admit()]).notes,"Reviewed\nrelease notes\n");
+  windows.edit(`desktop-stable-${keyId}.json`,{notes:releaseNotes.replaceAll("\n","\r\n")});
+  mac.edit(`desktop-stable-${keyId}.json`,{notes:releaseNotes});
+  assert.equal(combineDesktopFeed([windows.admit(),mac.admit()]).notes,releaseNotes);
 });
 
 function handoff({existing=false,stages=[`installed-${version}-stage`],fault}={}) {
   const calls=[],writes=[],copies=[],fixtures=new Map(desktopPlatforms.map(platform=>[platform,fixture(platform)]));
   if(fault)fault(fixtures);
   const options={root:path.resolve("checkout"),env:{RELEASE_VERSION:version,GITHUB_SHA:source,GITHUB_REPOSITORY:repository},
-    read(file){if(path.basename(file)==="update-signing-public-key.pub")return publicKey;const platform=desktopPlatforms.find(item=>file.includes(`desktop-package-${item}`));return fixtures.get(platform).read(path.basename(file));},
+    read(file){if(path.basename(file)===`${version}.md`)return releaseNotes;if(path.basename(file)==="update-signing-public-key.pub")return publicKey;const platform=desktopPlatforms.find(item=>file.includes(`desktop-package-${item}`));return fixtures.get(platform).read(path.basename(file));},
     list:()=>stages,mkdir:()=>{},copy:(from,to)=>copies.push({from,to}),write:(file,bytes)=>writes.push({file,bytes}),
     run:(command,args)=>calls.push({command,args}),probe:()=>({status:existing?0:1})};
   return {invoke:()=>createDesktopDraft(options),calls,writes,copies};
@@ -92,8 +93,11 @@ test("actual draft handoff creates one draft with the combined feed and platform
   assert.ok(args.includes("--draft"));assert.ok(!args.includes("--clobber"));
   assert.equal(args[args.indexOf("--target")+1],source);
   assert.equal(args.slice(3,args.indexOf("--repo")).length,12);
-  assert.equal(f.writes.length,1);
+  assert.equal(f.writes.length,2);
   assert.deepEqual(Object.keys(JSON.parse(f.writes[0].bytes).platforms).sort(),desktopPlatforms.toSorted());
+  const notesPath=args[args.indexOf("--notes-file")+1];
+  assert.equal(f.writes.find(write=>write.file===notesPath).bytes,releaseNotes);
+  assert.equal(JSON.parse(f.writes[0].bytes).notes,releaseNotes);
   assert.ok(f.copies.every(copy=>!copy.to.endsWith(".key")&&!copy.to.endsWith(".pub")));
 });
 
@@ -101,4 +105,10 @@ test("actual handoff cannot overwrite a release or create a partial-platform dra
   for(const options of [{existing:true},{stages:[]},{stages:[`installed-${version}-one`,`installed-${version}-two`]},{fault:fixtures=>fixtures.get("darwin-aarch64").files.delete("candidate.json")}]) {
     const f=handoff(options);assert.throws(f.invoke);assert.equal(f.calls.length,0);assert.equal(f.writes.length,0);assert.equal(f.copies.length,0);
   }
+});
+
+test("draft handoff refuses even matching platform notes if they differ from reviewed source",()=>{
+  const f=handoff({fault:fixtures=>{for(const fixture of fixtures.values())fixture.edit(`desktop-stable-${keyId}.json`,{notes:`# ${version}\n\n- Unreviewed replacement.\n`});}});
+  assert.throws(f.invoke,/differ from the reviewed/);
+  assert.equal(f.calls.length,0);assert.equal(f.writes.length,0);assert.equal(f.copies.length,0);
 });

@@ -4,9 +4,44 @@ on:
   push:
     branches: ["master"]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Select checks and validate documentation
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.select.outputs.core }}
+      desktop: ${{ steps.select.outputs.desktop }}
+      packages: ${{ steps.select.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify change selection and documentation
+        run: |
+          node --test scripts/ci-changes.test.mjs
+          node scripts/check-docs.mjs
+          git diff --check
+      - id: select
+        name: Select affected checks
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-changes.mjs "$BASE" HEAD
+
   desktop:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
     name: Desktop prototype (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -42,13 +77,10 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache prototype Cargo build
-        uses: actions/cache@v4
+        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            desktop/src-tauri/target
-          key: ${{ runner.os }}-desktop-cargo-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          workspaces: desktop/src-tauri -> target
+          key: desktop-${{ runner.os }}
 
       - name: Install frontend dependencies
         run: npm ci
@@ -56,8 +88,12 @@ jobs:
       - name: Check and build frontend
         run: npm run build
 
+      - name: Platform-sensitive tooling tests
+        run: npm run test:tooling
+
       - name: Frontend interaction tests
-        run: npm test
+        if: runner.os == 'Linux'
+        run: npm run test:ui
 
       - name: Format desktop Rust
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
@@ -66,6 +102,7 @@ jobs:
         run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
       - name: Desktop Rust tests
+        if: runner.os == 'Linux'
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Installed-feature Rust checks without release credentials
@@ -75,15 +112,15 @@ jobs:
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --all-features
 
       - name: Test-only signed Windows installer, never installed
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && needs.changes.outputs.packages == 'true'
         run: npm run test:package
 
       - name: Test-only release Mac app, inspect archive without installing
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && needs.changes.outputs.packages == 'true'
         run: npm run test:package -- --release
 
       - name: Retain disposable Mac package and inspection evidence
-        if: success() && runner.os == 'macOS'
+        if: success() && runner.os == 'macOS' && needs.changes.outputs.packages == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos-test-package
@@ -95,6 +132,8 @@ jobs:
         run: npm run build:prototype
 
   test:
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -146,15 +185,9 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache Cargo
-        uses: actions/cache@v4
+        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          key: core-${{ matrix.name }}
 
       - name: Format
         run: cargo fmt -- --check
@@ -181,27 +214,27 @@ jobs:
       - name: Clippy
         run: |
           if [ "${{ matrix.features }}" = "agent" ]; then
-            cargo clippy --features agent -- -D warnings
+            cargo clippy --locked --features agent --all-targets -- -D warnings
           else
-            cargo clippy --no-default-features -- -D warnings
+            cargo clippy --locked --no-default-features --all-targets -- -D warnings
           fi
         shell: bash
 
       - name: Test
         run: |
           if [ "${{ matrix.features }}" = "agent" ]; then
-            cargo test --features agent
+            cargo test --locked --features agent
           else
-            cargo test --no-default-features
+            cargo test --locked --no-default-features
           fi
         shell: bash
 
       - name: Build (release)
         run: |
           if [ "${{ matrix.features }}" = "agent" ]; then
-            cargo build --release --features agent
+            cargo build --locked --release --features agent
           else
-            cargo build --release --no-default-features
+            cargo build --locked --release --no-default-features
           fi
         shell: bash
 
@@ -220,3 +253,21 @@ jobs:
           path: ${{ runner.temp }}/released-compatibility.json
           if-no-files-found: ignore
           retention-days: 14
+
+  complete:
+    name: CI complete
+    if: always()
+    needs: [changes, desktop, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful selection and every selected check
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          CORE_SELECTED: ${{ needs.changes.outputs.core }}
+          DESKTOP_SELECTED: ${{ needs.changes.outputs.desktop }}
+          CORE: ${{ needs.test.result }}
+          DESKTOP: ${{ needs.desktop.result }}
+        run: |
+          test "$CHANGES" = success
+          if [ "$CORE_SELECTED" = true ]; then test "$CORE" = success; fi
+          if [ "$DESKTOP_SELECTED" = true ]; then test "$DESKTOP" = success; fi

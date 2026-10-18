@@ -97,6 +97,10 @@ Keep helpers and imports gated consistently with their callers. Use `#[cfg(any(t
 
 ## Documentation Checks
 
+Run `node scripts/check-docs.mjs` from the repository root to check tracked Markdown links/headings and current guide index coverage. CI runs this lightweight check even when compilation is skipped. Change selection is fail-closed and has regressions in `scripts/ci-changes.test.mjs`.
+
+Frontend checks can be selected as `npm run test:tooling` (platform-sensitive Node helpers) or `npm run test:ui` (pure rendered interactions). Local `npm test` still runs both.
+
 For documentation-only work, validate relative file and heading links, index coverage, referenced assets and `git diff --check`. Inspect `git status`/diff paths to ensure source, manifests, workflows and lockfiles are unchanged. Do not build packages or start live fixtures merely to validate prose. When moving evidence, preserve package hashes, source identities, timestamps and screenshots, and update inbound links.
 
 ## Update Triggers

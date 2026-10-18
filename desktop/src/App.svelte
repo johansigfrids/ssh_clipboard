@@ -13,8 +13,11 @@
   let localBusy = $state(false);
   let operation = $state<OperationView>({ generation: "0", active: null });
   const busy = $derived(localBusy || operation.active !== null);
-  let message = $state("");
-  let error = $state(false);
+  let routine = $state<{ text: string; scope: string } | null>(null);
+  let failure = $state<{ text: string; origin: string } | null>(null);
+  let routineTimer: ReturnType<typeof setTimeout> | undefined;
+  let routineVersion = 0;
+  let navigationVersion = 0;
   type ShortcutField = "openShortcut" | "directShareShortcut" | "directCopyShortcut";
   let recording = $state<ShortcutField | null>(null);
   let recordingRequested = $state(false);
@@ -39,6 +42,12 @@
   const selectedHistory = $derived(view.history?.items.find((item) => item.id === view.history?.selectedId));
   const canCopy = $derived(!!view.item || !!selectedHistory);
   const updateNotes = $derived(conciseUpdateNotes(view.updateStatus.notes, view.updateStatus.offeredVersion));
+  const feedbackScope = $derived(page === "settings" ? section : "panel");
+  const notificationMode = $derived(draft.notifications === "all" || draft.notifications === "errors");
+  const startupHelp = $derived(startupDraft !== null && view.startupStatus.enabled !== null ? `Currently ${view.startupStatus.enabled ? "on" : "off"}.` : !view.startupStatus.available || view.startupStatus.enabled === null || view.startupStatus.enabled !== view.startupStatus.desired ? view.startupStatus.detail : view.startupStatus.enabled ? "Starts in the background." : "");
+  const historyHealthy = $derived(view.historyStatus?.phase === "live");
+  const connectionLabel = $derived(busy ? "Working…" : view.historyStatus ? ({live:"History up to date",connecting:"Connecting…",reconnecting:"Reconnecting…",needs_action:"Connection needs attention"}[view.historyStatus.phase]) : view.connected ? "Server reachable" : configured ? "Not connected" : "Setup needed");
+  const resultParts = $derived(splitResult(view.operationNotice?.message ?? ""));
 
   function requestHistoryRemoval(kind: "delete" | "clear") {
     if (!view.history?.epoch) return;
@@ -51,7 +60,29 @@
     void perform(confirmation.kind === "clear" ? "clear_history" : "delete_item", confirmation.kind === "clear" ? "History cleared." : "Item deleted.", { epoch: confirmation.epoch, ...(confirmation.kind === "delete" ? { itemId: confirmation.itemId } : {}) });
   }
 
-  function inform(text: string, failed = false) { message = text; error = failed; }
+  function clearRoutine() {
+    routineVersion++;
+    clearTimeout(routineTimer);
+    routineTimer = undefined;
+    routine = null;
+  }
+
+  function inform(text: string, failed = false, origin = "", scope = feedbackScope) {
+    if (disposed) return;
+    clearRoutine();
+    if (!text) return;
+    if (failed) { failure = { text, origin }; return; }
+    routine = { text, scope };
+    const version = routineVersion;
+    routineTimer = setTimeout(() => {
+      if (!disposed && version === routineVersion) clearRoutine();
+    }, 5000);
+  }
+
+  function splitResult(text: string) {
+    const match = text.match(/^(.+?[.!?])\s+([\s\S]+)$/);
+    return { summary: match?.[1] ?? text, detail: match?.[2] ?? "" };
+  }
 
   function acceptOperation(next: OperationView) {
     if (disposed || !next || !/^(0|[1-9][0-9]*)$/.test(next.generation)) return;
@@ -64,7 +95,7 @@
     const active = operation.active;
     if (!active?.cancellable) return;
     try { acceptOperation(await command<OperationView>("cancel_operation", { id: active.id })); }
-    catch (cause) { inform(String(cause), true); }
+    catch (cause) { inform(String(cause), true, "cancel_operation"); }
   }
 
   function discardDraft() { draft = cloneSettings(view.settings); startupDraft = null; sshOptionsText = draft.transport.sshOptions.join("\n"); draftRevision = view.settingsRevision; stopRecording(); removingProfile = false; }
@@ -94,7 +125,7 @@
     content?.querySelector<HTMLElement>(`#${field}`)?.focus();
   }
 
-  function discardChanges() { discardDraft(); inform("Loaded current saved settings."); }
+  function discardChanges() { discardDraft(); inform("Changes discarded."); }
 
   function syncRecording(active: boolean) {
     recordingSync = recordingSync.catch(() => {}).then(() => command<void>("set_shortcut_recording", { active }));
@@ -149,6 +180,7 @@
   function resetTransport() {
     draft.transport = defaultTransport();
     sshOptionsText = "";
+    inform("Advanced defaults restored in your draft.");
   }
 
   async function reloadSavedSettings() {
@@ -161,7 +193,7 @@
       const next = await command<PanelView>("get_panel");
       if (disposed || epoch !== operationEpoch) return;
       const retainDraft = dirty && (startupDraft !== null || JSON.stringify(draft) !== JSON.stringify(next.settings));
-      if (JSON.stringify(next.operationNotice) !== JSON.stringify(view.operationNotice)) inform("");
+      if (JSON.stringify(next.operationNotice) !== JSON.stringify(view.operationNotice)) clearRoutine();
       view = next;
       removingProfile = false;
       confirmingHistory = null;
@@ -177,6 +209,8 @@
   async function perform(name: string, success: string, args?: Record<string, unknown>) {
     if (busy || !ready) return;
     const hadDraft = dirty;
+    const scope = feedbackScope;
+    const navigation = navigationVersion;
     let validationDetail: string | null = null;
     localBusy = true;
     operationEpoch++;
@@ -186,11 +220,14 @@
       confirmingHistory = null;
       view = await command<PanelView>(name, guardedArgs);
       if (name === "apply_settings" || name === "remove_profile" || name === "acknowledge_migration_summary") discardDraft();
-      inform(name === "recover_share" && view.operationNotice ? view.operationNotice.message : name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success);
+      if (failure?.origin === name) failure = null;
+      if (navigation === navigationVersion && !(["copy_item", "share_clipboard", "recover_share"].includes(name) && view.operationNotice)) {
+        inform(name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success, false, name, scope);
+      }
       if (name === "select_item" && content) content.scrollTop = 0;
     } catch (cause) {
       const detail = cause instanceof Error ? cause.message : String(cause);
-      inform(detail, true);
+      inform(detail, true, name);
       if (name === "apply_settings") validationDetail = detail;
       // Reflect connection/registration state even after a failed operation.
       try { view = await command<PanelView>("get_panel"); if (!hadDraft) discardDraft(); } catch { /* Keep the last view. */ }
@@ -217,6 +254,8 @@
 
   function navigate(next: string) {
     if (busy) return;
+    navigationVersion++;
+    clearRoutine();
     stopRecording();
     removingProfile = false;
     confirmingHistory = null;
@@ -226,6 +265,8 @@
   }
 
   function selectSection(next: string) {
+    navigationVersion++;
+    clearRoutine();
     section = next;
     confirmingInstall = null;
     stopRecording();
@@ -283,15 +324,18 @@
         if (reloadPending) void reloadSavedSettings();
       } catch (cause) { inform(cause instanceof Error ? cause.message : String(cause), true); }
     })();
-    return () => { disposed = true; stopRecording(); stop(); };
+    return () => { disposed = true; clearRoutine(); stopRecording(); stop(); };
   });
 </script>
 
 <svelte:window onkeydown={handleKey} onblur={stopRecording} />
 
 {#snippet feedback()}
-  {#if message}<div class:error class="feedback" role={error ? "alert" : "status"}>{message}</div>
-  {:else if view.operationNotice}<div class:error={view.operationNotice.failed} class="feedback" role={view.operationNotice.failed ? "alert" : "status"}>{view.operationNotice.message}</div>{/if}
+  {#if failure}<div class="feedback error" role="alert"><span>{failure.text}</span><button type="button" class="text-button" aria-label="Dismiss message" onclick={() => failure = null}>Dismiss</button></div>{/if}
+{/snippet}
+
+{#snippet routineFeedback()}
+  {#if routine && routine.scope === feedbackScope}<p class="action-feedback" role="status">{routine.text}</p>{/if}
 {/snippet}
 
 {#snippet operationProgress()}
@@ -356,12 +400,16 @@
           </div>
         </section>
       {/if}
-      <div class="status-line"><span class:connected={view.connected} class="status-dot"></span>{busy ? "Working…" : view.connected ? "Server reachable" : configured ? "Not connected" : "Setup needed"}<span class="mode">{view.settings.profileName}</span></div>
+      <div class="status-line"><span class:connected={view.connected && (!view.historyStatus || historyHealthy)} class="status-dot"></span>{connectionLabel}<span class="mode">{view.settings.profileName}</span></div>
       {#if view.historyStatus}
-        <div class="history-connection" aria-label="History connection">
-          <p>{view.historyStatus.detail}{view.historyStatus.retryInMs !== null ? ` Retrying in ${Math.ceil(view.historyStatus.retryInMs / 1000)} seconds.` : ""}</p>
-          {#if view.historyStatus.phase === "needs_action" || view.historyStatus.phase === "reconnecting"}<button type="button" class="text-button" disabled={!ready || busy} onclick={() => perform("reconnect_history", "Reconnecting history…")}>Reconnect history</button>{/if}
-        </div>
+        {#if historyHealthy}
+          <details class="connection-details"><summary>Connection details</summary><p>{view.historyStatus.detail}</p></details>
+        {:else}
+          <div class="history-connection" aria-label="History connection">
+            <p>{view.historyStatus.detail}{view.historyStatus.retryInMs !== null ? ` Retrying in ${Math.ceil(view.historyStatus.retryInMs / 1000)} seconds.` : ""}</p>
+            {#if view.historyStatus.phase === "needs_action" || view.historyStatus.phase === "reconnecting"}<button type="button" class="text-button" disabled={!ready || busy} onclick={() => perform("reconnect_history", "Reconnecting history…")}>Reconnect history</button>{/if}
+          </div>
+        {/if}
       {/if}
       {#if !configured}
         <section class="empty-state">
@@ -391,6 +439,14 @@
         <button class:primary={!canCopy} disabled={!ready || !configured || busy || view.pendingShare !== null} onclick={() => perform("share_clipboard", "Shared your clipboard with the server.")}>Share current clipboard</button>
         {#if !view.history}<button class="text-button" disabled={!ready || !configured || busy} onclick={() => perform("refresh_item", "Shared clipboard refreshed.")}>Refresh shared clipboard</button>{/if}
       </div>
+      {@render feedback()}
+      {@render routineFeedback()}
+      {#if view.operationNotice && view.operationNotice.message !== failure?.text}
+        <section class:error={view.operationNotice.failed} class="transfer-result" aria-label="Latest transfer result">
+          <p role={view.operationNotice.failed ? "alert" : "status"}>{resultParts.summary}</p>
+          {#if resultParts.detail}<details open={view.operationNotice.failed}><summary>Details</summary><p>{resultParts.detail}</p></details>{/if}
+        </section>
+      {/if}
       {#if view.pendingShare}
         <section class="share-recovery" aria-label="Share recovery">
           <h2>Check an earlier share</h2>
@@ -404,7 +460,6 @@
           <p>Discarding does not undo a server share. Leaving this profile or quitting clears recovery data.</p>
         </section>
       {/if}
-      {@render feedback()}
       {#if configured && view.history}
         <section class="history" aria-label="Temporary clipboard history">
           <div class="history-heading"><h2>Temporary history <span>{view.history.items.length}</span></h2><div class="history-tools"><button type="button" class="text-button" disabled={!ready || busy} onclick={() => perform("refresh_item", "History refreshed.")}>Refresh history</button><button type="button" class="text-button" disabled={!ready || busy || !view.history.items.length} onclick={() => requestHistoryRemoval("clear")}>Clear history…</button></div></div>
@@ -417,7 +472,7 @@
               {/each}
             </ul>
             <button class="text-button" disabled={!ready || busy || !selectedHistory} onclick={() => requestHistoryRemoval("delete")}>Delete selected item…</button>
-          {:else}<p class="field-help">Shared items expire automatically. History is also cleared when the server restarts.</p>{/if}
+          {:else}<p class="field-help">Items expire automatically and are cleared when the server restarts.</p>{/if}
           {#if confirmingHistory}
             <div class="remove-confirmation" role="group" aria-label="History removal confirmation">
               <p>{confirmingHistory.kind === "clear" ? "Clear all items from this server's temporary history?" : "Delete the selected item from the server?"} Copies already saved on other computers remain available.</p>
@@ -425,8 +480,7 @@
             </div>
           {/if}
         </section>
-      {:else if configured}<p class="field-help">This connection uses the legacy server's single shared item.</p>{/if}
-      <p class="quiet-note">{view.history ? "History updates automatically. Sharing and copying happen only when you ask." : "Sharing and copying happen only when you ask."}</p>
+      {/if}
     {:else}
       <form id="settings-form" oninvalidcapture={revealInvalidField} onsubmit={(event) => { event.preventDefault(); applyDraft(); }}>
         {#if section === "connection"}
@@ -485,33 +539,32 @@
           <button type="button" class="test-button" disabled={!ready || !configured || dirty || busy} onclick={() => perform("test_connection", "SSH proxy and clipboard daemon responded.")}>Test saved connection</button>
           {#if dirty}<p class="field-help">Apply your changes before testing the connection.</p>{/if}
           {#if view.connectionReport && !dirty}
-            <section class="connection-report" aria-label="Saved connection diagnostics">
-              <h3>{view.connectionReport.healthy ? "Connection verified" : "Connection needs attention"}</h3>
+            <section class="connection-report" aria-label="Saved connection diagnostics"><details open={!view.connectionReport.healthy}>
+              <summary>{view.connectionReport.healthy ? "Connection verified" : "Connection needs attention"}</summary>
               <ul>
                 {#each view.connectionReport.checks as check (check.stage)}
                   <li class:failed={check.status === "failed"}><strong>{check.label} · {check.status === "passed" ? "Verified" : check.status === "failed" ? "Failed" : "Not verified"}</strong><span>{check.detail}</span></li>
                 {/each}
               </ul>
               {#if view.connectionReport.hint}<p>{view.connectionReport.hint}</p>{/if}
-            </section>
+            </details></section>
           {/if}
         {:else if section === "shortcuts"}
-          <p class="section-intro">One shortcut opens the clipboard panel. You can also use the tray menu or launch the app.</p>
+          <p class="section-intro">Open the panel with a shortcut, the tray menu, or the launcher.</p>
           <label class="toggle"><input type="checkbox" bind:checked={draft.shortcutEnabled} disabled={!ready || busy} />Enable Open panel shortcut</label>
           <label for="shortcut">Open panel</label>
           <button id="shortcut" type="button" class:recording={recording === "openShortcut"} class="shortcut-recorder" disabled={!ready || !draft.shortcutEnabled || busy} onclick={() => startRecording("openShortcut")}>{recording === "openShortcut" ? "Press a shortcut · Esc to cancel" : displayShortcut(draft.openShortcut)}</button>
-          <p class="field-help">{recording ? "Use Ctrl/Cmd or Alt with a key." : view.shortcutStatus}</p>
-          <button type="button" class="text-button" disabled={!ready || busy} onclick={() => draft.openShortcut = "CommandOrControl+Shift+V"}>Restore default shortcut</button>
-          <h3>Optional direct shortcuts</h3>
-          <p class="field-help">Share or copy immediately while the app is in the background. While this window has focus, use the panel buttons. Choose how results appear in Behavior settings.</p>
+          <p class="field-help">{recording ? "Use Ctrl/Cmd or Alt with a key. Recording never transfers content." : view.shortcutStatus}</p>
+          <button type="button" class="text-button" disabled={!ready || busy} onclick={() => { draft.openShortcut = "CommandOrControl+Shift+V"; inform("Default shortcut restored in your draft."); }}>Restore default shortcut</button>
+          <h3>Share and copy shortcuts <span class="background-cue">Background only</span></h3>
+          <p class="field-help">Use the panel buttons while this window has focus. Recording never transfers content. Choose feedback in Behavior.</p>
           <label class="toggle"><input type="checkbox" bind:checked={draft.directShortcutsEnabled} disabled={!ready || busy || !view.shortcutAvailable} />Enable direct shortcuts</label>
           {#each [["directShareShortcut", "Share current clipboard"], ["directCopyShortcut", "Copy shared clipboard"]] as [field, label]}
             <label for={field}>{label}</label>
             <button id={field} type="button" class:recording={recording === field} class="shortcut-recorder" disabled={!ready || !draft.directShortcutsEnabled || busy || !view.shortcutAvailable} onclick={() => startRecording(field as ShortcutField)}>{recording === field ? "Press a shortcut · Esc to cancel" : draft[field as ShortcutField] ? displayShortcut(draft[field as ShortcutField]!) : "Record shortcut"}</button>
             {#if draft[field as ShortcutField]}<button type="button" class="text-button" disabled={!ready || busy} aria-label={`Clear ${label} shortcut`} onclick={() => { draft[field as "directShareShortcut" | "directCopyShortcut"] = null; stopRecording(); }}>Clear shortcut</button>{/if}
           {/each}
-          <p class="field-help">To share: copy text or an image normally first, then press your Share shortcut. It sends what's already on this computer's clipboard; it doesn't copy selected text.</p>
-          <p class="field-help">To receive: press your Copy shortcut to put the latest shared item on this computer's clipboard, then paste normally. It doesn't paste into the active app. Recording a shortcut never transfers content.</p>
+          <p class="field-help">Share sends what's already on this computer's clipboard; it doesn't copy selected text. Copy receives the latest shared item; paste it normally.</p>
         {:else if section === "updates"}
           <section class="updates-panel" aria-label="Software updates">
           <div class="update-versions"><span>Installed: {view.updateStatus.currentVersion === "0.0.0" ? "Development prototype" : view.updateStatus.currentVersion}</span>{#if view.updateStatus.offeredVersion}<strong>Available: {view.updateStatus.offeredVersion}</strong>{/if}</div>
@@ -548,23 +601,37 @@
           {/if}
           </section>
         {:else}
+          <p class="section-intro">Preferences for this computer, across all connections.</p>
+          <section class="preference-group" aria-label="Startup">
+          <h3>Startup</h3>
+          <label class="toggle"><input type="checkbox" aria-describedby={startupHelp ? "startup-help" : undefined} checked={startupDraft ?? (view.startupStatus.enabled === true)} disabled={!ready || busy || !view.settingsWritable || !view.startupStatus.available || view.startupStatus.enabled === null} onchange={(event) => startupDraft = event.currentTarget.checked === view.startupStatus.enabled ? null : event.currentTarget.checked} />Start at login</label>
+          {#if startupHelp}<p id="startup-help" class="field-help">{startupHelp}</p>{/if}
+          </section>
+          <section class="preference-group" aria-label="Clipboard panel">
+          <h3>Clipboard panel</h3>
           <label class="toggle"><input type="checkbox" bind:checked={draft.showPreview} disabled={!ready || busy} />Show content previews</label>
-          <p class="field-help">Hide text and image previews when sharing your screen.</p>
+          <p class="field-help">Turn off to hide text and images when sharing your screen.</p>
           <label class="toggle"><input type="checkbox" bind:checked={draft.closeAfterCopy} disabled={!ready || busy} />Hide panel after copying</label>
           <p class="field-help">The app keeps running so the copied content stays available.</p>
-          <label for="notifications">Direct action feedback</label>
+          </section>
+          <section class="preference-group" aria-label="Shortcut feedback">
+          <h3>Shortcut feedback</h3>
+          <label for="notifications">Feedback after shortcut actions</label>
           <select id="notifications" bind:value={draft.notifications} disabled={!ready || busy}>
             <option value="panel">Open panel with result</option>
             <option value="all">Notify for success and errors</option>
             <option value="errors">Notify for errors only</option>
             <option value="off">Keep quiet</option>
           </select>
-          <p class="field-help">Notifications never include clipboard content, previews, connection details, or raw errors. The latest result is kept in the panel.</p>
-          <p class="field-help">{view.notificationStatus.detail}</p>
-          <button type="button" disabled={!ready || busy || !view.notificationStatus.available} onclick={() => perform("test_notification", "Test notification submitted to the system.")}>Test notification</button>
-          <div class="capability"><strong>Tray menu</strong><span>{view.trayStatus}</span></div>
-          <label class="toggle"><input type="checkbox" aria-describedby="startup-help" checked={startupDraft ?? (view.startupStatus.enabled === true)} disabled={!ready || busy || !view.settingsWritable || !view.startupStatus.available || view.startupStatus.enabled === null} onchange={(event) => startupDraft = event.currentTarget.checked === view.startupStatus.enabled ? null : event.currentTarget.checked} />Start at login</label>
-          <p id="startup-help" class="field-help">{startupDraft !== null && view.startupStatus.enabled !== null ? `Currently ${view.startupStatus.enabled ? "on" : "off"}.` : view.startupStatus.detail}</p>
+          <p class="field-help">The latest result stays in the panel.</p>
+          {#if notificationMode}
+            <p class="field-help">Notifications never show clipboard content.</p>
+            <details class="notification-help" open={!view.notificationStatus.available}><summary>Notification help</summary><p class="field-help">{view.notificationStatus.detail}</p></details>
+            <button type="button" disabled={!ready || busy || !view.notificationStatus.available} onclick={() => perform("test_notification", "Test notification submitted to the system.")}>Test notification</button>
+            <p class="field-help">Sends a test now, without applying your draft. System settings may hide it.</p>
+          {/if}
+          </section>
+          {#if view.trayStatus !== "Available"}<div class="capability"><strong>Tray menu</strong><span>{view.trayStatus}</span></div>{/if}
         {/if}
       </form>
       {@render feedback()}
@@ -580,6 +647,7 @@
         <button type="submit" form="settings-form" class="primary" disabled={applyDisabled}>Apply settings</button>
         <button type="button" disabled={!dirty || busy} onclick={discardChanges}>Discard changes</button>
       </div>
+      {@render routineFeedback()}
     </section>
   {/if}
 

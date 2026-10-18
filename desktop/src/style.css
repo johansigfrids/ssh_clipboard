@@ -33,7 +33,6 @@ main { min-height: 0; min-width: 0; padding: 16px; overflow-y: auto; scrollbar-g
 .actions { display: grid; gap: 8px; margin-top: 12px; }
 .actions > button:not(.text-button) { font-size: 13px; padding: 10px 12px; }
 .text-button { border-color: transparent; background: transparent; color: var(--accent); }
-.quiet-note { text-align: center; color: var(--muted); font-size: 11px; margin: 14px 0 0; }
 .item-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface); }
 .item-card h2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 8px; }
 .item-top { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
@@ -90,7 +89,8 @@ textarea { resize: vertical; overflow-wrap: anywhere; }
 .advanced-connection { margin: 20px 0 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
 summary { cursor: pointer; font-size: 12px; font-weight: 600; }
 .connection-report { border: 1px solid var(--border); border-radius: 8px; margin-top: 16px; padding: 12px; overflow-wrap: anywhere; }
-.connection-report h3 { margin: 0 0 12px; font-size: 13px; }
+.connection-report summary { font-size: 13px; }
+.connection-report details[open] summary { margin-bottom: 12px; }
 .connection-report ul { list-style: none; padding: 0; margin: 0; }
 .connection-report li { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
 .connection-report li span { display: block; margin-top: 4px; color: var(--muted); line-height: 1.5; }
@@ -102,6 +102,11 @@ summary { cursor: pointer; font-size: 12px; font-weight: 600; }
 .remove-confirmation p { margin-top: 0; }
 .field-help { color: var(--muted); font-size: 11px; margin: 7px 0 16px; }
 .section-intro { color: var(--muted); margin-top: 0; }
+.preference-group { padding-bottom: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+.preference-group h3 { font-size: 13px; margin: 0 0 8px; }
+.preference-group .toggle:first-of-type { margin-top: 8px; }
+.background-cue { display: inline-block; color: var(--muted); font-size: 11px; font-weight: normal; }
+.notification-help { margin-bottom: 12px; }
 .toggle { display: flex; align-items: center; gap: 9px; line-height: 1.5; }
 input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; flex-shrink: 0; }
 .shortcut-recorder { width: 100%; }
@@ -119,6 +124,15 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; f
 .capability span { font-size: 11px; color: var(--muted); }
 .feedback { padding: 12px; border-radius: 8px; background: #e8f3ed; color: #286045; font-size: 12px; line-height: 1.5; margin-top: 18px; overflow-wrap: anywhere; }
 .feedback.error { background: #fff0e9; color: #95431b; }
+.feedback.error > button { display: block; margin-top: 6px; }
+.action-feedback { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+.settings-savebar .action-feedback { margin-top: 6px; }
+.transfer-result { margin-top: 12px; padding: 8px 10px; border-left: 3px solid #2b8665; font-size: 12px; overflow-wrap: anywhere; }
+.transfer-result p { margin: 0; font-size: 12px; }
+.transfer-result details { margin-top: 6px; }
+.transfer-result.error { border-color: #a44723; }
+.connection-details { margin: 0 0 12px; color: var(--muted); }
+.connection-details p { margin: 6px 0 0; font-size: 12px; }
 .operation-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 0; }
 .operation-progress > span { flex: 1 1 140px; min-width: 0; }
 .operation-progress > button { width: auto; }

@@ -111,7 +111,7 @@ Synthetic browser checks at 440 x 670 and 340 x 440 confirm combined draft editi
 
 ### PR 3: Trustworthy, Actionable Updates
 
-**Delivery record (2026-10-18):** implemented on `codex/actionable-updates`, pending review. Installed/available versions, status, and Download update now precede notes. Short exact-version bullets render as escaped text; longer, mismatched, or legacy notes retain their full inert text in a disclosure using the page's scroll area. Missing notes omit the section. Verification progress, cancellation, offer identity checks, dirty-settings/pending-share blocks, and explicit install confirmation remain in place.
+**Delivery record (2026-10-18):** [GitHub PR #14](https://github.com/johansigfrids/ssh_clipboard/pull/14), pending review on `codex/actionable-updates`. Installed/available versions, status, and Download update now precede notes. Short exact-version bullets render as escaped text; longer, mismatched, or legacy notes retain their full inert text in a disclosure using the page's scroll area. Missing notes omit the section. Verification progress, cancellation, offer identity checks, dirty-settings/pending-share blocks, and explicit install confirmation remain in place.
 
 Packaging now validates `desktop/release-notes/<version>.md` before credentials, compilation, or staging. Both platform feeds must match the reviewed source notes, which also supply the desktop draft description. Disposable test packages can use an explicit override under the same version/size/content contract. The checked-in 0.4.2 file is a source reference; existing published packages/feeds are unchanged, and future versions require their own reviewed notes and release authorization.
 

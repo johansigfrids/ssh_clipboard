@@ -4,17 +4,21 @@ import { appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 export function selectChanges(paths) {
-  const selected = { core: false, desktop: false, packages: false };
+  const selected = { core: false, desktop: false, packages: false, maintenance: false };
   for (const file of paths) {
     if (/^(docs\/.*\.md|README\.md|ARCHITECTURE\.md|CHANGELOG\.md|AGENTS\.md|LICENSE)$/.test(file)) continue;
-    if (/^(src\/|tests\/)/.test(file)) {
+    if (/^(scripts\/test-managed-server\.py|desktop\/scripts\/(smoke-server-(maintenance|package)|build-server|run-remote-service-fixture)\.mjs)$/.test(file)) {
+      selected.maintenance = true;
+    } else if (/^(src\/|tests\/)/.test(file)) {
       selected.core = selected.desktop = true; // Desktop links the shared core.
+      selected.maintenance = true;
     } else if (/^desktop\/(src\/|tests\/)/.test(file)) {
       selected.desktop = true;
     } else if (/^desktop\//.test(file)) {
       selected.desktop = selected.packages = true;
+      selected.maintenance ||= /^desktop\/package(-lock)?\.json$/.test(file);
     } else {
-      return { core: true, desktop: true, packages: true };
+      return { core: true, desktop: true, packages: true, maintenance: true };
     }
   }
   return selected;

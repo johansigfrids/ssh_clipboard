@@ -4,9 +4,16 @@ import { selectChanges } from './ci-changes.mjs';
 
 test('documentation skips compilation, but executable and unfamiliar inputs fail closed', () => {
   assert.deepEqual(selectChanges(['docs/testing.md', 'README.md']), { core: false, desktop: false, packages: false, maintenance: false });
-  for (const file of ['docs/update-signing-public-key.pub', 'Cargo.lock', '.github/workflows/ci.yml', '.cargo/config.toml', 'scripts/new-tool.py']) {
+  for (const file of ['docs/update-signing-public-key.pub', 'docs/images/key.pub', 'docs/images/run.mjs', 'docs/unknown.png', 'Cargo.lock', '.github/workflows/ci.yml', '.cargo/config.toml', 'scripts/new-tool.py']) {
     assert.deepEqual(selectChanges([file]), { core: true, desktop: true, packages: true, maintenance: true }, file);
   }
+});
+
+test('documentation images do not widen UI changes or renamed/deleted screenshot checks', () => {
+  const images = ['docs/images/old.png', 'docs/images/new.png', 'docs/images/nested/panel.JPG', 'docs/images/panel.jpeg', 'docs/images/panel.gif', 'docs/images/panel.webp', 'docs/images/panel.svg'];
+  assert.deepEqual(selectChanges(images), { core: false, desktop: false, packages: false, maintenance: false });
+  assert.deepEqual(selectChanges(['desktop/src/style.css', 'docs/history/desktop-ux-plan.md', ...images]), { core: false, desktop: true, packages: false, maintenance: false });
+  assert.deepEqual(selectChanges(['docs/images/panel.png', 'docs/update-signing-public-key.pub']), { core: true, desktop: true, packages: true, maintenance: true });
 });
 
 test('core changes reach desktop consumers while UI changes retain standalone checks without repackaging', () => {

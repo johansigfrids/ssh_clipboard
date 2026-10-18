@@ -11,9 +11,11 @@ Document the GitHub Actions setup for tests and releases, including build varian
 
 ## CI Overview
 
-CI always checks tracked Markdown links/headings, current guide index coverage and change-selector regressions. Documentation-only changes skip compilation. Unknown paths select all checks; shared Rust changes select core and desktop, frontend source/tests select desktop, and desktop build/configuration/dependency/tooling changes also select synthetic packages. Renames include both paths. Manual CI dispatch runs every check, including packages, before a release when needed.
+CI always checks tracked Markdown links/headings, current guide index coverage and change-selector regressions. Markdown and documentation images under `docs/images/` (`png`, `jpg`, `jpeg`, `gif`, `webp`, `svg`, case-insensitive) skip compilation. Screenshots accompanying frontend changes therefore retain the desktop/browser checks without selecting core, maintenance or packages. Keep this allowlist narrow: public keys, scripts and unfamiliar documentation inputs still select all checks. Renames include both paths, so moving an image out of the documentation image directory also selects its new location's checks.
 
-Superseded PR runs are cancelled; master push runs are retained. The always-run `CI complete` check fails if selection or any selected job fails or is cancelled. Use this stable check for future branch protection rather than a conditionally skipped matrix entry.
+Unknown paths select all checks; shared Rust changes select core and desktop, frontend source/tests select desktop, and desktop build/configuration/dependency/tooling changes also select synthetic packages. Manual CI dispatch runs every check, including packages, before a release when needed.
+
+Superseded runs for the same PR are cancelled. Each master push and manual dispatch uses its own concurrency group, so Actions can schedule them independently (subject to account capacity). Do not group master runs by branch with cancellation disabled: Actions keeps only one running and one pending run per group, so a third push replaces the pending run even though cancellation is disabled. Distinct run IDs prevent both that loss and unnecessary branch-level serialization. The always-run `CI complete` check fails if selection or any selected job fails or is cancelled. Use this stable check for future branch protection rather than a conditionally skipped matrix entry.
 
 Cargo caches use the pinned Rust Cache action, which keys by actual toolchain/environment and prunes workspace binaries and incremental output. Core variants have separate keys, so Linux server and agent no longer compete for one cache.
 

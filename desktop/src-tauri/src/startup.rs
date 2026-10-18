@@ -15,7 +15,7 @@ pub struct Status {
     pub detail: &'static str,
 }
 
-pub fn status(registry: &impl Registry, installed: bool, desired: bool) -> Status {
+pub fn status(registry: &(impl Registry + ?Sized), installed: bool, desired: bool) -> Status {
     if !installed {
         return Status {
             available: false,
@@ -45,7 +45,7 @@ pub fn status(registry: &impl Registry, installed: bool, desired: bool) -> Statu
 }
 
 pub fn change<T>(
-    registry: &impl Registry,
+    registry: &(impl Registry + ?Sized),
     desired: bool,
     commit: impl FnOnce() -> Result<T, String>,
 ) -> Result<T, String> {

@@ -4,7 +4,7 @@
 
 Turn the owner's accepted 2026-10-18 UI/UX review into six independently reviewable PRs. Improve settings confidence, use of space, update information, and everyday interaction while retaining the app's visual identity and explicit transfer model.
 
-**Status: PR 1 implemented, pending review; PRs 2-6 planned.** The owner accepted all review recommendations and authorized PR 1. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
+**Status: PR 1 merged; PR 2 implemented, pending review; PRs 3-6 planned.** The owner accepted all review recommendations, authorized PR 1's merge after CI, and authorized PR 2. PR numbers below describe delivery order; GitHub links and evidence are recorded as each PR is opened. This work is separate from the completed [original rework](implementation-plan.md).
 
 ## Key Files
 
@@ -46,7 +46,7 @@ Land in the order below, updating each branch against the previous merge. Most c
 
 ### PR 1: Clear Draft State and Persistent Save Actions
 
-**Delivery record (2026-10-18):** [GitHub PR #12](https://github.com/johansigfrids/ssh_clipboard/pull/12), open for review on `codex/settings-draft-clarity`. `npm test` passes 60 rendered contracts and 19 Node/tooling tests; `npm run build` reports zero Svelte errors/warnings and builds successfully. Required `cargo clippy --features agent -- -D warnings` passes.
+**Delivery record (2026-10-18):** [GitHub PR #12](https://github.com/johansigfrids/ssh_clipboard/pull/12), merged as `b775246` after all seven CI checks passed at head `26ba7b6`. `npm test` passes 60 rendered contracts and 19 Node/tooling tests; `npm run build` reports zero Svelte errors/warnings and builds successfully. Required `cargo clippy --features agent -- -D warnings` passes.
 
 Synthetic browser inspection confirms all four sections retain the save bar at 440 x 670 and 340 x 440, without horizontal overflow or overlap. Real browser Enter saves a valid draft and native constraints block an invalid port. Back/Return retains edits, and Discard works from Updates. Light/default and dark/minimum screenshots were inspected. These checks use mock IPC/history and do not establish native Tauri hiding/reopening or OS registration; production settings, startup, clipboard, installations, and published assets were untouched.
 
@@ -77,6 +77,16 @@ Before/after at 440 x 670 in the light theme, with the same unsaved connection-n
 **Docs:** refresh `shared-configuration.md`, `desktop-prototype.md`, and relevant README settings guidance.
 
 ### PR 2: One Save Model for Start at Login
+
+**Delivery record (2026-10-18):** [GitHub PR #13](https://github.com/johansigfrids/ssh_clipboard/pull/13), open for review on `codex/startup-settings-draft`. Start at login now participates in the whole settings draft, and its explicit optional IPC choice joins one prepared save/activation transaction. The persisted schema is unchanged; the immediate-save command is removed.
+
+`npm test` passes 64 rendered contracts and 19 Node/tooling tests. `npm run build`, desktop all-feature/all-target Clippy, required core/agent Clippy, and Rust formatting pass. Desktop all-feature tests pass 86 tests, with the existing disposable-SSH test left ignored. Eight focused backend tests use fake native registries and temporary stores to cover startup-only preservation, combined Apply, external/unknown/unavailable startup, stale/invalid/read-only requests, partial startup failure, shortcut failure, commit failure, and failed restoration.
+
+Synthetic browser checks at 440 x 670 and 340 x 440 confirm combined draft editing, actual-state helper text, Back retention, Discard, and unrelated saves while startup is unknown, with no save-bar overlap. The before image uses merged PR 1 (`b775246`): another preference edit disables startup. The after image allows both edits to wait for Apply. These are mock IPC checks and screenshots; the combined transaction has no new native installed-app/login evidence, and production settings/startup/clipboard/installations remain untouched.
+
+| Before | After |
+| --- | --- |
+| ![Startup disabled while another preference is edited](images/desktop-ux-pr2/startup-before.png) | ![Startup shares the pending draft while reporting its actual state](images/desktop-ux-pr2/startup-after.png) |
 
 **Problem:** Start at login saves immediately, behaves differently from neighboring controls, and becomes disabled whenever another setting is edited.
 

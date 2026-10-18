@@ -29,7 +29,7 @@ npm run tauri dev
 
 Enter your SSH alias or `user@host` in Settings, apply it, test the connection, then refresh or share. Copy writes the displayed item to your local clipboard. Close hides the panel; Quit exits the app.
 
-Apply settings and Discard changes stay visible in every settings section, including Updates. Unsaved changes take effect only after Apply; Back, Escape, and hiding the panel keep your draft for this app session. The panel shows an unsaved-settings notice with Return to settings and Discard changes. Transfers continue using saved settings. Preview visibility also waits for Apply. Start at login is the current exception: its checkbox saves immediately, and is unavailable while other edits are pending.
+Apply settings and Discard changes stay visible in every settings section, including Updates. Unsaved changes take effect only after Apply; Back, Escape, and hiding the panel keep your draft for this app session. The panel shows an unsaved-settings notice with Return to settings and Discard changes. Transfers continue using saved settings. Preview visibility and Start at login also wait for Apply. Start at login shows the actual OS state until edited; saving unrelated preferences leaves that startup entry unchanged. If startup state is unavailable, you can still save other settings.
 
 Legacy profiles default to a 10 MiB transfer limit, including request metadata, and honor the selected profile's limit. Images use lossless PNG compression with a separate 64 MiB pixel limit. Shelf profiles negotiate their limits with the server. Size errors explain what exceeded the limit; rejected shares keep the previous item. A client override does not reconfigure the server.
 

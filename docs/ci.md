@@ -59,6 +59,8 @@ Frontend Node tests now also execute the desktop draft handoff with inert filesy
 
 ## Server Release Staging
 
+The separate PR/push `Disposable server maintenance` job exercises synthetic signed server staging, wrong-key rejection, real daemon/proxy health, failed initial enable/restart cleanup, update rollback and interrupted-journal recovery. It runs on native Ubuntu with a 25-minute job limit, temporary homes, fake systemctl and disposable trust. The selector includes this lane for shared Rust/server tooling/dependency changes and conservatively for unknown inputs; desktop-only source changes skip it. Its result participates in `CI complete`. Actual installed service lifecycle remains separate evidence.
+
 The manual server workflow validates the exact stable core commit on master, pins Rust/actions, and runs headless checks without credentials. A separate `server-release` environment gates the Linux x64 signing step. It builds on Ubuntu 24.04, verifies exact signed bytes/version/platform with the server policy, and creates a `server-v<version>` draft without publishing/overwriting or becoming latest. The credential-free validation job also executes the actual draft handoff with inert adapters, checking source/platform/profile refusal, no overwrite and desktop-feed isolation. Source SHA/profile/key ID/checksum evidence accompanies the package. The production 0.4.0 workflow, independent signatures, isolated real user-systemd runtime and clean live cutover have passed; see [server acceptance](history/linux-cutover-acceptance.md). Other architectures are outside the delivered scope and actual live reboot/logout remain unobserved. See [release setup](releasing.md#signed-server-drafts).
 
 ## Released Compatibility Baseline

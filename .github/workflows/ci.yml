@@ -21,6 +21,7 @@ jobs:
       core: ${{ steps.select.outputs.core }}
       desktop: ${{ steps.select.outputs.desktop }}
       packages: ${{ steps.select.outputs.packages }}
+      maintenance: ${{ steps.select.outputs.maintenance }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -254,10 +255,36 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  maintenance:
+    name: Disposable server maintenance
+    needs: changes
+    if: needs.changes.outputs.maintenance == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+        with:
+          key: server-maintenance
+          workspaces: |
+            . -> target/linux-maintenance-smoke
+            . -> target/server-package
+      - run: npm --prefix desktop ci
+      - name: Synthetic signed staging and wrong-key rejection
+        run: npm --prefix desktop run test:server-package
+      - name: Real daemon/proxy install, update, rollback and journal recovery
+        run: npm --prefix desktop run test:server-maintenance
+
   complete:
     name: CI complete
     if: always()
-    needs: [changes, desktop, test]
+    needs: [changes, desktop, test, maintenance]
     runs-on: ubuntu-latest
     steps:
       - name: Require successful selection and every selected check
@@ -267,7 +294,10 @@ jobs:
           DESKTOP_SELECTED: ${{ needs.changes.outputs.desktop }}
           CORE: ${{ needs.test.result }}
           DESKTOP: ${{ needs.desktop.result }}
+          MAINTENANCE_SELECTED: ${{ needs.changes.outputs.maintenance }}
+          MAINTENANCE: ${{ needs.maintenance.result }}
         run: |
           test "$CHANGES" = success
           if [ "$CORE_SELECTED" = true ]; then test "$CORE" = success; fi
           if [ "$DESKTOP_SELECTED" = true ]; then test "$DESKTOP" = success; fi
+          if [ "$MAINTENANCE_SELECTED" = true ]; then test "$MAINTENANCE" = success; fi

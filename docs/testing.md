@@ -81,6 +81,8 @@ Installed updater checks require the opt-in [native rehearsal](desktop-updates.m
 
 ## Server Maintenance Evidence
 
+The disposable server maintenance CI job runs both commands below on native Ubuntu when shared Rust, server smoke/build helpers, signing dependencies or unknown inputs change. The maintenance runner also retains Windows-to-WSL support. CI uses newly generated test trust and temporary homes with fake systemctl; it never opts into SSH mode, installs an actual user service or uses production signing secrets. Keep rollback and recovery in this lane rather than relying on a green package-verifier unit test.
+
 From `desktop/`, `npm run test:server-package` verifies actual staging with disposable trust. `npm run test:server-maintenance` uses fake systemctl and real daemon/proxy processes in isolated Linux state. Unit grammar is checked by real `systemd-analyze --user verify`; this does not establish real service lifecycle.
 
 The explicit `--ssh-target <authorized-host>` mode uses a runtime-only real user service, bounded signed debug fixtures and crash-loop rollback. It must preserve the installed service and actual SSH route. [Server maintenance](server-maintenance.md#real-user-systemd-acceptance) owns the fixture contract; [Linux cutover acceptance](history/linux-cutover-acceptance.md) separately records the exact installed production artifact. Actual reboot/last-session logout remain unobserved.

@@ -151,7 +151,7 @@ The same layout with the new concise version-specific notes:
 
 ### PR 4: Compact Layout and Consistent Buttons
 
-**Delivery record (2026-10-18):** implemented on `codex/compact-desktop-layout`, pending review. The header/empty states/previews are more compact; shared button treatments retain primary, secondary, and quiet hierarchy. Copy remains above Share, with Share emphasized when nothing can be copied. History Refresh moves beside its heading; single-item/no-history Refresh remains below transfers. Settings navigation now has a fixed shell row above the scrolling form. Port and Identity file move into Advanced with values/SSH inheritance preserved and validation revealing the field.
+**Delivery record (2026-10-18):** [GitHub PR #15](https://github.com/johansigfrids/ssh_clipboard/pull/15), pending review on `codex/compact-desktop-layout`. The header/empty states/previews are more compact; shared button treatments retain primary, secondary, and quiet hierarchy. Copy remains above Share, with Share emphasized when nothing can be copied. History Refresh moves beside its heading; single-item/no-history Refresh remains below transfers. Settings navigation now has a fixed shell row above the scrolling form. Port and Identity file move into Advanced with values/SSH inheritance preserved and validation revealing the field.
 
 `npm test` passes 78 rendered contracts and 25 Node/tooling tests. New cases cover contextual empty-history Refresh, collapsed port/key draft preservation/inheritance, native invalid-field disclosure, and backend validation returning from another section with the whole draft intact. `npm run build` reports zero Svelte errors/warnings; required core/agent Clippy passes.
 

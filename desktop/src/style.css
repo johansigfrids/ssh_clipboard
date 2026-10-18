@@ -163,3 +163,6 @@ footer > span:first-child { min-width: 0; overflow-wrap: anywhere; }
   .feedback.error { background: #4a3028; color: #f5c1a3; }
   .connection-report li.failed strong { color: #f5c1a3; }
 }
+
+/* Disposable CI benchmark: changes bundled CSS without changing the UI. */
+:root { --ci-benchmark-marker: 1; }

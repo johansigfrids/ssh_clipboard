@@ -46,7 +46,7 @@ Land in the order below, updating each branch against the previous merge. Most c
 
 ### PR 1: Clear Draft State and Persistent Save Actions
 
-**Delivery record (2026-10-18):** implemented on `codex/settings-draft-clarity`; GitHub link pending creation. `npm test` passes 60 rendered contracts and 19 Node/tooling tests; `npm run build` reports zero Svelte errors/warnings and builds successfully. Required `cargo clippy --features agent -- -D warnings` passes.
+**Delivery record (2026-10-18):** [GitHub PR #12](https://github.com/johansigfrids/ssh_clipboard/pull/12), open for review on `codex/settings-draft-clarity`. `npm test` passes 60 rendered contracts and 19 Node/tooling tests; `npm run build` reports zero Svelte errors/warnings and builds successfully. Required `cargo clippy --features agent -- -D warnings` passes.
 
 Synthetic browser inspection confirms all four sections retain the save bar at 440 x 670 and 340 x 440, without horizontal overflow or overlap. Real browser Enter saves a valid draft and native constraints block an invalid port. Back/Return retains edits, and Discard works from Updates. Light/default and dark/minimum screenshots were inspected. These checks use mock IPC/history and do not establish native Tauri hiding/reopening or OS registration; production settings, startup, clipboard, installations, and published assets were untouched.
 

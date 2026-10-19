@@ -76,6 +76,7 @@ Historical pending gates and test counts apply to the source/session named in ea
 - [0.4.0 artifact acceptance](history/release-0.4.0-acceptance.md): exact production source/packages and Windows installation correction.
 - [0.4.1 desktop acceptance](history/release-0.4.1-acceptance.md): real-profile upgrade/startup and public delivery.
 - [0.4.2 desktop acceptance](history/release-0.4.2-acceptance.md): immutable Windows/Apple Silicon packages and anonymous combined-feed delivery.
+- [0.4.3 desktop acceptance](history/release-0.4.3-acceptance.md): signed desktop improvements, owner-confirmed Windows smoke checks and public update-feed delivery.
 - [Linux cutover acceptance](history/linux-cutover-acceptance.md): signed persistent service, SSH routes and old-install retirement.
 - [Mac cutover](history/macos-cutover.md): actual import, text, login/shortcut and legacy cleanup.
 - [Mac updater acceptance](history/macos-updater-acceptance.md): isolated replacement/restart, settings retention and production preservation.

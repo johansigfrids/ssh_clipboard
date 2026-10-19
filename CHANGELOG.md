@@ -21,7 +21,7 @@ All notable changes to this project will be documented in this file.
 - Retire the obsolete automatic `v*` CLI/agent publisher. Protected signed desktop/server workflows and existing published assets are unchanged.
 
 ### Release status
-- Desktop version preparation only. Signed Windows x64 and Apple Silicon drafts, exact-package review, relevant native acceptance and publication remain separate release steps. The published desktop 0.4.2 and Linux server 0.4.0 packages are unchanged.
+- Published as `desktop-v0.4.3` and repository latest after protected Windows/Apple Silicon signing, independent package admission, owner-confirmed Windows text Share/Copy and settings checks, and separate publication approval. Anonymous delivery of all twelve assets and the combined keyed feed passes. Signed source remains `79205abfa5bf5459846cbe427d0ce13abc34f166`; Linux server 0.4.0 and earlier desktop assets are unchanged. See [acceptance](docs/history/release-0.4.3-acceptance.md) for exact evidence and native limits.
 
 ## [0.4.2] - 2026-10-16
 

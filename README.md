@@ -24,7 +24,7 @@ If you already run an older server, review [compatibility and cutover](docs/comp
 
 ## Install the desktop
 
-[Download desktop 0.4.2](https://github.com/johansigfrids/ssh_clipboard/releases/tag/desktop-v0.4.2). Both packages include the desktop and matching CLI, with signed package verification for updates.
+[Download desktop 0.4.3](https://github.com/johansigfrids/ssh_clipboard/releases/tag/desktop-v0.4.3). Both packages include the desktop and matching CLI, with signed package verification for updates.
 
 1. On Windows, run the per-user installer. On Apple Silicon Mac, extract the `.app.tar.gz` and move **SSH Clipboard.app** into a stable Applications folder before opening it.
 2. In Settings, enter your server's SSH alias or `user@host`. Select **Temporary history (new server)** for the server configured above, or **Single shared item (legacy server)** for an older server. Apply and test the saved connection.

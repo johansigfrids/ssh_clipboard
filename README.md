@@ -21,6 +21,8 @@ Close hides the panel in the tray/menu bar; Quit exits. Updates offers explicit 
 
 Current source uses one Apply/Discard draft across all settings sections, including Start at login. Back, Escape and hiding retain edits for the current app session; transfers continue to use saved settings. Published packages reflect their recorded source and may precede these UI improvements. See [desktop development](docs/desktop-development.md) for source builds and [release evidence](docs/history/release-readiness.md) for exact package boundaries.
 
+Current Windows source also starts SSH in the background without opening a console window. See [SSH session ownership](docs/persistent-sessions.md#ownership-and-reuse).
+
 Named connection profiles retain SSH aliases, port/key references and advanced policy. The desktop reloads CLI edits while protecting unsaved drafts. `ssh_clipboard settings` inspects shared settings and edits connection/transport/basic preferences; shortcut controls are in the desktop. Legacy settings import creates exact recovery backups. See [shared settings](docs/shared-configuration.md) and [migration/recovery](docs/configuration-migration.md).
 
 Shelf profiles update history metadata automatically and recover transient connections with bounded backoff. Trust/authentication errors pause for explicit action. Metadata refresh/reconnect does not fetch clipboard payloads or change the local clipboard. Active operations expose Cancel; an uncertain Share can be checked or explicitly retried from its original capture within a server-enforced window. See [history](docs/desktop-history.md) and [share recovery](docs/share-recovery.md).

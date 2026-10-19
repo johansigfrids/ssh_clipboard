@@ -2,10 +2,16 @@ import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { desktopBuildEnv } from "./build-context.mjs";
+import { prebuiltFrontendConfig } from "./frontend-proof.mjs";
 
 const desktop = fileURLToPath(new URL("../", import.meta.url));
 const targetDir = path.join(desktop, "src-tauri", "target");
-const env = { ...process.env, CARGO_TARGET_DIR: targetDir };
+const overlay = prebuiltFrontendConfig(desktop);
+const env = { ...desktopBuildEnv(), CARGO_TARGET_DIR: targetDir };
+// Give the asset test the same overlay as the Tauri build; keep the portable
+// feature set and the actual Wry context/asset assertions intact.
+if (Object.keys(overlay).length) env.TAURI_CONFIG = JSON.stringify(overlay);
 
 function run(command, args) {
   const result = spawnSync(command, args, { cwd: desktop, env, stdio: "inherit" });
@@ -17,6 +23,7 @@ function run(command, args) {
 run(process.execPath, [
   path.join(desktop, "node_modules", "@tauri-apps", "cli", "tauri.js"),
   "build", "--debug", "--no-bundle", "--features", "custom-protocol",
+  ...(Object.keys(overlay).length ? ["--config", JSON.stringify(overlay)] : []),
 ]);
 run("cargo", [
   "test", "--locked", "--manifest-path", "src-tauri/Cargo.toml",

@@ -19,6 +19,12 @@ Superseded runs for the same PR are cancelled. Each master push and manual dispa
 
 Cargo caches use the pinned Rust Cache action, which keys by actual toolchain/environment and prunes workspace binaries and incremental output. Core variants have separate keys, so Linux server and agent no longer compete for one cache.
 
+Package-selected Windows/Mac jobs separately cache the bundled CLI's dependencies in `target/desktop-sidecar`. The installed-build helper selects that directory only when `SSH_CLIPBOARD_CLI_TARGET_DIR` is provided; ordinary local builds retain root `target/`. Keep the exact `--no-default-features --features system-clipboard` build and CLI/archive verification: the retired-agent binary is not an interchangeable sidecar. The desktop cache alone does not cover the root CLI workspace, which previously rebuilt all of those dependencies on each package run.
+
+On Mac, set `MACOSX_DEPLOYMENT_TARGET` from the checked-in Tauri configuration before restoring caches or invoking Cargo. Build helpers use that same value. Tauri CLI sets it automatically, whereas plain Cargo inherits the shell; switching between the two environments rebuilds native dependencies. The explicit `10.13` configuration preserves Tauri's previous default, and the value participates in desktop/sidecar cache keys.
+
+The frontend check/build runs once per desktop job and records a generated proof. Only the packaging and standalone steps opt into `SSH_CLIPBOARD_PREBUILT_FRONTEND=1`: the helpers verify source/configuration/dependency/fixture hashes, Node version, `NODE_ENV`/`VITE_*` inputs and every generated asset before disabling Tauri's repeated frontend hook. Missing/stale proof or changed output fails the opt-in build. Current frontend output is independent of Tauri's debug/installed/native build flags; retain that contract or introduce separate proofs before adding platform-specific frontend output. Normal local/release commands keep the complete frontend build hook. Never remove Svelte checks or the standalone Wry asset test to save compilation time.
+
 Platform-sensitive Node tooling tests run on all desktop hosts. Pure Svelte interactions run once on Linux. Default-feature desktop Rust is linted everywhere and tested on Linux; all-feature tests and standalone embedded-asset builds run on every desktop host. Keep default lint and Linux tests: installed features exclude portable-only code.
 - `ci.yml` runs on PRs and pushes to `master`:
   - `cargo fmt -- --check`

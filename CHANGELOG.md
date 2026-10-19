@@ -4,12 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-19
+
 ### Changed
+- Keep settings Apply/Discard actions visible across all sections, retain unsaved drafts during navigation, and apply Start at login with the rest of the settings transaction.
+- Compact the desktop panel, group behavior and shortcut preferences, and keep feedback relevant while preserving actionable errors and transfer results.
+- Improve history timestamps, exact-time details and keyboard navigation.
+- Show actionable desktop update states and version-specific release notes from reviewed source files.
 - Default source builds provide the native clipboard CLI without the retired tray agent. The explicit `agent` compatibility feature, V2 routes and settings import remain available through 0.4.
 - Close the delivered Windows/Apple Silicon/Linux-server implementation plan; defer Linux desktop and further rare-scenario manual verification.
 
+### Fixed
+- Suppress Windows SSH transport console windows while preserving piped input/output and child-process cleanup.
+
 ### Removed
 - Retire the obsolete automatic `v*` CLI/agent publisher. Protected signed desktop/server workflows and existing published assets are unchanged.
+
+### Release status
+- Desktop version preparation only. Signed Windows x64 and Apple Silicon drafts, exact-package review, relevant native acceptance and publication remain separate release steps. The published desktop 0.4.2 and Linux server 0.4.0 packages are unchanged.
 
 ## [0.4.2] - 2026-10-16
 

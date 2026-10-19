@@ -2,42 +2,65 @@
 
 `ssh_clipboard` shares text and PNG clipboard content between machines over SSH. Sharing and copying are explicit; the app never auto-pastes into another application.
 
+Your computers connect to a Linux server running `ssh_clipboard` through your existing SSH aliases, keys and host verification. Share an item from one computer, then select and copy it on another.
+
 - Desktop packages: Windows x64 and Apple Silicon macOS.
 - Server package: Linux x86_64, with bounded temporary history held in memory only.
 - CLI: clipboard transfers, explicit stdin/file exports, shared settings and metadata diagnostics.
+
+![SSH Clipboard desktop panel showing a selected text item, Share and Copy actions, and temporary history](docs/images/desktop-ux-pr6/history-after.png)
+
+*Development screenshot; published packages may differ.*
+
+## Set up the Linux server
+
+Before connecting a desktop, you need a Linux x86_64 server account with SSH access and a functioning user systemd manager. The desktop does not install the server for you.
+
+Follow [managed server setup](docs/server-setup.md) using the [signed server 0.4.0 release](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0). That guide covers first-install signature trust, installation, the SSH command route and a connection check. Use the explicit server release; desktop and server versions are released separately.
+
+History is held in memory, expires automatically and is lost when the server restarts.
+
+If you already run an older server, review [compatibility and cutover](docs/compatibility-and-cutover.md) before replacing it. The desktop can also connect to an existing single-item server in legacy mode.
 
 ## Install the desktop
 
 [Download desktop 0.4.2](https://github.com/johansigfrids/ssh_clipboard/releases/tag/desktop-v0.4.2). Both packages include the desktop and matching CLI, with signed package verification for updates.
 
 1. On Windows, run the per-user installer. On Apple Silicon Mac, extract the `.app.tar.gz` and move **SSH Clipboard.app** into a stable Applications folder before opening it.
-2. In Settings, enter your SSH alias or `user@host`, Apply and test the saved connection. Select **Single shared item (legacy server)** for an older server, or **Temporary history (new server)** for a configured shelf server. This choice does not install a server.
-3. Use **Share current clipboard** to upload and **Copy to this computer** to replace the local clipboard. Selecting or previewing history does not copy it. Panel Copy uses the selected history item, or the displayed snapshot on a legacy endpoint.
+2. In Settings, enter your server's SSH alias or `user@host`. Select **Temporary history (new server)** for the server configured above, or **Single shared item (legacy server)** for an older server. Apply and test the saved connection.
+3. Use **Share current clipboard** to upload. On another computer connected to the same server account, select the item and choose **Copy to this computer**, then paste it into your application. Selecting or previewing history does not copy it.
 4. Optionally enable **Start at login** in Behavior and configure shortcuts. Quit the old agent before enabling conflicting startup or shortcuts; installation does not remove it automatically.
 
-Close hides the panel in the tray/menu bar; Quit exits. Updates offers explicit download/verification and a separate install confirmation. The Mac app is ad-hoc signed without Apple notarization; use macOS per-app Privacy & Security approval if needed. See [first-install trust](docs/security.md#signed-package-trust). Intel Mac and Linux desktop have no supported new package in this delivery.
+The Mac app is ad-hoc signed without Apple notarization; use macOS per-app Privacy & Security approval if needed. See [first-install trust](docs/security.md#signed-package-trust). Intel Mac and Linux desktop have no supported package in this delivery.
 
 ## Settings and everyday behavior
 
-Current source uses one Apply/Discard draft across all settings sections, including Start at login. Back, Escape and hiding retain edits for the current app session; transfers continue to use saved settings. Published packages reflect their recorded source and may precede these UI improvements. See [desktop development](docs/desktop-development.md) for source builds and [release evidence](docs/history/release-readiness.md) for exact package boundaries.
+Close hides the panel in the tray/menu bar; Quit exits. Configure panel and transfer shortcuts in Settings. Updates offers explicit download/verification and a separate install confirmation.
 
-Current Windows source also starts SSH in the background without opening a console window. See [SSH session ownership](docs/persistent-sessions.md#ownership-and-reuse).
+Save connection settings before transferring; transfers use the saved configuration. Named profiles let you switch between servers, and the desktop and CLI share settings. See [shared settings](docs/shared-configuration.md) and [migration/recovery](docs/configuration-migration.md).
 
-Named connection profiles retain SSH aliases, port/key references and advanced policy. The desktop reloads CLI edits while protecting unsaved drafts. `ssh_clipboard settings` inspects shared settings and edits connection/transport/basic preferences; shortcut controls are in the desktop. Legacy settings import creates exact recovery backups. See [shared settings](docs/shared-configuration.md) and [migration/recovery](docs/configuration-migration.md).
+Temporary history refreshes automatically without reading or replacing your local clipboard. Panel Copy uses the selected history item, or the displayed snapshot on a legacy server. See [history controls](docs/desktop-history.md).
 
-Shelf profiles update history metadata automatically and recover transient connections with bounded backoff. Trust/authentication errors pause for explicit action. Metadata refresh/reconnect does not fetch clipboard payloads or change the local clipboard. Active operations expose Cancel; an uncertain Share can be checked or explicitly retried from its original capture within a server-enforced window. See [history](docs/desktop-history.md) and [share recovery](docs/share-recovery.md).
-
-Legacy transfers default to a 10 MiB frame limit including metadata, with a separate 64 MiB decoded-image budget. Shelf defaults negotiate up to 64 MiB encoded and 256 MiB decoded per item, narrowed by client/server policy. Rejected shares preserve existing server content. Raising a client setting does not reconfigure a server.
-
-## Linux server
-
-Use the [signed server 0.4.0 release](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) and [managed server setup](docs/server-setup.md). Independently verify first-install trust before using `server-maintenance install|update|status|recover|verify`. The managed installer retains immutable executables, a stable per-user launcher/unit, pinned trust and failed-health rollback.
-
-The shelf provides temporary text/PNG history and an optional V2 compatibility socket for older clients. The session and V2 SSH routes are separate. Existing services and forced-command keys require a reviewed cutover; no profile edit adopts or replaces them. Restart/rollback loses in-memory items. See [compatibility and cutover](docs/compatibility-and-cutover.md).
+For connection failures or an interrupted Share, start with [troubleshooting](docs/troubleshooting.md) and [share recovery](docs/share-recovery.md). Transfer limits and reconnect details are in the [shelf client](docs/shelf-client.md) and [SSH sessions](docs/persistent-sessions.md) guides.
 
 ## CLI usage
 
-These commands use the V2 latest-item endpoint:
+Use `shelf` commands for the temporary-history server. After saving a connection in desktop Settings, these commands use the selected profile and this computer's saved device identity:
+
+```text
+ssh_clipboard shelf health
+ssh_clipboard shelf share --file note.txt
+ssh_clipboard shelf list
+ssh_clipboard shelf fetch <item-uuid> --output received-note.txt
+```
+
+Replace `<item-uuid>` with an item's UUID from `list`. These commands read or write explicit files and leave the OS clipboard alone; an existing output file is never overwritten. Use `--stdin` instead of `--file` to share piped text, or add `--format png` when sharing a PNG file.
+
+For CLI-only connection setup, see [shared settings](docs/shared-configuration.md#cli-selection-and-edits). See [shelf commands](docs/shelf-client.md) for direct targets, profile selection and more examples, or the [CLI reference](docs/cli.md) for all commands. Use `ssh_clipboard <command> --help` for flags.
+
+## Legacy compatibility and support limits
+
+The older V2 latest-item endpoint uses these commands. It needs an existing single-item server or the new server's explicitly configured V2 compatibility route:
 
 ```text
 ssh_clipboard push --target user@server
@@ -46,15 +69,15 @@ ssh_clipboard peek --target user@server
 ssh_clipboard doctor --target user@server
 ```
 
-Explicit input/output avoids OS clipboard access:
+Here, `push` and `pull` use the local clipboard by default; `peek` and `doctor` inspect metadata. For file/stdin transfers and exports, see the [CLI reference](docs/cli.md). V2 and temporary-history SSH routes are separate; see [compatibility and cutover](docs/compatibility-and-cutover.md).
 
-```sh
-cat note.txt | ssh_clipboard push --stdin --target user@server
-ssh_clipboard pull --stdout --target user@server
-ssh_clipboard pull --output ./clipboard.png --target user@server
+The old tray agent is retired from default builds and automatic releases. Its [explicit compatibility build](docs/legacy/agent.md) remains available through 0.4:
+
+```text
+cargo build --release --features agent
 ```
 
-The `shelf` namespace separately lists history, shares explicit file/stdin content and exports selected items. See [shelf commands](docs/shelf-client.md) and the [CLI reference](docs/cli.md). Use `ssh_clipboard <command> --help` for flags.
+Frozen [v0.3.0 archives](https://github.com/johansigfrids/ssh_clipboard/releases/tag/v0.3.0), V2 routes and legacy import remain available under the [retirement policy](docs/legacy-retirement.md). Linux desktop is deferred. Native Mac image paste, browser-download Gatekeeper behavior and actual server reboot/logout remain recorded evidence limits; see the [closed delivery scope](docs/history/implementation-plan.md#deferred-and-non-blocking).
 
 ## Build from source
 
@@ -74,15 +97,7 @@ npm run tauri dev
 
 Standalone development artifacts, settings isolation and resource guardrails are in [desktop development](docs/desktop-development.md). [Testing](docs/testing.md) lists Rust, frontend, package and documentation checks.
 
-## Legacy compatibility and support limits
-
-The old tray agent is retired from default builds and automatic releases. Its [explicit compatibility build](docs/legacy/agent.md) remains available through 0.4:
-
-```text
-cargo build --release --features agent
-```
-
-Frozen [v0.3.0 archives](https://github.com/johansigfrids/ssh_clipboard/releases/tag/v0.3.0), V2 routes and legacy import remain available under the [retirement policy](docs/legacy-retirement.md). Linux desktop is deferred. Native Mac image paste, browser-download Gatekeeper behavior and actual server reboot/logout remain recorded evidence limits; see the [closed delivery scope](docs/history/implementation-plan.md#deferred-and-non-blocking).
+Source builds include UI improvements that may not be in published packages. The feature guides describe current source; [release evidence](docs/history/release-readiness.md) records exact package boundaries.
 
 ## Documentation
 

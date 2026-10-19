@@ -8,6 +8,8 @@ import {nativeOrigin} from "./native-update-config.mjs";
 import {releaseSource} from "./release-source.mjs";
 import {verifyMacPackage} from "./verify-macos-package.mjs";
 import {loadReleaseNotes} from "./release-notes.mjs";
+import {desktopBuildEnv} from "./build-context.mjs";
+import {prebuiltFrontendConfig} from "./frontend-proof.mjs";
 
 const desktop=fileURLToPath(new URL("../",import.meta.url));
 const root=path.dirname(desktop);
@@ -27,6 +29,7 @@ if(!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(version??"") || v
 if(flags.has("--debug")&&!flags.has("--test-build"))throw new Error("Debug desktop packages require --test-build.");
 // Reject missing, stale or draft notes before compilation or signing inputs.
 const notes=loadReleaseNotes({version,desktop,notesFile:values.get("--notes-file"),testOnly:flags.has("--test-build")});
+const frontendConfig=prebuiltFrontendConfig(desktop);
 const sourceProof=releaseSource(root,{testOnly:flags.has("--test-build"),expectedSource:process.env.GITHUB_SHA});
 if(!values.get("--public-key-file"))throw new Error("An explicit public signing key file is required.");
 if(!process.env.TAURI_SIGNING_PRIVATE_KEY || process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD===undefined)throw new Error("Set protected signing key/password environment variables before staging packages.");
@@ -41,7 +44,7 @@ const keyId=key=>createHash("sha256").update(key).digest("hex").slice(0,16);
 const feed=`https://github.com/johansigfrids/ssh_clipboard/releases/latest/download/desktop-stable-${keyId(publicKey)}.json`;
 const stage=path.join(desktop,"artifacts",`${flags.has("--test-build")?"TEST-only-":""}installed-${version}-${randomUUID()}`);mkdirSync(stage,{recursive:true});
 const targetDir=path.join(desktop,"src-tauri/target");
-const env={...process.env,CARGO_TARGET_DIR:targetDir,SSH_CLIPBOARD_UPDATE_PUBLIC_KEY:publicKey,SSH_CLIPBOARD_UPDATE_FEED:feed};
+const env={...desktopBuildEnv(),CARGO_TARGET_DIR:targetDir,SSH_CLIPBOARD_UPDATE_PUBLIC_KEY:publicKey,SSH_CLIPBOARD_UPDATE_FEED:feed};
 if(nativeTestOrigin)env.SSH_CLIPBOARD_NATIVE_TEST_ORIGIN=nativeTestOrigin;
 if(existsSync(env.TAURI_SIGNING_PRIVATE_KEY))env.TAURI_SIGNING_PRIVATE_KEY=path.resolve(env.TAURI_SIGNING_PRIVATE_KEY);
 function run(command,args,cwd=desktop,taskEnv=env,capture=false) {
@@ -55,15 +58,16 @@ const platforms={"x86_64-pc-windows-msvc":"windows-x86_64","aarch64-pc-windows-m
 const platform=platforms[host];if(!platform)throw new Error("Unsupported native package target.");
 const profile=flags.has("--debug")?"debug":"release";
 const extension=platform.startsWith("windows")?".exe":"";
-const cliEnv={...process.env,CARGO_TARGET_DIR:path.join(root,"target")};
+const cliTarget=path.resolve(root,process.env.SSH_CLIPBOARD_CLI_TARGET_DIR??"target");
+const cliEnv={...desktopBuildEnv(),CARGO_TARGET_DIR:cliTarget};
 run("cargo",["build","--locked",...(!flags.has("--debug")?["--release"]:[]),"--no-default-features","--features","system-clipboard","--bin","ssh_clipboard"],root,cliEnv);
-const cliBinary=path.join(root,"target",profile,`ssh_clipboard${extension}`);
+const cliBinary=path.join(cliTarget,profile,`ssh_clipboard${extension}`);
 const reported=run(cliBinary,["--version"],root,cliEnv,true).trim();
 if(reported!==`ssh_clipboard ${version}`)throw new Error("Bundled CLI/core version mismatch.");
 const sidecars=path.join(desktop,"src-tauri/binaries");mkdirSync(sidecars,{recursive:true});copyFileSync(cliBinary,path.join(sidecars,`ssh_clipboard-${host}${extension}`));
 // Plain HTTP is used ONLY for a one-use loopback metadata handoff to the framework.
 // The Rust downloader enforces remote HTTPS, bounded bodies, and exact-byte verification.
-const overlay={version,plugins:{updater:{pubkey:publicKey,endpoints:[],dangerousInsecureTransportProtocol:true,requireSignedVersion:true,allowDowngrades:false,windows:{installMode:"passive"}}}};
+const overlay={...frontendConfig,version,plugins:{updater:{pubkey:publicKey,endpoints:[],dangerousInsecureTransportProtocol:true,requireSignedVersion:true,allowDowngrades:false,windows:{installMode:"passive"}}}};
 if(flags.has("--test-build")){overlay.productName="SSH Clipboard Update Test";overlay.identifier="io.github.johansigfrids.sshclipboard.update-test";}
 if(!platform.startsWith("windows"))overlay.bundle={targets:[platform.startsWith("darwin")?"app":"appimage"]};
 // Updater signatures remain separate from Apple's publisher identity. The free

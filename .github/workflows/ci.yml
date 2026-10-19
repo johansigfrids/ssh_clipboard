@@ -78,17 +78,33 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Match Tauri's Mac build environment for every Cargo invocation
+        if: runner.os == 'macOS'
+        run: node scripts/build-context.mjs >> "$GITHUB_ENV"
+
       - name: Cache prototype Cargo build
         uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
           workspaces: desktop/src-tauri -> target
           key: desktop-${{ runner.os }}
+          env-vars: CARGO CC CFLAGS CXX CMAKE RUST MACOSX_DEPLOYMENT_TARGET
+
+      - name: Cache package CLI dependencies
+        if: needs.changes.outputs.packages == 'true' && runner.os != 'Linux'
+        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+        with:
+          workspaces: . -> target/desktop-sidecar
+          key: desktop-sidecar-${{ runner.os }}
+          env-vars: CARGO CC CFLAGS CXX CMAKE RUST MACOSX_DEPLOYMENT_TARGET
 
       - name: Install frontend dependencies
         run: npm ci
 
       - name: Check and build frontend
-        run: npm run build
+        shell: bash
+        run: |
+          npm run build
+          node scripts/frontend-proof.mjs --record
 
       - name: Platform-sensitive tooling tests
         run: npm run test:tooling
@@ -116,10 +132,16 @@ jobs:
       - name: Test-only signed Windows installer, never installed
         if: runner.os == 'Windows' && needs.changes.outputs.packages == 'true'
         run: npm run test:package
+        env:
+          SSH_CLIPBOARD_PREBUILT_FRONTEND: '1'
+          SSH_CLIPBOARD_CLI_TARGET_DIR: ${{ github.workspace }}/target/desktop-sidecar
 
       - name: Test-only release Mac app, inspect archive without installing
         if: runner.os == 'macOS' && needs.changes.outputs.packages == 'true'
         run: npm run test:package -- --release
+        env:
+          SSH_CLIPBOARD_PREBUILT_FRONTEND: '1'
+          SSH_CLIPBOARD_CLI_TARGET_DIR: ${{ github.workspace }}/target/desktop-sidecar
 
       - name: Retain disposable Mac package and inspection evidence
         if: success() && runner.os == 'macOS' && needs.changes.outputs.packages == 'true'
@@ -132,6 +154,8 @@ jobs:
 
       - name: Build standalone prototype
         run: npm run build:prototype
+        env:
+          SSH_CLIPBOARD_PREBUILT_FRONTEND: '1'
 
   test:
     needs: changes

@@ -34,6 +34,10 @@ Do not distribute `desktop/src-tauri/target/debug/ssh_clipboard_desktop_prototyp
 
 The portable build cannot register startup or use the production updater. It does use the normal shared settings location unless explicitly isolated; a different app identifier alone does not isolate settings. Use the established [native updater fixtures](desktop-updates.md#isolated-native-updater-rehearsal) when installed identity, test trust or a separate settings store is needed. Signed package staging is documented in [desktop updates](desktop-updates.md#package-staging).
 
+Mac helpers use the same minimum deployment target declared in Tauri configuration for both Tauri CLI and plain Cargo commands. Keep these environments aligned when changing the minimum supported version; otherwise native dependencies compile again when the standalone build switches to its embedded-asset test. The test and real portable executable build remain separate required checks.
+
+CI may reuse its earlier checked frontend build with a validated generated proof; see [CI](ci.md#ci-overview). Ordinary local commands remain self-contained. Opt-in reuse rejects changed source, configuration, dependencies, backend-produced frontend fixtures, environment or generated assets rather than silently packaging stale frontend code.
+
 ## Runtime and Feature Ownership
 
 The desktop links the root library without the old agent or system-clipboard feature. One native worker owns the clipboard adapter for the process lifetime and initializes it only for an explicit transfer. IPC exposes bounded application commands rather than general shell, filesystem or clipboard plugins.

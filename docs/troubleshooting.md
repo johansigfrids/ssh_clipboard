@@ -55,6 +55,8 @@ Session defaults are 64 MiB encoded items, 256 MiB decoded images and 7,000 ms c
 
 An update must pass signature and release-identity verification before Install is available. Resolve/discard an uncertain Share and apply/discard settings before installation. Verification failure does not justify bypassing trust, replacing a pinned key or rewriting a signed asset. See [desktop updates](desktop-updates.md) and [key recovery](releasing.md#key-rotation-and-recovery).
 
+If the panel still reports the previous version after replacement, compare the running app with the installed files and shortcut target. Quit the identified old process, relaunch the verified installed app through its normal shortcut and check the panel version, saved server and history. Disk version metadata alone does not prove which code an existing process has loaded. This resolved the observed Windows mismatch during the [0.5.0 migration](history/release-0.5.0-acceptance.md#completed-windows-and-mac-migration); why the old process survived replacement was not established.
+
 For missing native notifications, check Behavior capability/help and OS notification settings; portable Windows uses panel fallback. Shortcuts act in the background and recording suppresses transfer dispatch. See [feedback](desktop-notifications.md) and [shortcuts](desktop-shortcuts.md).
 
 Removed commands/features are not available in 0.5. Configure the desktop and managed session server using [fresh setup](compatibility-and-cutover.md).

@@ -43,3 +43,4 @@ These are rollout instructions, not evidence of a live cutover. Source implement
 ## Related Docs
 
 - [Server setup](server-setup.md), [maintenance](server-maintenance.md), [shared settings](shared-configuration.md), [security](security.md).
+- [Completed 0.5.0 migration](history/release-0.5.0-acceptance.md): exact packages, live server/Windows/Mac checks, owner-authorized permanent cleanup and remaining evidence limits.

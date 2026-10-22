@@ -39,7 +39,7 @@ export async function runRemoteFixture(packages,target) {
       if(item.done)break;
       const result=JSON.parse(item.value);
       if(result.passed){passed=true;process.stdout.write(`PASS real user-systemd: ${result.checks.join(", ")}\n`);}
-      if(result.cleaned&&result.legacy_unchanged&&result.ssh_route_unchanged)cleaned=true;
+      if(result.cleaned&&result.installed_unchanged&&result.ssh_route_unchanged)cleaned=true;
     }
     const code=await bounded(exited,10000,"SSH fixture did not exit after cleanup.");
     if(code!==0||!passed||!cleaned)throw new Error("Real service acceptance failed; inspect fixture diagnostics above.");

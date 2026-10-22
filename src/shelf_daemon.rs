@@ -1,4 +1,4 @@
-//! Experimental Linux shelf listener with an optional explicit V2 compatibility socket.
+//! Linux session shelf listener.
 use crate::server_socket::SocketBinding;
 use crate::shelf::ShelfLimits;
 use crate::shelf_service::{ServiceLimits, ShelfService};
@@ -9,45 +9,12 @@ use tokio::task::JoinSet;
 use tokio::time::{Duration, MissedTickBehavior};
 
 pub fn default_socket_path() -> Result<PathBuf> {
-    Ok(crate::daemon::default_socket_path()?.with_file_name("shelf.sock"))
+    crate::server_socket::default_socket_path()
 }
 
 pub async fn run(path: PathBuf, limits: ShelfLimits, policy: ServiceLimits) -> Result<()> {
-    run_with_legacy(path, limits, policy, None).await
-}
-
-pub struct LegacyEndpoint {
-    pub path: PathBuf,
-    pub max_frame: usize,
-}
-
-pub async fn run_with_legacy(
-    path: PathBuf,
-    limits: ShelfLimits,
-    policy: ServiceLimits,
-    legacy: Option<LegacyEndpoint>,
-) -> Result<()> {
-    if let Some(legacy) = &legacy {
-        eyre::ensure!(
-            legacy.path != path,
-            "shelf and compatibility sockets must differ"
-        );
-        eyre::ensure!(
-            legacy.max_frame > 0
-                && legacy.max_frame
-                    <= crate::session_protocol::MAX_PAYLOAD_BYTES
-                        + crate::protocol::RESPONSE_OVERHEAD,
-            "invalid compatibility frame limit"
-        );
-    }
     let service = Arc::new(ShelfService::new(limits, policy)?);
     let binding = SocketBinding::bind(&path).await?;
-    // Bind both before serving. An occupied compatibility path is preserved and
-    // failure releases the new shelf socket instead of starting half-configured.
-    let legacy_binding = match &legacy {
-        Some(endpoint) => Some(SocketBinding::bind(&endpoint.path).await?),
-        None => None,
-    };
     let mut workers = JoinSet::new();
     let mut maintenance = tokio::time::interval(Duration::from_secs(1));
     maintenance.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -58,22 +25,9 @@ pub async fn run_with_legacy(
                 let (stream, _) = accepted?;
                 while let Some(result) = workers.try_join_next() { report(result); }
                 // Bound accepted tasks before spawning; a rejected socket is closed unread.
-                if workers.len() >= policy.max_connections || crate::daemon::verify_peer_credentials(&stream).is_err() { continue; }
+                if workers.len() >= policy.max_connections || crate::server_socket::verify_peer_credentials(&stream).is_err() { continue; }
                 let service = service.clone();
                 workers.spawn(async move { service.serve(stream).await });
-            }
-            accepted = async {
-                match &legacy_binding {
-                    Some(binding) => binding.listener.accept().await,
-                    None => std::future::pending().await,
-                }
-            } => {
-                let (stream, _) = accepted?;
-                while let Some(result) = workers.try_join_next() { report(result); }
-                if workers.len() >= policy.max_connections || crate::daemon::verify_peer_credentials(&stream).is_err() { continue; }
-                let service = service.clone();
-                let max_frame = legacy.as_ref().expect("enabled listener").max_frame;
-                workers.spawn(async move { service.serve_legacy(stream, max_frame).await });
             }
             completed = workers.join_next(), if !workers.is_empty() => {
                 if let Some(result) = completed { report(result); }

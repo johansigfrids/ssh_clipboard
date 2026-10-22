@@ -2,21 +2,20 @@
 
 ## Project Structure & Module Organization
 
-- `src/` contains the shared library, CLI, V2 compatibility, shelf/session services and opt-in retired agent. Entry points are `src/main.rs`, `src/lib.rs` and `src/bin/ssh_clipboard_agent.rs`.
+- `src/` contains the headless shared library, session CLI and shelf/server services. Entry points are `src/main.rs`, `src/lib.rs`.
 - `tests/` contains CLI and process integration tests; Rust modules also contain unit/property tests.
 - `desktop/` contains Svelte/TypeScript, Node release tooling and a separate Tauri Rust project with its own lockfile.
-- `Cargo.toml` defines core dependencies/features; default builds include the clipboard CLI. The retired agent requires `--features agent`; headless server/stdio builds use `--no-default-features`.
+- `Cargo.toml` builds a single headless core/CLI; native clipboard/tray/startup code belongs to `desktop/`.
 - Cargo `target/`, frontend build output and ignored `desktop/artifacts/` are generated output; do not edit them by hand.
 
 ## Build, Test, and Development Commands
 
 - `cargo build` — compiles the project in debug mode.
 - `cargo run --bin ssh_clipboard -- --help` — inspect the CLI command surface.
-- `cargo test --locked` — run core/default CLI tests.
-- `cargo test --locked --features agent` — include retired-agent compatibility tests.
-- `cargo test --locked --no-default-features` — headless tests; Linux-only cases require Linux.
+- `cargo test --locked` — run core/session CLI tests.
+- Linux socket/service integration tests require Linux or the established WSL toolchain.
 - `cargo fmt` — format the codebase with rustfmt.
-- `cargo clippy --features agent -- -D warnings` — lint the codebase (CI-required).
+- `cargo clippy --locked --all-targets -- -D warnings` — lint the codebase (CI-required).
 - `cargo build --release` — produces optimized release binaries in `target/release/`.
 - From `desktop/`, `npm test` runs Node tooling and Vitest/Svelte interactions; `npm run build` runs Svelte checks and Vite.
 - [Testing](docs/testing.md) has desktop Rust, platform/package and documentation-only checks. Run checks appropriate to the changed component; builds and rendered UI tests do not prove native clipboard, login or installer behavior.
@@ -45,7 +44,7 @@
 - Docs entrypoint: [docs/index.md](docs/index.md); follow [docs/writing-docs.md](docs/writing-docs.md).
 - At minimum, read [docs/index.md](docs/index.md) before making changes; for major changes, skim relevant `docs/*.md` for context.
 - Update the current feature/runbook that owns a contract, rather than copying release chronology into several guides. Add new documents to the index.
-- `docs/history/` preserves dated plans, acceptance and exact source/package evidence. `docs/legacy/` covers retained compatibility workflows. Historical omissions are not automatic new manual-test assignments.
+- `docs/history/` preserves dated plans, acceptance and exact source/package evidence. Archived 0.4 compatibility workflows live under `docs/history/0.4/`. Historical omissions are not automatic new manual-test assignments.
 - Keep [ARCHITECTURE.md](ARCHITECTURE.md) up to date as the system design or component boundaries change.
 - After behavior changes or bug fixes: refresh related docs and keep cross-links current.
 - When fixing issues, capture the prevention guidance in docs (root cause + guardrail) so the same mistake is less likely to recur.

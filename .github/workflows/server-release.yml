@@ -43,7 +43,7 @@ jobs:
         run: |
           rustup toolchain install 1.99.0 --profile minimal --component rustfmt,clippy
           cargo +1.99.0 fmt -- --check
-          cargo +1.99.0 clippy --locked --no-default-features --all-targets -- -D warnings
+          cargo +1.99.0 clippy --locked --all-targets -- -D warnings
           cargo +1.99.0 test --locked --no-default-features
       - name: Validate draft and desktop-feed isolation
         run: node --test desktop/tests/server-release.test.mjs

@@ -20,7 +20,7 @@ installed-desktop = ["dep:tauri-plugin-updater", "dep:tauri-plugin-autostart", "
 release-tools = []
 
 [dependencies]
-ssh_clipboard = { path = "../..", default-features = false, features = ["external-resource-owner"] }
+ssh_clipboard = { path = "../..", features = ["external-resource-owner"] }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"

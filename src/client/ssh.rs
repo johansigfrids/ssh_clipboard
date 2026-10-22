@@ -6,24 +6,9 @@ use tokio::process::{Child, Command};
 pub struct SshConfig {
     pub target: String,
     pub port: Option<u16>,
-    pub user: Option<String>,
-    pub host: Option<String>,
     pub identity_file: Option<PathBuf>,
     pub ssh_options: Vec<String>,
     pub ssh_bin: Option<PathBuf>,
-}
-
-impl SshConfig {
-    pub fn resolve_target(&self) -> String {
-        if !self.target.is_empty() {
-            return self.target.clone();
-        }
-        match (&self.user, &self.host) {
-            (Some(user), Some(host)) => format!("{user}@{host}"),
-            (None, Some(host)) => host.clone(),
-            _ => String::new(),
-        }
-    }
 }
 
 fn split_target_and_port(target: &str) -> (String, Option<u16>) {
@@ -52,17 +37,9 @@ fn split_target_and_port(target: &str) -> (String, Option<u16>) {
 }
 
 pub fn resolve_target_and_port(config: &SshConfig) -> (String, Option<u16>) {
-    let (target, target_port) = split_target_and_port(&config.resolve_target());
+    let (target, target_port) = split_target_and_port(&config.target);
     let port = config.port.or(target_port);
     (target, port)
-}
-
-pub fn spawn_ssh_proxy(config: &SshConfig) -> Result<Child> {
-    spawn_proxy(config, "proxy")
-}
-
-pub fn spawn_ssh_session_proxy(config: &SshConfig) -> Result<Child> {
-    spawn_proxy(config, "session-proxy")
 }
 
 fn ssh_command(ssh_bin: PathBuf) -> Command {
@@ -75,10 +52,10 @@ fn ssh_command(ssh_bin: PathBuf) -> Command {
     command
 }
 
-fn spawn_proxy(config: &SshConfig, endpoint: &'static str) -> Result<Child> {
+pub fn spawn_ssh_session_proxy(config: &SshConfig) -> Result<Child> {
     let (target, port) = resolve_target_and_port(config);
     if target.trim().is_empty() {
-        return Err(eyre!("missing SSH target (use --target or --host)"));
+        return Err(eyre!("missing SSH target (use --target or --profile)"));
     }
 
     let ssh_bin = config
@@ -103,7 +80,7 @@ fn spawn_proxy(config: &SshConfig, endpoint: &'static str) -> Result<Child> {
 
     command.arg(target);
     command.arg("ssh_clipboard");
-    command.arg(endpoint);
+    command.arg("session-proxy");
 
     command
         .stdin(std::process::Stdio::piped())
@@ -121,8 +98,7 @@ mod tests {
         SshConfig {
             target: target.to_string(),
             port: None,
-            user: None,
-            host: None,
+
             identity_file: None,
             ssh_options: Vec::new(),
             ssh_bin: None,

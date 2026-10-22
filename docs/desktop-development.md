@@ -11,7 +11,7 @@ Build and validate the Tauri 2/Svelte desktop from source. Windows x64 and Apple
 - `desktop/src-tauri/`: separate Rust project, lockfile, native adapters and application commands.
 - `desktop/scripts/build-prototype.mjs`: standalone executable and embedded-asset check.
 - `desktop/scripts/build-installed.mjs`: signed installed-package staging.
-- `desktop/src-tauri/tests/embedded_frontend.rs`, `live_ssh.rs`: standalone assets and opt-in V2 SSH probes.
+- `desktop/src-tauri/tests/embedded_frontend.rs`: standalone assets.
 
 ## Run and Build
 
@@ -40,10 +40,10 @@ CI may reuse its earlier checked frontend build with a validated generated proof
 
 ## Runtime and Feature Ownership
 
-The desktop links the root library without the old agent or system-clipboard feature. One native worker owns the clipboard adapter for the process lifetime and initializes it only for an explicit transfer. IPC exposes bounded application commands rather than general shell, filesystem or clipboard plugins.
+The desktop links the root library with a headless dependency boundary. One native worker owns the clipboard adapter for the process lifetime and initializes it only for an explicit transfer. IPC exposes bounded application commands rather than general shell, filesystem or clipboard plugins.
 
-- [Shared configuration](shared-configuration.md) owns drafts, profiles, coordinated Apply and live reload; [migration](configuration-migration.md) owns import and exact backups.
-- [History](desktop-history.md) owns endpoint selection, preview privacy, selected-item Copy and confirmed mutations. Legacy panel Copy uses its displayed snapshot; shelf Copy revalidates the selected ID and epoch.
+- [Shared configuration](shared-configuration.md) owns drafts, profiles, coordinated Apply and live reload; [fresh cutover](compatibility-and-cutover.md) owns the 0.5 configuration/installation break.
+- [History](desktop-history.md) owns preview privacy, selected-item Copy and confirmed mutations. Panel Copy revalidates the selected ID and epoch.
 - [Persistent sessions](persistent-sessions.md) and [share recovery](share-recovery.md) own metadata monitoring, cancellation and uncertain uploads. Automatic metadata connections do not sample or overwrite the clipboard.
 - [Shortcuts](desktop-shortcuts.md) and [notifications](desktop-notifications.md) own background actions, recording, feedback and keyboard behavior.
 - [Desktop updates](desktop-updates.md) owns installed identity, startup and verified package handoff.
@@ -58,15 +58,9 @@ On Windows, the desktop opts into `external-resource-owner`. Tauri owns executab
 
 ## Validation
 
-Use the frontend, desktop Rust and shared-library commands in [testing](testing.md#how-to-run). Test both dependency graphs: a compatible codec/parser version range in separate lockfiles is not proof that wire or migration fixtures remain compatible. Run root tests from the root project when they need root dev-dependencies.
+Use the frontend, desktop Rust and shared-library commands in [testing](testing.md#how-to-run). Test both dependency graphs: a compatible codec/parser version range in separate lockfiles is not proof that session wire or shared API contracts remain compatible. Run root tests from the root project when they need root dev-dependencies.
 
-For a targeted V2 SSH probe, provide an authorized `SSH_CLIPBOARD_TEST_TARGET` and an initially empty `SSH_CLIPBOARD_TEST_SOCKET` in a fresh owner-only remote directory, then run from the repository root:
-
-```powershell
-cargo test --manifest-path desktop/src-tauri/Cargo.toml --test live_ssh -- --ignored
-```
-
-The probe only writes synthetic data to the explicitly supplied disposable socket and sends PeekMeta to the regular route. It does not use the OS clipboard. Stop/remove the owned fixture afterward. Shelf SSH probes and native-test scheduling are documented in [testing](testing.md#transport-and-diagnostic-faults).
+For an explicitly authorized disposable session SSH probe, use the runner described in [testing](testing.md#transport-and-diagnostic-faults). The V2 desktop probe is removed.
 
 The [prototype snapshot](history/desktop-prototype.md#validation-status), [Windows history acceptance](history/native-history-acceptance.md), [UX delivery record](history/desktop-ux-plan.md) and [release evidence](history/release-readiness.md) retain exact build/session boundaries. Those results do not transfer automatically to a later source build.
 

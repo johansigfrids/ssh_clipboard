@@ -2,18 +2,18 @@
 
 ## Purpose
 
-Install the signed Linux x86_64 shelf server under the intended user's account, with private sockets, an explicit SSH route and a recoverable service. [Server maintenance](server-maintenance.md) owns command/storage details; [legacy setup](legacy/server-setup.md) covers the retained standalone V2 installer.
+Install the signed Linux x86_64 shelf server under the intended user's account, with private sockets, an explicit SSH route and a recoverable service. [Server maintenance](server-maintenance.md) owns command/storage details; [fresh cutover](compatibility-and-cutover.md) covers replacing an older installation.
 
 ## Key Files
 
 - `src/cli/server_maintenance.rs`, `src/server_management.rs`: signed installation, unit and launcher.
 - `src/server_releases.rs`, `src/server_package.rs`: immutable executables, verification and recovery.
-- `src/shelf_daemon.rs`, `src/session_proxy.rs`, `src/proxy.rs`: session and optional V2 routes.
+- `src/shelf_daemon.rs`, `src/session_proxy.rs`: session route.
 - [Public verification key](update-signing-public-key.pub): reviewed production trust; see [fingerprint and trust procedure](security.md#signed-package-trust).
 
 ## Prerequisites and Trust
 
-Use a Linux x86_64 account with a functioning user systemd manager and system OpenSSH. The signed [server 0.4.0 package](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) has recorded acceptance; the repository-wide latest release belongs to the desktop. Do not use latest-release discovery to select server assets.
+Use a Linux x86_64 account with a functioning user systemd manager and system OpenSSH. New source uses installation schema 2 and refuses old installations; follow [fresh cutover](compatibility-and-cutover.md) before replacing one. The signed [server 0.4.0 package](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) has recorded acceptance; the repository-wide latest release belongs to the desktop. Do not use latest-release discovery to select server assets.
 
 Obtain the public key through a reviewed checkout or independent owner confirmation. Download the exact requested version's binary and detached signature. Verify them without execution using an already trusted verifier:
 
@@ -22,7 +22,7 @@ ssh_clipboard server-maintenance verify --version <version> \
   --public-key <trusted.pub> --package <signed-binary> --signature <signed-binary.sig>
 ```
 
-A key supplied only by an untrusted package/feed does not establish first-install trust. Source builds use `cargo build --release --no-default-features`; compiling source is separate from admitting a signed managed release.
+A key supplied only by an untrusted package/feed does not establish first-install trust. Source builds use `cargo build --release`; compiling source is separate from admitting a signed managed release.
 
 ## Install and Check
 
@@ -38,7 +38,7 @@ systemctl --user status ssh_clipboard-shelf.service
 
 The installer stores immutable executables under `$XDG_DATA_HOME/ssh_clipboard/server` (normally `~/.local/share/ssh_clipboard/server`), creates `~/.local/bin/ssh_clipboard` and writes a stable user unit. No service points into a download folder. `status` reports saved selection/recovery metadata; actual service and protocol health need separate checks.
 
-Installation accepts shelf socket/count/retention/size/deadline options; review them before installation because updates retain the saved policy. To support V2 clients, explicitly include `--legacy-socket-path <private-path>` and ensure it is free. Without the adapter, a separate old daemon and shelf hold separate stores. Defaults and ownership rules are in [shelf server](shelf-server.md).
+Installation accepts shelf socket/count/retention/size/deadline options; updates retain that policy. There is no V2 listener or compatibility socket. Defaults and ownership rules are in [shelf server](shelf-server.md).
 
 Verify the noninteractive SSH command path or reviewed absolute forced command, then from a client:
 
@@ -47,13 +47,13 @@ ssh_clipboard shelf --target <alias-or-user@host> health
 ssh_clipboard shelf --target <alias-or-user@host> list
 ```
 
-For an explicitly configured V2 compatibility route, also run `ssh_clipboard doctor --target <legacy-alias-or-user@host>`. A key forced to `proxy` cannot reach `session-proxy`; preserve distinct fixed routes and keep maintenance privileges separate. Custom socket arguments must match the saved service. See [route/privilege boundaries](compatibility-and-cutover.md#ssh-route-and-privilege-boundary).
+A restricted transfer key must allow the reviewed `session-proxy` route, with custom socket arguments matching the saved service. Keep maintenance privileges separate.
 
 ## Updates, Migration and Recovery
 
 Use explicit versioned `server-maintenance update` and `recover` commands from [server maintenance](server-maintenance.md#managed-commands). Every mutating maintenance command acknowledges clipboard loss. Restart/rollback restores executable availability, not in-memory history. Inspect the journal and pinned trust before recovery; do not replace the key or remove records to bypass admission.
 
-For existing installations, follow [compatibility and cutover](compatibility-and-cutover.md) to record the old unit, binaries, routes, sockets and return path before an authorized transition. Linger or privileged legacy-link cleanup is a separate reviewed action. The completed owner [Linux cutover](history/linux-cutover-acceptance.md) records exact package/service evidence; it does not prove an actual reboot or last-session logout.
+For existing installations, follow [fresh setup and cutover](compatibility-and-cutover.md) to record the old unit, binaries, routes, sockets and return path before an authorized transition. Linger or privileged legacy-link cleanup is a separate reviewed action. The completed owner [Linux cutover](history/linux-cutover-acceptance.md) records exact package/service evidence; it does not prove an actual reboot or last-session logout.
 
 ## Update Triggers
 
@@ -63,4 +63,4 @@ For existing installations, follow [compatibility and cutover](compatibility-and
 ## Related Docs
 
 - [Server maintenance](server-maintenance.md), [shelf endpoint](shelf-server.md), [security](security.md).
-- [Troubleshooting](troubleshooting.md), [release operations](releasing.md), [legacy server setup](legacy/server-setup.md).
+- [Troubleshooting](troubleshooting.md), [release operations](releasing.md), [legacy server setup](history/0.4/legacy/server-setup.md).

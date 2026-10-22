@@ -1,3 +1,5 @@
+> Historical 0.4 compatibility guide. The 0.5 source removes these implementations; use the current [fresh setup guide](../../../compatibility-and-cutover.md).
+
 # Retired Agent (Hotkeys + Tray)
 
 ## Purpose
@@ -9,7 +11,7 @@ Document the background agent: tray/menu UX, global hotkeys, config, and logs.
 - `src/agent/autostart.rs`
 - `src/agent/notify.rs`
 - `src/main.rs`
-- [docs/cli.md](../cli.md)
+- [docs/cli.md](../../../cli.md)
 
 ## Build and Run
 The old agent is retired from default builds and new distribution. Use the signed desktop for normal use. This document preserves the explicit `--features agent` compatibility path through 0.4; see [retirement](../legacy-retirement.md). A Linux server-only build still uses `--no-default-features`.
@@ -95,7 +97,7 @@ If notifications do not appear on macOS:
 - Check Focus/Do Not Disturb settings.
 - Inspect `logs/agent.log` for notification delivery errors.
 
-See [Linux platform notes](#linux-platform-notes) for clipboard, hotkey and tray limits.
+See [Linux platform notes](agent.md#linux-platform-notes) for clipboard, hotkey and tray limits.
 
 ## Logs
 When running the agent, logs are written to a `logs/agent.log` file next to the agent config file.
@@ -105,7 +107,7 @@ To increase verbosity:
 
 ## Start at Login
 
-These commands affect only the retired agent. Current installed-desktop startup is in [desktop updates](../desktop-updates.md#start-at-login).
+These commands affect only the retired agent. Current installed-desktop startup is in [desktop updates](../../../desktop-updates.md#start-at-login).
 
 ### Commands
 ```
@@ -190,7 +192,7 @@ ssh_clipboard setup-agent --target user@server
 - If the tray fails to initialize, rerun with `--no-tray` and use hotkeys only.
 
 
-Linux uses the XDG entry described under [Start at login](#start-at-login).
+Linux uses the XDG entry described under [Start at login](agent.md#start-at-login).
 
 ### Troubleshooting
 - **Clipboard init fails:** Ensure a display server is available (`DISPLAY` for X11, `WAYLAND_DISPLAY` for Wayland).
@@ -203,6 +205,6 @@ Linux uses the XDG entry described under [Start at login](#start-at-login).
 - Changes to where logs are written.
 
 ## Related Docs
-- [docs/cli.md](../cli.md)
-- [docs/troubleshooting.md](../troubleshooting.md)
-- [docs/security.md](../security.md)
+- [docs/cli.md](../../../cli.md)
+- [docs/troubleshooting.md](../../../troubleshooting.md)
+- [docs/security.md](../../../security.md)

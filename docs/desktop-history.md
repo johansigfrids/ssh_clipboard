@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Document the panel's explicit shelf endpoint and history controls, with legacy behavior preserved. Automated/browser checks and a bounded Windows native pass provide separate evidence; neither installs the new server or completes production cutover.
+Document the panel's explicit shelf endpoint and history controls, for the session-only desktop. Automated/browser checks and a bounded Windows native pass provide separate evidence; neither installs the new server or completes production cutover.
 
 ## Key Files
 
@@ -17,17 +17,13 @@ Document the panel's explicit shelf endpoint and history controls, with legacy b
 
 ## Endpoint Selection and Compatibility
 
-Connection settings choose Single shared item (legacy server) or Temporary history (new server). This is a per-profile draft, applied through the existing revision/atomic-save/shortcut transaction. Changing it does not probe, install, rewrite SSH keys, or touch a clipboard. Existing files without an endpoint read as legacy without writes. New profiles start as legacy. A shelf mode stores its own encoded/decode limits (64/256 MiB defaults, each at most 256 MiB), independently of retained V2 frame/recovery settings. Shelf operation timeout must be at most 300 seconds; its framing is strict.
-
-The shared schema adds `endpoint: {protocol: "legacy"}` or `endpoint: {protocol: "shelf", max_item_bytes, max_decoded_bytes}`. Unknown modes/fields and invalid limits are preserved/rejected. In this dependency graph, a tagged unit variant skipped extra fields despite the enum's strict annotation; legacy mode uses an empty struct variant, with a regression proving extra fields cannot disappear on a later save. Schema 1 files containing newer endpoint fields are rejected as ambiguous. Older strict experimental readers reject this extended file instead of overwriting it.
-
-The shelf mode invokes the separately selected `session-proxy`; legacy mode keeps `proxy`, V2 wire fixtures, and its single item. Server cutover and restricted-key changes require separate authorization. Switching profiles, endpoints, host/key/port, or advanced transport policy clears both preview and history. Local preference reload never captures or shares content.
+All profiles use `session-proxy`. Saved plain session limits default to 64 MiB encoded and 256 MiB decoded; changing a profile or connection policy clears history, previews and session ownership through the guarded Apply transaction. There is no mode selector, protocol fallback or separate snapshot cache. Server replacement and restricted-key routing remain explicit rollout actions.
 
 ## Selection, Copy, and Mutations
 
-When a new item arrives, metadata updates select the newest item so Panel Copy is ready to copy it. Ordinary refreshes and expiry/deletion updates retain a manually selected ID within the same epoch and current snapshot. If it is absent, select the newest remaining item. A restart replaces the epoch and invalidates the old selection. Refresh lists metadata and loads the selected item; passive updates clear an old preview when selection changes and do not fetch the new payload. Rows show bounded labels, source, size, receipt time, and expiry; source is unknown for legacy-origin items. Explicit selection fetches/previews by ID and brings the preview into view. These operations do not write the OS clipboard.
+When a new item arrives, metadata updates select the newest item so Panel Copy is ready to copy it. Ordinary refreshes and expiry/deletion updates retain a manually selected ID within the same epoch and current snapshot. If it is absent, select the newest remaining item. A restart replaces the epoch and invalidates the old selection. Refresh lists metadata and loads the selected item; passive updates clear an old preview when selection changes and do not fetch the new payload. Rows show bounded labels, source, size, receipt time, and expiry; source is unknown when wire metadata omits an origin. Explicit selection fetches/previews by ID and brings the preview into view. These operations do not write the OS clipboard.
 
-Panel Copy fetches the selected ID again, guarded by the loaded epoch, validates the exact text/PNG and descriptor, then writes through the persistent clipboard owner. Expired/deleted/wrong/oversized items leave the local clipboard unchanged. Legacy panel Copy retains the displayed-snapshot contract. Optional background direct Copy deliberately clears the retained selection before listing so it always copies the newest item. Share captures once under the local endpoint budget and creates one upload operation; no automatic capture/replay is added.
+Panel Copy fetches the selected ID again, guarded by the loaded epoch, validates the exact text/PNG and descriptor, then writes through the persistent clipboard owner. Expired/deleted/wrong/oversized items leave the local clipboard unchanged. Optional background direct Copy deliberately clears the retained selection before listing so it always copies the newest item. Share captures once under the local endpoint budget and creates one upload operation; no automatic capture/replay is added.
 
 Delete selected item and Clear history use an inline confirmation, not an immediate destructive click. The confirmation captures its epoch/item ID; any settings/history reload cancels it. Backend commands also check the settings revision and loaded epoch before sending a guarded mutation. Confirmed mutations update the local view without turning a later refresh failure into an apparent mutation failure. Server deletion cannot revoke copies already held elsewhere.
 
@@ -41,7 +37,7 @@ Relative labels update every 30 seconds only while the panel/document is visible
 
 Passive removal recovers focus to the history heading (or main content if history disappears) only when the previously focused row/control was removed and focus has fallen to the document body. It never moves an existing user focus. A separate polite status announces that loss; relative-time ticks are not live announcements. Confirmations focus their action; Escape/Cancel restores the invoker, and successful deletion focuses the history heading. See [keyboard evidence](history/desktop-ux-plan.md#pr-6-history-scanning-and-keyboard-usability).
 
-The shelf derives labels during validated upload preparation: first nonempty trimmed text line, control characters removed, at most 60 Unicode characters plus an ellipsis; empty text uses a fixed label. PNG labels use validated dimensions. Labels stay at most 256 UTF-8 bytes. No AI naming, external title lookup, payload trimming, conversion, or image resizing occurs. A label is content-derived and may itself contain sensitive text: do not log item metadata. Health/legacy PeekMeta remain free of labels and payloads.
+The shelf derives labels during validated upload preparation: first nonempty trimmed text line, control characters removed, at most 60 Unicode characters plus an ellipsis; empty text uses a fixed label. PNG labels use validated dimensions. Labels stay at most 256 UTF-8 bytes. No AI naming, external title lookup, payload trimming, conversion, or image resizing occurs. A label is content-derived and may itself contain sensitive text: do not log item metadata. Health remain free of labels and payloads.
 
 Hiding previews removes text labels, text bodies, and thumbnails from the frontend projection, including cached previews; rows use generic Text/Image labels. The backend can retain the actual payload for an explicitly requested copy. Thumbnails are generated once for a fetched shelf preview and cached, rather than decoding a large image on every panel snapshot. A preview initially fetched while hidden may need Refresh after previews are enabled.
 
@@ -49,7 +45,7 @@ Capture/copy now carry the endpoint's decoded-image limit through the owner thre
 
 ## Evidence and Remaining Acceptance
 
-PR 4 compacts the panel while preserving Copy above Share. Copy is primary when a snapshot or selected history item is available; otherwise Share is primary and disabled Copy is neutral. Refresh history sits beside the history heading, remains available for an empty history, and retains the same revision-guarded `refresh_item` command. Legacy/no-history views keep Refresh shared clipboard below the transfer buttons. Nothing about moving these controls changes selection, metadata watching, or clipboard access.
+PR 4 compacts the panel while preserving Copy above Share. Copy is primary when a snapshot or selected history item is available; otherwise Share is primary and disabled Copy is neutral. Refresh history sits beside the history heading, remains available for an empty history, and retains the same revision-guarded `refresh_item` command. Nothing about moving these controls changes selection, metadata watching, or clipboard access.
 
 Preview labels are visually bounded to two lines, text previews to 112 CSS pixels, and image previews to 128 CSS pixels. These display limits do not modify stored/copied content. Main text sizing is unchanged. Ordinary empty and short-text states show transfer actions and the history heading/first row at the default 440 x 670 viewport. Recovery/errors may take priority and remain fully available through the main scroll area. At minimum size, actions remain reachable by scrolling/focus.
 

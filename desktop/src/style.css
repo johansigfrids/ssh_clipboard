@@ -68,13 +68,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 190px; overflo
 .settings-navigation { padding: 12px 16px 8px; border-bottom: 1px solid var(--border); min-width: 0; }
 .settings-navigation h2 { margin: 0 0 8px; }
 #settings-form > :first-child { margin-top: 0; }
-.migration-summary { min-width: 0; margin-bottom: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow-wrap: anywhere; }
-.migration-summary h2 { font-size: 16px; }
-.migration-summary p { font-size: 12px; }
-.migration-summary dl { margin: 16px 0; font-size: 12px; }
-.migration-summary dt { font-weight: 600; margin-top: 10px; }
-.migration-summary dd { margin: 3px 0 0; color: var(--muted); }
-.migration-summary details { margin-bottom: 16px; }
 .settings-tabs { display: flex; gap: 4px; }
 .settings-tabs button { flex: 1; min-width: 0; padding-inline: 5px; background: transparent; border-color: transparent; }
 .settings-tabs button.active { background: var(--surface); border-color: var(--border); color: var(--accent); }

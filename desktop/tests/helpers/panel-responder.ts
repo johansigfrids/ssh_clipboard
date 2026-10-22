@@ -13,10 +13,6 @@ export function panelResponder(read: () => PanelView) {
       case "install_update": return undefined;
       case "check_updates":
       case "download_update": return structuredClone(state.updateStatus);
-      case "acknowledge_migration_summary":
-        state.migrationSummary = null;
-        state.settingsRevision = String(BigInt(state.settingsRevision ?? "0") + 1n);
-        break;
       case "apply_settings": {
         if (!args?.settings) throw new Error("apply_settings requires settings");
         if (args.startAtLogin !== undefined) {
@@ -25,7 +21,7 @@ export function panelResponder(read: () => PanelView) {
         }
         const settings = args.settings as Settings;
         state.settings = structuredClone({ ...settings, profileId: settings.profileId ?? "new-profile" });
-        const profile = { id: state.settings.profileId!, name: settings.profileName, target: settings.target, port: settings.port, identityFile: settings.identityFile, transport: structuredClone(settings.transport), endpoint: { ...settings.endpoint } };
+        const profile = { id: state.settings.profileId!, name: settings.profileName, target: settings.target, port: settings.port, identityFile: settings.identityFile, transport: structuredClone(settings.transport), limits: { ...settings.limits } };
         const index = state.profiles.findIndex(({ id }) => id === profile.id);
         if (index === -1) state.profiles.push(profile); else state.profiles[index] = profile;
         state.settingsSaved = true;
@@ -39,7 +35,7 @@ export function panelResponder(read: () => PanelView) {
       case "remove_profile": {
         state.profiles = state.profiles.filter(({ id }) => id !== args?.profileId);
         const profile = state.profiles[0];
-        state.settings = { ...state.settings, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: structuredClone(profile.transport), endpoint: { ...profile.endpoint } };
+        state.settings = { ...state.settings, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: structuredClone(profile.transport), limits: { ...profile.limits } };
         state.settingsRevision = String(BigInt(state.settingsRevision ?? "0") + 1n);
         state.item = null;
         state.connected = false;

@@ -2,140 +2,47 @@
 
 ## Purpose
 
-Describe shared configuration, desktop connection profiles and advanced policy, CLI parity, and live reload. [Configuration migration](configuration-migration.md) covers legacy/schema 1 conversion and backups; [build variants](build-variants.md) cover the headless boundary. Installed startup, updates and native acceptance have their own [runtime guide](desktop-updates.md) and [release evidence](history/release-readiness.md).
+Desktop and CLI use one session-only settings document with explicit policy precedence.
 
 ## Key Files
 
-- `src/configuration.rs`: schema, validation, bounded reads, coordinated saves.
-- `src/cli/settings.rs`, `tests/shared_settings_cli.rs`: CLI edits/selection and executable-level configuration probes.
-- `desktop/src-tauri/src/model.rs`: mapping the selected profile/preferences to desktop settings.
-- `desktop/src-tauri/src/connection.rs`: lossless transport drafts and numeric validation at the UI boundary.
-- `desktop/src-tauri/src/panel.rs`: startup restoration and shortcut/save handling.
-- `desktop/src/api.ts`, `desktop/src/App.svelte`: saved state and recovery messages.
+- `src/configuration.rs`: profiles, limits, store and saves.
+- `src/client/config.rs`: resolved session connection.
+- `src/cli/settings.rs`: CLI settings and selection.
 
-## Current Behavior
+## Schema and Location
 
-The desktop reads `ssh_clipboard/settings-v1.json` beneath the platform user configuration directory: `%APPDATA%` on Windows, `~/Library/Application Support` on macOS, and `$XDG_CONFIG_HOME` or `~/.config` on Linux. The historical filename is stable; schema 2 is now written, with a backed-up schema 1 upgrade. The file is separate from old agent configuration and replaceable executables. Startup can initialize a missing shared file from a valid, backed-up legacy agent file; it never overwrites the original. See [migration source selection](configuration-migration.md#source-selection).
+Schema 3 uses `ssh_clipboard/settings.json` under `dirs::config_dir()`. `ssh_clipboard settings path` prints the actual path. Startup reads only this file and never writes a default document. Old `settings-v1.json`, agent TOML and recovery backups are not discovered or imported. Explicit old/future schemas fail without replacing their bytes; preserve them and create fresh settings at the new path. See [cutover](compatibility-and-cutover.md).
 
-Opening the app reads existing settings, or initializes from a legacy source when the shared file is missing. With neither source present it waits for setup/Apply. Schema 2 includes revisions, stable profile IDs, target/port/key reference, advanced transport settings, device identity, panel preferences, retained startup/direct-shortcut choices, and future update policy. Desktop Connection settings add/select/rename/remove profiles and edit basic/advanced policy without dropping other profiles. The CLI also edits connection/transport/preview/dismissal/device-name settings. Installed startup is activated only through explicit Apply intent; direct shortcuts require opt-in, and installed release builds perform bounded update checks.
+Profiles retain stable IDs, names, target, optional port/identity, SSH options/binary, timeout and plain `limits` (`max_item_bytes`, `max_decoded_bytes`). There is no protocol selector. Preferences own shortcuts, previews, close-after-copy, desired startup, notifications and automatic update checks. Saving initializes a stable device UUID; fresh configuration intentionally creates a new identity.
 
-The file contains configuration only; clipboard payloads and SSH key contents are not persisted. Starting a configured shelf profile starts metadata-only SSH monitoring. Installed release builds also check for updates after a startup delay. Neither path downloads clipboard payloads or update packages, samples/shares the local clipboard, or writes it without an explicit action. Clipboard snapshots remain process-local.
+Client defaults are 64 MiB encoded items, 256 MiB decoded images and 7,000 ms per operation. Session policy validates these consistently; the server may negotiate narrower limits. SSH verification/key policy remains with OpenSSH.
 
-Corrupt, unsupported-version, oversized, or unrecognized-field documents produce a visible recovery message. Apply is disabled; the existing file is preserved. Repair the named file or move it aside after making a backup; the watcher reloads valid settings automatically. Never automatically replace unreadable settings with defaults: that would lose connection choices while appearing to recover successfully.
+## CLI Selection and Edits
 
-## Save Contract and Guardrails
-
-### Visible Draft State
-
-The settings action bar sits outside the scrolling content and remains visible in Connection, Shortcuts, Behavior, and Updates. It reports Unsaved changes, All changes saved, or a saved-revision conflict. Changes take effect after Apply, including preview visibility. Apply submits the complete cross-section draft with its original revision; read-only settings, conflicts, active operations, and shortcut recording block both button and form submission. Install remains blocked while settings are edited.
-
-Back, Escape, section navigation, and panel hiding retain the process-local draft without saving. The clipboard panel offers Return to settings and Discard changes when edits remain; transfers and preview privacy continue using saved settings. Quit does not persist a draft. Discard loads the current saved state, including external edits, without a configuration write or transfer. Start at login uses the same draft and Apply/Discard flow; its pending choice can be edited alongside other settings.
-
-Prevention: the existence of a saved settings file is not evidence that the displayed draft is saved. Derive visible save state from draft equality and revision, and keep save controls outside the scroll region. Every secondary form action uses `type="button"`; the external Apply submit button is explicitly associated with the settings form. The submit handler uses the same guards as the button, so Enter cannot bypass a conflict or operation/recording lock.
-
-### Startup Intent and Coordinated Apply
-
-Keep actual native startup state, the saved/imported preference, and explicit user intent separate. The checkbox initially reflects actual state. Editing it creates a process-local pending choice; its helper reports the current actual state while Apply is pending. Toggling back to the actual state cancels that intent. Discard, navigation, startup, and configuration reload never write native startup. Unknown/unavailable state disables startup editing while unrelated settings remain saveable.
-
-The `apply_settings` IPC accepts an optional `startAtLogin` choice outside `SessionSettings`. Omit it unless the user edited startup, even if the saved preference differs from the OS entry. No shared-file schema change is needed. A startup-only draft participates in dirty/revision checks and survives reloads; external revision changes block Apply until Discard.
-
-Apply validates settings, requested shortcuts, and the displayed revision, then prepares one configuration replacement under the existing store lock. Only an explicit startup choice changes/verifies the native entry. Shortcut activation and the prepared commit follow; a shortcut or commit failure restores startup, and commit failure restores shortcuts too. Failed restoration remains a visible repair error; direct shortcut dispatch is paused if its rollback fails. Active configuration changes only after successful commit. Startup-only saves preserve selected history, previews, and pending-share captures. Removing a profile and watcher reloads never infer startup intent.
-
-Prevention: copying the saved startup preference into every Apply request would silently repair an externally disabled entry, while putting startup outside the global dirty check could drop its pending choice on reload. Test both boundaries with fake registries and temporary stores, including partial native changes, shortcut conflicts, stale revisions, failed file replacement, and failed restoration.
-
-### Desktop Connections
-
-The Connection selector edits a draft. Apply selects that profile as the shared default for desktop and target-less CLI transfers; merely choosing it does not connect, fetch, or write a clipboard. Apply or Discard an edited draft before choosing another connection. The panel displays the active connection name and SSH target.
-
-After initial setup, Add connection starts a blank connection with independent built-in transport defaults and no copied key/port/options. Apply requires a name and target and assigns a stable UUID. Discard abandons it without writing. Existing profiles retain their IDs and advanced settings when their basic fields or names are edited; renaming alone preserves the current snapshot.
-
-Remove requires an inline confirmation and is disabled while a draft is edited or only one profile remains. Removing the active profile selects the first remaining profile in saved order. The shared removal service also supports CLI deletion of an inactive profile without switching. Removal changes local configuration only; it does not contact a server or clear its clipboard. Device identity, global preferences, and other profiles remain intact.
-
-Both Apply and Remove take the displayed revision, compare the full saved document under the writer lock, and prepare the file before OS activation. A failed activation abandons the write; a failed replacement attempts to restore the previous shortcut. GUI saves and watcher reloads share the same activation boundary: changes to selected profile ID, destination, port, key, or transport clear the snapshot and connection status, even when two profiles use the same SSH target. This must remain true for both paths; checking only target strings during GUI Apply could otherwise expose the previous profile's item.
-
-### Direct Shortcuts
-
-Optional direct Share/Copy preferences now have desktop recorders and an explicit enable control. They remain global across profiles and preserve imported disabled bindings. Activation uses a grouped OS registration transaction; see [shortcuts](desktop-shortcuts.md) for background-only transfers, recording suppression, alias conflicts, and rollback behavior.
-
-Behavior settings also save a global `notifications` preference (`panel`, `all`, `errors`, `off`). Missing values in existing schema 2 files read as `panel` without a write. Native capability and delivery are separate from the preference; see [feedback controls](desktop-notifications.md). Changing the preference itself never sends notifications or alters OS notification settings.
-
-### Advanced Connection Policy
-
-Connection settings have a collapsed Advanced section. Its draft belongs to the chosen profile and follows the same Apply/Discard, revision, reload, and snapshot-clearing rules as basic connection fields. Opening/typing/resetting settings never runs SSH or samples the clipboard.
-
-| Field | Default and behavior |
-| --- | --- |
-| SSH options | One OpenSSH `-o` argument per line, in order. When edited, blank lines are ignored; remaining strings are preserved. The GUI still prepends `BatchMode=yes`. |
-| SSH executable | Empty uses system `ssh`; a nonempty value is an executable reference/path, including spaces, without shell splitting or added arguments. |
-| Timeout | 7,000 milliseconds. |
-| Transfer limit | 10,485,760 encoded bytes including metadata. This client policy does not reconfigure the remote proxy/daemon; image decoding retains its separate 64 MiB safety limit. |
-| Framing recovery | Enabled, bounded by 8,192 bytes; disabling selects strict framing and retains the saved budget. |
-
-Restore advanced defaults only edits the current draft; Discard can undo it before Apply. New profiles start with independent defaults. Existing/migrated values load directly, including values from CLI edits.
-
-`TransportDraft` carries numeric values as decimal **strings** across IPC, then parses positive integers into Rust's actual field types and calls the shared policy validator. The schema 2 file still uses JSON numbers. Never convert these IPC fields through JavaScript `Number`: an unrelated preference edit could otherwise round a large saved timeout/byte count. Deep-copy nested transport/options when creating a draft or choosing a profile, or bindings could mutate the active view and make dirty detection fail. Keep raw multiline editor text separate from parsed options so a trailing newline can be typed while blank lines stay out of submitted arguments.
-
-### CLI Selection and Edits
-
-`ssh_clipboard settings path` prints the shared location. `settings show` prints effective JSON, or defaults without creating a file when absent. Schema 1 reads show their upgraded in-memory representation. `settings set` updates supplied fields only; see [CLI](cli.md) for basic/advanced flags. `settings migrate-agent` explicitly initializes from a backed-up legacy source only when shared settings do not already exist.
-
-```powershell
-ssh_clipboard settings set --target clipboard-hub
-ssh_clipboard settings add-profile --id second --name "Second server" --target other-hub
-ssh_clipboard settings select-profile second
-ssh_clipboard peek --profile second --ssh-option BatchMode=yes
-ssh_clipboard settings remove-profile second
+```text
+ssh_clipboard settings set --target clipboard-hub --max-item-bytes 67108864 --max-decoded-bytes 268435456 --timeout-ms 7000
+ssh_clipboard settings add-profile --id work --name Work --target work-hub
+ssh_clipboard settings select-profile work
+ssh_clipboard shelf health
 ```
 
-Push, pull, peek, and doctor select the saved default profile when no destination is supplied. `--profile <id>` makes a one-shot selection without changing the saved default. Within a selected profile, explicit target/host/port/key/binary/size/timeout/resync flags override saved fields, then built-in defaults. CLI SSH options precede saved options. `--resync-frames true|false` explicitly overrides a saved choice; `--strict-frames` forces strict mode. Doctor supports its existing subset of overrides and uses the selected policy for metadata probes.
+`settings show` prints saved values or defaults without creating a file. `settings --settings-file <path>` and `shelf --settings-file <path>` allow explicit isolation. `settings set` supports SSH overrides, clearing port/identity/SSH options/binary, device name and preview/close preferences. Removing the selected profile selects the first remaining profile; the last profile cannot be removed.
 
-Without `--profile`, an explicit `--target` or `--host` is an independent connection: do not inherit the selected profile's port/key/options. This also bypasses a damaged shared settings file without rewriting it. Default discovery can migrate a valid legacy file if shared settings are absent; a damaged shared document is an error, not permission to switch servers. Doctor uses the same discovery rather than the old `confy::load` fallback, which could create an empty old-agent file. Push resolves configuration before reading stdin or the OS clipboard.
+CLI session policy precedence is explicit flag, selected profile, shared default. Direct `--target` without `--profile` uses no saved connection/policy, even if a settings file is supplied. An explicit profile permits intentional overrides. A direct Share still requires `--device-id`; profile Share uses the saved device identity unless explicitly overridden.
 
-All these commands accept `--settings-file <path>` for a separate file. Paths may be relative. `remove-profile <id>` rejects missing/last profiles without writing; deleting the default selects the first remaining profile. With an explicit destination and no `--profile`, transfers bypass saved configuration even when a path was supplied. The old `config`, agent, and autostart commands still operate on the legacy agent file. Do not confuse those with the new shared `settings` namespace.
+The CLI selects a profile before merging explicit overrides into the resolved session configuration. Explicit SSH options precede saved options, preserving OpenSSH's first-value precedence. Desktop operations resolve one configuration and use its SSH settings and policy together without caching another copy.
 
-The desktop checks the shared file every two seconds and notifies the frontend only when settings or their recovery state change. It defers activation while a transfer/settings operation holds the operation lock. Valid CLI edits take effect without restart. Connection or selected-profile changes clear the old snapshot and connection status, including when two profiles have the same target. Preference-only changes preserve the snapshot. Reload can reconfigure/reconnect the metadata monitor for the new active profile. It never fetches payload content, reads the OS clipboard, shares, or replays a clipboard write.
+## Draft, Save and Reload
 
-Subscribe before reading the initial state, queue startup notifications until it completes, and keep controls disabled until ready. Otherwise a startup edit can be missed or initialization can replace an early draft. Clean up successful subscriptions if another listener fails.
+The desktop edits a draft; transfers and diagnostics use saved settings. Apply validates, prepares a revision-checked save under an exclusive lock, activates native settings and commits atomically. Failed activation/save preserves the previous settings and active state. Discard reloads saved values. Numeric timeout IPC stays a decimal string; limits are bounded u32 values.
 
-An edited frontend draft is preserved when external settings arrive, but Apply is blocked until the user discards the stale draft. Drafts and transfer/test actions carry the displayed settings revision as a string; the backend rejects an obsolete revision before any SSH/clipboard access. This closes the race between backend activation and frontend notification. A rejected action refreshes the panel state without retrying the transfer. Unchanged files do not repeatedly register shortcuts or generate preview work.
-
-If reload encounters a damaged file or rejected OS shortcut, previous active settings remain usable and a recovery notice blocks saves over the file. File repair is retried automatically; repeated identical failures generate one frontend notice. CLI preference edits themselves do not register shortcuts or change start-at-login. The desktop applies supported OS changes during activation. Changing advanced connection policy also clears the previous snapshot; device/display-only changes retain it.
-
-The saved connection's diagnostic report follows the same profile/policy isolation as its snapshot. It is hidden while the UI draft is edited, retained for display-only/preference changes, and cleared by a connection change. Test uses the shared metadata-only service, never a clipboard read/write or general remote shell probe; see [connection diagnostics](connection-diagnostics.md).
-
-### Persistence
-
-- Read at most 1 MiB plus one detection byte; validate schema, profile IDs/selection, and connection fields. Include the newline in the save budget.
-- Hold a nonblocking OS lock on a separate `settings-v1.json.lock` file. Keep that file in place: unlinking it during replacement permits two writers to lock different files.
-- Compare the current complete document against the caller's loaded snapshot under that lock. Reject stale edits instead of losing another writer's changes; revision increments on successful saves. The desktop watcher reloads external edits, while its separate draft revision prevents silently saving an old draft over the new active snapshot.
-- Write a unique temporary file in the destination directory, flush it with `sync_all`, then replace the destination using `NamedTempFile::persist`. An abandoned preparation leaves the previous file intact. Existing Unix directory permissions are respected; newly created directories/files are private. Windows files inherit the user's directory ACL.
-- Prepare the file/check conflicts before changing OS shortcut registration. A registration rejection abandons the preparation. If replacement fails after activation, attempt to restore the previous shortcut and report any restoration failure. The footer shows the actual registered shortcut rather than claiming an inactive saved binding works.
-- Explicitly unlock before closing the writer handle. A duplicated/fork-inherited descriptor can otherwise retain Linux ownership after the save ends; the retained-descriptor regression probe and parallel WSL suites cover this. Closing a handle alone is not a sufficient guard. See [lock-release guidance](shelf-server.md#file-lock-release-guardrail).
-- Preserve a saved shortcut preference on Wayland, report its unavailability, and allow other settings to be edited. Launcher/tray access remains available.
-
-Locking is advisory and coordinates cooperating writers. Manual editors do not take this lock; concurrent manual editing is outside this contract. Atomic replacement is supported by the underlying filesystem and `tempfile`; arbitrary network filesystems and power-loss durability are not proven here. Migration backups exist; configuration backups do not imply automatic desktop installer rollback. Polling can observe a manually truncated file as invalid before a later valid replacement; preserve the last active state while reporting recovery.
-
-Implementation references: [Rust file locks](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock) (requires Rust 1.89 or later) and [temporary-file replacement](https://docs.rs/tempfile/latest/tempfile/struct.NamedTempFile.html#method.persist).
-
-## Validation
-
-Temporary-store tests cover exact persistence, stale writers, competing locks, abandoned preparations, corrupt/future files, identity/profile isolation and failed replacement. Executable CLI checks cover precedence, shared-store parity, direct-target isolation and profile removal. Rendered controls and backend adapters cover draft retention, subscription races, advanced integer precision, activation failure and save rollback.
-
-These checks use temporary settings and controlled native adapters. The [configuration checkpoints](history/testing-checkpoints.md#configuration-and-build-checkpoints) retain the earlier Windows save/reload/profile observations and dated test results. Later actual Mac import/persistence is in [Mac cutover](history/macos-cutover.md); an old controlled-adapter pass does not establish every native advanced-control or combined startup Apply path.
-
-## Endpoint Selection
-
-Per-profile endpoint selection now defaults to legacy without rewriting missing fields. Shelf mode has independent raw item/decode limits and a bounded session timeout; see [desktop endpoint/history contracts](desktop-history.md#endpoint-selection-and-compatibility). Unknown endpoint fields are preserved/rejected, including on the zero-field legacy mode. Endpoint changes clear history and snapshots along with other connection changes.
+Bounded reads, strict fields, stable profile identity, file snapshots, revision checks and coordinated writers prevent silent repair and lost concurrent edits. An abandoned save releases the lock. Startup preference remains separate from actual native registration. Profile, SSH or limit changes clear stale history/connections and prevent cross-profile replay; preference-only edits preserve valid session state.
 
 ## Update Triggers
 
-
-- CLI editing, desktop activation or live reload behavior changes.
-- Legacy configuration migration, profiles, or additional settings are implemented.
-- Schema versions, file locations, save guarantees, or dependency boundaries change.
+- Profile/policy fields, configuration path/schema, precedence or save/reload behavior changes.
 
 ## Related Docs
 
-- [Implementation plan](history/implementation-plan.md), [architecture](../ARCHITECTURE.md)
-- [Desktop development](desktop-development.md), [agent](legacy/agent.md), [CLI](cli.md)
-- [Testing](testing.md), [dependency decisions](dependency-decisions.md)
+- [History](desktop-history.md), [shortcuts](desktop-shortcuts.md), [CLI](cli.md), [cutover](compatibility-and-cutover.md).

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe optional direct transfers, recording, and OS registration recovery in the rework desktop. These controls do not change the legacy agent's registrations.
+Describe optional direct transfers, recording, and OS registration recovery in the rework desktop. Existing external shortcut registrations are not automatically removed.
 
 ## Key Files
 

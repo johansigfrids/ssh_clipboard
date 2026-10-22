@@ -45,7 +45,7 @@ def prepare(output, crashing_release=False):
                 daemon_source.write_text(original_daemon)
             (source / "Cargo.toml").write_text(manifest.replace(f'version = "{current}"', f'version = "{version}"', 1))
             (source / "Cargo.lock").write_text(lock.replace(f'name = "ssh_clipboard"\nversion = "{current}"', f'name = "ssh_clipboard"\nversion = "{version}"', 1))
-            execute([Path.home() / ".cargo/bin/cargo", "build", "--locked", "--no-default-features",
+            execute([Path.home() / ".cargo/bin/cargo", "build", "--locked",
                      "--manifest-path", source / "Cargo.toml", "--target-dir", REPO / "target/linux-maintenance-smoke",
                      "--bin", "ssh_clipboard"], timeout=600)
             shutil.copy(REPO / "target/linux-maintenance-smoke/debug/ssh_clipboard",

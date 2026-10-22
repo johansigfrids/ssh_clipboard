@@ -1,4 +1,4 @@
-//! New, separately selected shelf endpoint. Never serialize these messages through V2.
+//! Negotiated SCBS session messages and bounded metadata.
 use crate::shelf::{self, ShelfLimits};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

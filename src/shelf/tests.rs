@@ -37,9 +37,9 @@ fn upload(shelf: &Shelf, bytes: &[u8], operation: Option<Uuid>) -> ValidatedUplo
     input
         .validate(
             ContentType::Text,
-            operation.map(|_| origin()),
+            origin(),
             Some(i64::MIN),
-            operation,
+            operation.unwrap_or_else(Uuid::new_v4),
         )
         .unwrap()
 }
@@ -111,13 +111,23 @@ fn exact_bytes_and_server_order_survive_client_clock_skew() {
             .bytes(),
         " å\n".as_bytes()
     );
-    assert_eq!(shelf.latest(clock_back).unwrap().unwrap().bytes(), b"next");
+    assert_eq!(
+        newest(&mut shelf, clock_back).unwrap().unwrap().bytes(),
+        b"next"
+    );
 }
 
 #[test]
 fn count_and_byte_eviction_preserve_the_newest_items_and_exact_boundary() {
     let base = now();
-    let mut shelf = Shelf::new(limits(), base).unwrap();
+    let mut shelf = Shelf::new(
+        ShelfLimits {
+            max_retry_records: 4,
+            ..limits()
+        },
+        base,
+    )
+    .unwrap();
     let first = share(&mut shelf, b"aaaa", base);
     let second = share(&mut shelf, b"bbbb", later(base, 1));
     assert_eq!(shelf.stored_bytes(), 8);
@@ -275,7 +285,7 @@ fn retry_conflicts_cover_bytes_origin_name_and_captured_timestamp() {
         }
         let timestamp = if change == 2 { Some(0) } else { Some(i64::MIN) };
         let prepared = input
-            .validate(ContentType::Text, Some(source), timestamp, Some(operation))
+            .validate(ContentType::Text, source, timestamp, operation)
             .unwrap();
         assert_eq!(
             shelf.commit(shelf.epoch(), prepared, base).unwrap_err(),
@@ -283,7 +293,7 @@ fn retry_conflicts_cover_bytes_origin_name_and_captured_timestamp() {
         );
     }
     assert_eq!(shelf.snapshot(base).unwrap().sequence, 1);
-    assert_eq!(shelf.latest(base).unwrap().unwrap().bytes(), b"item");
+    assert_eq!(newest(&mut shelf, base).unwrap().unwrap().bytes(), b"item");
 }
 
 #[test]
@@ -380,7 +390,7 @@ fn fetched_and_inflight_bytes_remain_charged_after_eviction_and_release_on_last_
     invalid.bytes_mut()[0] = 255;
     assert_eq!(
         invalid
-            .validate(ContentType::Text, None, None, None)
+            .validate(ContentType::Text, origin(), None, Uuid::new_v4())
             .err()
             .unwrap(),
         ShelfError::InvalidText
@@ -431,7 +441,9 @@ fn png_validation_decodes_with_limits_but_keeps_the_original_encoded_bytes() {
     let bytes = png();
     let mut input = shelf.upload_budget().allocate(bytes.len()).unwrap();
     input.bytes_mut().copy_from_slice(&bytes);
-    let prepared = input.validate(ContentType::Png, None, None, None).unwrap();
+    let prepared = input
+        .validate(ContentType::Png, origin(), None, Uuid::new_v4())
+        .unwrap();
     let outcome = shelf.commit(shelf.epoch(), prepared, base).unwrap();
     assert_eq!(outcome.metadata.dimensions, Some((2, 2)));
     assert_eq!(
@@ -454,7 +466,7 @@ fn png_validation_decodes_with_limits_but_keeps_the_original_encoded_bytes() {
     input.bytes_mut().copy_from_slice(&bytes);
     assert_eq!(
         input
-            .validate(ContentType::Png, None, None, None)
+            .validate(ContentType::Png, origin(), None, Uuid::new_v4())
             .err()
             .unwrap(),
         ShelfError::InvalidImage
@@ -479,7 +491,7 @@ fn malformed_png_and_busy_decoders_release_their_reservations() {
     let input = budget.allocate(3).unwrap();
     assert_eq!(
         input
-            .validate(ContentType::Png, None, None, None)
+            .validate(ContentType::Png, origin(), None, Uuid::new_v4())
             .err()
             .unwrap(),
         ShelfError::InvalidImage
@@ -489,7 +501,7 @@ fn malformed_png_and_busy_decoders_release_their_reservations() {
     let input = budget.allocate(3).unwrap();
     assert_eq!(
         input
-            .validate(ContentType::Png, None, None, None)
+            .validate(ContentType::Png, origin(), None, Uuid::new_v4())
             .err()
             .unwrap(),
         ShelfError::Busy
@@ -521,18 +533,19 @@ fn invalid_origins_and_operation_ids_are_rejected_without_charging_storage() {
             budget
                 .allocate(0)
                 .unwrap()
-                .validate(ContentType::Text, Some(source), None, None)
+                .validate(ContentType::Text, source, None, Uuid::new_v4())
                 .err()
                 .unwrap(),
             ShelfError::InvalidOrigin
         );
     }
-    for (source, operation) in [(None, Uuid::from_u128(1)), (Some(origin()), Uuid::nil())] {
+    {
+        let (source, operation) = (origin(), Uuid::nil());
         assert_eq!(
             budget
                 .allocate(0)
                 .unwrap()
-                .validate(ContentType::Text, source, None, Some(operation))
+                .validate(ContentType::Text, source, None, operation)
                 .err()
                 .unwrap(),
             ShelfError::InvalidOperation
@@ -603,7 +616,7 @@ fn invalid_limits_clock_and_sequence_failures_preserve_existing_content() {
     );
     assert_eq!(shelf.stored_bytes(), 4);
     assert_eq!(
-        shelf.latest(later(base, 1)).unwrap().unwrap().bytes(),
+        newest(&mut shelf, later(base, 1)).unwrap().unwrap().bytes(),
         b"item"
     );
 }
@@ -612,10 +625,10 @@ fn invalid_limits_clock_and_sequence_failures_preserve_existing_content() {
 fn an_empty_text_is_an_item_and_an_empty_shelf_is_distinct() {
     let base = now();
     let mut shelf = Shelf::new(limits(), base).unwrap();
-    assert!(shelf.latest(base).unwrap().is_none());
+    assert!(newest(&mut shelf, base).unwrap().is_none());
     let outcome = share(&mut shelf, b"", base);
     assert_eq!(outcome.metadata.encoded_bytes, 0);
-    assert_eq!(shelf.latest(base).unwrap().unwrap().bytes(), b"");
+    assert_eq!(newest(&mut shelf, base).unwrap().unwrap().bytes(), b"");
     assert!(!shelf.delete(Uuid::nil(), base).unwrap());
     assert_eq!(shelf.snapshot(base).unwrap().sequence, 1);
 }
@@ -630,13 +643,22 @@ fn peer_budgets_only_narrow_limits_and_share_global_accounting() {
     let mut input = peer.allocate(2).unwrap();
     input.bytes_mut().copy_from_slice(b"ok");
     assert_eq!(budget.resident_bytes(), 2);
-    let prepared = input.validate(ContentType::Text, None, None, None).unwrap();
+    let prepared = input
+        .validate(ContentType::Text, origin(), None, Uuid::new_v4())
+        .unwrap();
     shelf.commit(shelf.epoch(), prepared, base).unwrap();
-    assert_eq!(shelf.latest(base).unwrap().unwrap().bytes(), b"ok");
+    assert_eq!(newest(&mut shelf, base).unwrap().unwrap().bytes(), b"ok");
     let enlarged = peer.restricted(usize::MAX, usize::MAX).unwrap();
     assert!(matches!(
         enlarged.allocate(3),
         Err(ShelfError::ItemTooLarge)
     ));
     assert!(budget.restricted(0, 1).is_err());
+}
+
+fn newest(shelf: &mut Shelf, now: Now) -> Result<Option<FetchedItem>, ShelfError> {
+    match shelf.snapshot(now)?.items.first() {
+        Some(item) => shelf.fetch(item.id, now),
+        None => Ok(None),
+    }
 }

@@ -8,7 +8,6 @@ Document how to create and regenerate the project icon assets used by the tray a
 - `assets/icon.png` (tray icon)
 - `assets/icon.ico` (Windows app icon)
 - `build.rs` (embeds Windows icon)
-- `src/agent/run.rs` (legacy tray loads `assets/icon.png`)
 - `desktop/src-tauri/tauri.conf.json`, `tauri.installed.conf.json` (desktop bundle icon inputs and installed overlay)
 
 ## Source Icon (SVG)
@@ -24,7 +23,7 @@ Suggested workflow (pick one):
 Save as: `assets/icon.svg`.
 
 ## Generate PNG (tray icon)
-The legacy tray and desktop icon configuration use `assets/icon.png`; the desktop base configuration also lists `assets/icon.ico` for bundling. Keep these shared inputs synchronized.
+Desktop icon configuration uses `assets/icon.png`; the desktop base configuration also lists `assets/icon.ico` for bundling. Keep these shared inputs synchronized.
 
 Recommended size: **256×256** (scales down well).
 If you update the SVG, regenerate the PNG:
@@ -71,5 +70,5 @@ Only external packaging that uses this export needs an explicit Info.plist `CFBu
 - Packaging changes for Windows or macOS.
 
 ## Related Docs
-- [docs/legacy/agent.md](legacy/agent.md)
+- [docs/legacy/agent.md](history/0.4/legacy/agent.md)
 - [docs/releasing.md](releasing.md)

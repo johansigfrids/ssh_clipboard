@@ -1,8 +1,8 @@
 //! Explicit new SSH endpoint, one bounded CLI operation (which may span many pages).
 use super::failure::{FailureKind, TransportFailure, classify_stderr};
+use super::process::StderrCapture;
 use super::session::{Action, Reply, Session, SessionError, SessionPolicy, Snapshot};
 use super::ssh::{SshConfig, resolve_target_and_port, spawn_ssh_session_proxy};
-use super::transport::StderrCapture;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};

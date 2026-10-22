@@ -1,7 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-export type Endpoint = { protocol: "legacy" } | { protocol: "shelf"; max_item_bytes: number; max_decoded_bytes: number };
+export type SessionLimits = { max_item_bytes: number; max_decoded_bytes: number };
 
 export interface Settings {
   profileId: string | null;
@@ -10,7 +10,7 @@ export interface Settings {
   port: number | null;
   identityFile: string;
   transport: TransportSettings;
-  endpoint: Endpoint;
+  limits: SessionLimits;
   openShortcut: string;
   shortcutEnabled: boolean;
   directShortcutsEnabled: boolean;
@@ -24,14 +24,11 @@ export interface Settings {
 export interface TransportSettings {
   sshOptions: string[];
   sshBinary: string;
-  maxSize: string;
   timeoutMs: string;
-  resyncFrames: boolean;
-  resyncMaxBytes: string;
 }
 
 export function defaultTransport(): TransportSettings {
-  return { sshOptions: [], sshBinary: "", maxSize: "10485760", timeoutMs: "7000", resyncFrames: true, resyncMaxBytes: "8192" };
+  return { sshOptions: [], sshBinary: "", timeoutMs: "7000" };
 }
 
 export function cloneTransport(value: TransportSettings): TransportSettings {
@@ -39,7 +36,7 @@ export function cloneTransport(value: TransportSettings): TransportSettings {
 }
 
 export function cloneSettings(value: Settings): Settings {
-  return { ...value, transport: cloneTransport(value.transport), endpoint: { ...value.endpoint } };
+  return { ...value, transport: cloneTransport(value.transport), limits: { ...value.limits } };
 }
 
 export interface ConnectionProfile {
@@ -49,7 +46,7 @@ export interface ConnectionProfile {
   port: number | null;
   identityFile: string;
   transport: TransportSettings;
-  endpoint: Endpoint;
+  limits: SessionLimits;
 }
 
 export interface PanelView {
@@ -63,7 +60,7 @@ export interface PanelView {
     encodedBytes: number;
     createdAt: number;
   };
-  history: null | {
+  history: {
     epoch: string | null;
     selectedId: string | null;
     items: Array<{ id: string; label: string; kind: "text" | "image"; encodedBytes: number; source: string | null; receivedAt: string; expiresAt: string }>;
@@ -79,7 +76,6 @@ export interface PanelView {
   settingsNotice: string | null;
   activeShortcut: string | null;
   settingsRevision: string | null;
-  migrationSummary: { deviceName: string; backupPath: string; startAtLogin: boolean } | null;
   connectionReport: ConnectionReport | null;
   operationNotice: { id: string; message: string; failed: boolean } | null;
   notificationStatus: { available: boolean; detail: string };
@@ -107,10 +103,10 @@ export interface ConnectionReport {
 }
 
 export const initialView: PanelView = {
-  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), endpoint: { protocol: "legacy" }, openShortcut: "CommandOrControl+Alt+Shift+S", shortcutEnabled: true, directShortcutsEnabled: false, directShareShortcut: null, directCopyShortcut: null, showPreview: true, closeAfterCopy: false, notifications: "panel" },
-  profiles: [{ id: "default", name: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), endpoint: { protocol: "legacy" } }],
+  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), limits: { max_item_bytes: 67108864, max_decoded_bytes: 268435456 }, openShortcut: "CommandOrControl+Alt+Shift+S", shortcutEnabled: true, directShortcutsEnabled: false, directShareShortcut: null, directCopyShortcut: null, showPreview: true, closeAfterCopy: false, notifications: "panel" },
+  profiles: [{ id: "default", name: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), limits: { max_item_bytes: 67108864, max_decoded_bytes: 268435456 } }],
   item: null,
-  history: null,
+  history: { epoch: null, selectedId: null, items: [] },
   connected: false,
   clipboardChecked: false,
   shortcutStatus: "Waiting for the desktop app",
@@ -122,7 +118,6 @@ export const initialView: PanelView = {
   settingsNotice: null,
   activeShortcut: null,
   settingsRevision: null,
-  migrationSummary: null,
   connectionReport: null,
   operationNotice: null,
   notificationStatus: { available: false, detail: "Waiting for the desktop app" },

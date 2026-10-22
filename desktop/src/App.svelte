@@ -42,7 +42,7 @@
   const settingsSections = [["connection", "Connection"], ["shortcuts", "Shortcuts"], ["behavior", "Behavior"], ["updates", "Updates"]];
 
   $effect(() => {
-    if (!ready || page !== "panel" || !documentVisible || !view.history?.items.length) return;
+    if (!ready || page !== "panel" || !documentVisible || !view.history.items.length) return;
     clock = Date.now();
     const timer = setInterval(() => clock = Date.now(), 30000);
     return () => clearInterval(timer);
@@ -69,7 +69,7 @@
     await tick();
     if (disposed || previous.element.isConnected || (document.activeElement !== document.body && document.activeElement?.isConnected)) return;
     if (previous.history) historyAnnouncement = "The focused history item is no longer available.";
-    await focusAfterRender(page === "settings" ? `#settings-tab-${section}` : view.history ? "#history-heading" : "#main-content", true);
+    await focusAfterRender(page === "settings" ? `#settings-tab-${section}` : "#history-heading", true);
   }
 
   function acceptUpdate(next: UpdateView) {
@@ -84,7 +84,7 @@
   const dirty = $derived(startupDraft !== null || JSON.stringify(draft) !== JSON.stringify(view.settings));
   const staleDraft = $derived(dirty && draftRevision !== view.settingsRevision);
   const applyDisabled = $derived(!ready || !view.settingsWritable || !dirty || staleDraft || busy || recordingRequested || (startupDraft !== null && (!view.startupStatus.available || view.startupStatus.enabled === null)));
-  const selectedHistory = $derived(view.history?.items.find((item) => item.id === view.history?.selectedId));
+  const selectedHistory = $derived(view.history.items.find((item) => item.id === view.history.selectedId));
   const canCopy = $derived(!!view.item || !!selectedHistory);
   const updateNotes = $derived(conciseUpdateNotes(view.updateStatus.notes, view.updateStatus.offeredVersion));
   const feedbackScope = $derived(page === "settings" ? section : "panel");
@@ -95,7 +95,7 @@
   const resultParts = $derived(splitResult(view.operationNotice?.message ?? ""));
 
   function requestHistoryRemoval(kind: "delete" | "clear") {
-    if (!view.history?.epoch) return;
+    if (!view.history.epoch) return;
     confirmingHistory = { kind, epoch: view.history.epoch, itemId: view.history.selectedId };
     void focusAfterRender("#history-confirmation button");
   }
@@ -178,7 +178,7 @@
     // Backend validation remains authoritative, including decimal-string limits.
     const fields: [RegExp, string][] = [
       [/SSH port/i, "port"], [/identity file/i, "identity"], [/SSH option/i, "ssh-options"],
-      [/timeout/i, "timeout"], [/Transfer limit/i, "transfer-limit"], [/Framing recovery budget/i, "resync-budget"],
+      [/timeout/i, "timeout"],
       [/item.*limit/i, "shelf-item-limit"], [/decoded.*limit/i, "shelf-decode-limit"],
     ];
     const field = fields.find(([pattern]) => pattern.test(detail))?.[1];
@@ -224,7 +224,7 @@
     if (dirty || busy || !ready) return;
     const profile = view.profiles.find((profile) => profile.id === id);
     if (!profile) return;
-    draft = { ...draft, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: cloneTransport(profile.transport), endpoint: { ...profile.endpoint } };
+    draft = { ...draft, profileId: profile.id, profileName: profile.name, target: profile.target, port: profile.port, identityFile: profile.identityFile, transport: cloneTransport(profile.transport), limits: { ...profile.limits } };
     sshOptionsText = draft.transport.sshOptions.join("\n");
     removingProfile = false;
     inform("");
@@ -232,7 +232,7 @@
 
   function addProfile() {
     if (dirty || busy || !ready) return;
-    draft = { ...draft, profileId: null, profileName: "New connection", target: "", port: null, identityFile: "", transport: defaultTransport(), endpoint: { protocol: "legacy" } };
+    draft = { ...draft, profileId: null, profileName: "New connection", target: "", port: null, identityFile: "", transport: defaultTransport(), limits: { max_item_bytes: 67108864, max_decoded_bytes: 268435456 } };
     sshOptionsText = "";
     removingProfile = false;
     inform("");
@@ -245,6 +245,7 @@
 
   function resetTransport() {
     draft.transport = defaultTransport();
+    draft.limits = { ...initialView.settings.limits };
     sshOptionsText = "";
     inform("Advanced defaults restored in your draft.");
   }
@@ -286,10 +287,10 @@
     operationEpoch++;
     inform("");
     try {
-      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history", "recover_share", "discard_share", "acknowledge_migration_summary"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
+      const guardedArgs = ["test_connection", "refresh_item", "share_clipboard", "copy_item", "remove_profile", "select_item", "delete_item", "clear_history", "reconnect_history", "recover_share", "discard_share"].includes(name) ? { ...args, expectedRevision: view.settingsRevision } : args;
       confirmingHistory = null;
       view = await command<PanelView>(name, guardedArgs);
-      if (name === "apply_settings" || name === "remove_profile" || name === "acknowledge_migration_summary") discardDraft();
+      if (name === "apply_settings" || name === "remove_profile") discardDraft();
       if (failure?.origin === name) failure = null;
       if (navigation === navigationVersion && !(["copy_item", "share_clipboard", "recover_share"].includes(name) && view.operationNotice)) {
         inform(name === "refresh_item" && !view.item ? "Checked the server. No shared item is available." : success, false, name, scope);
@@ -481,23 +482,7 @@
   <main id="main-content" tabindex="-1" aria-label={page === "panel" ? "Clipboard panel" : "Settings content"} bind:this={content}>
     {#if page !== "settings" || section !== "updates"}{@render operationProgress()}{/if}
     {#if view.settingsNotice}<div class="feedback error" role="alert">{view.settingsNotice}</div>{/if}
-    {#if view.migrationSummary}
-      <section class="migration-summary" aria-labelledby="migration-heading">
-        <h2 id="migration-heading">Review imported settings</h2>
-        <p>Your existing settings were imported and a recovery backup was saved. These are your current saved choices.</p>
-        <dl>
-          <dt>Connection</dt><dd>{view.settings.profileName} — {view.settings.target || "Setup needed"}</dd>
-          <dt>This computer</dt><dd>{view.migrationSummary.deviceName}</dd>
-          <dt>Open panel</dt><dd>{displayShortcut(view.settings.openShortcut, view.platform)}{!view.settings.shortcutEnabled ? " (disabled)" : ""}</dd>
-          <dt>Saved start-at-login choice</dt><dd>{view.migrationSummary.startAtLogin ? "On" : "Off"}. Review Behavior to change this app's startup entry.</dd>
-          <dt>Direct shortcuts</dt><dd>{view.settings.directShortcutsEnabled ? "Enabled" : "Disabled"}. Share: {view.settings.directShareShortcut ? displayShortcut(view.settings.directShareShortcut, view.platform) : "Not set"}; Copy: {view.settings.directCopyShortcut ? displayShortcut(view.settings.directCopyShortcut, view.platform) : "Not set"}.</dd>
-        </dl>
-        <p>Your old agent and its startup entry were left in place. Quit it before enabling direct shortcuts here; keep only one app enabled at login when you switch.</p>
-        <details><summary>Recovery backup</summary><p>{view.migrationSummary.backupPath}</p></details>
-        <button type="button" disabled={!ready || busy || dirty || !view.settingsWritable} onclick={() => perform("acknowledge_migration_summary", "Import summary dismissed.")}>Got it</button>
-        {#if dirty}<p class="field-help">Apply or discard edits before dismissing this summary.</p>{/if}
-      </section>
-    {/if}
+
     {#if page === "panel"}
       {#if dirty}
         <section class="draft-notice" aria-label="Unsaved settings">
@@ -533,7 +518,7 @@
           {#if view.item.imageUrl}<img class="preview-image" src={view.item.imageUrl} alt="Shared clipboard preview" />
           {:else if view.item.text !== null}<pre>{view.item.text || "(Empty text)"}</pre>
           {:else}<p class="muted">{view.settings.showPreview ? "Refresh or select this item to load its preview." : "Content preview is hidden."}</p>{/if}
-          <div class="item-meta"><time datetime={isoTime(view.item.createdAt)}>{exactTime(view.item.createdAt)}</time><span>{view.history ? selectedHistory?.source ?? "Unknown source device" : "Source device unavailable on this server"}</span></div>
+          <div class="item-meta"><time datetime={isoTime(view.item.createdAt)}>{exactTime(view.item.createdAt)}</time><span>{selectedHistory?.source ?? "Unknown source device"}</span></div>
         </section>
       {:else if selectedHistory}
         <section class="item-card" aria-label="Selected history item"><h2 id="shared-item-heading" tabindex="-1">{selectedHistory.label}</h2><p class="muted">Select this item in history to load its preview, or copy it to this computer.</p></section>
@@ -546,7 +531,6 @@
       <div class="actions">
         <button class:primary={canCopy} disabled={!ready || !canCopy || busy} onclick={() => perform("copy_item", "Copied to this computer. You can paste it now.")}>Copy to this computer</button>
         <button class:primary={!canCopy} disabled={!ready || !configured || busy || view.pendingShare !== null} onclick={() => perform("share_clipboard", "Shared your clipboard with the server.")}>Share current clipboard</button>
-        {#if !view.history}<button class="text-button" disabled={!ready || !configured || busy} onclick={() => perform("refresh_item", "Shared clipboard refreshed.")}>Refresh shared clipboard</button>{/if}
       </div>
       {@render feedback()}
       {@render routineFeedback()}
@@ -569,7 +553,7 @@
           <p>Discarding does not undo a server share. Leaving this profile or quitting clears recovery data.</p>
         </section>
       {/if}
-      {#if configured && view.history}
+      {#if configured}
         <section class="history" aria-label="Temporary clipboard history">
           <div class="history-heading"><h2 id="history-heading" tabindex="-1">Temporary history <span>{view.history.items.length}</span></h2><div class="history-tools"><button type="button" class="text-button" disabled={!ready || busy} onclick={() => perform("refresh_item", "History refreshed.")}>Refresh history</button><button id="clear-history" type="button" class="text-button" disabled={!ready || busy || !view.history.items.length} onclick={() => requestHistoryRemoval("clear")}>Clear history…</button></div></div>
           {#if historyAnnouncement}<p class="sr-only" role="status" aria-label="History selection">{historyAnnouncement}</p>{/if}
@@ -577,7 +561,7 @@
             <ul class="history-list">
               {#each view.history.items as item (`${view.history.epoch}:${item.id}`)}
                 <li data-history-id={item.id} class:selected={item.id === view.history.selectedId}>
-                  <button type="button" aria-pressed={item.id === view.history.selectedId} aria-describedby={`history-time-${item.id}`} disabled={!ready || busy} onclick={() => { historyAnnouncement = ""; void perform("select_item", "Item selected. Your clipboard is unchanged.", { itemId: item.id, epoch: view.history?.epoch }); }}>
+                  <button type="button" aria-pressed={item.id === view.history.selectedId} aria-describedby={`history-time-${item.id}`} disabled={!ready || busy} onclick={() => { historyAnnouncement = ""; void perform("select_item", "Item selected. Your clipboard is unchanged.", { itemId: item.id, epoch: view.history.epoch }); }}>
                     <span class="history-label">{item.label}</span><span class="history-detail">{item.source ?? "Unknown source"} · {formatSize(item.encodedBytes)}</span>
                   </button>
                   <div class="history-times">
@@ -621,11 +605,6 @@
           <label for="profile-name">Connection name</label><input id="profile-name" bind:value={draft.profileName} autocomplete="off" disabled={!ready || busy} />
           <label for="target">SSH alias or user@host</label><input id="target" aria-describedby="target-help" bind:value={draft.target} placeholder="clipboard-hub" autocomplete="off" disabled={!ready || busy} />
           <p id="target-help" class="field-help">Uses your existing SSH configuration and unlocked key. The server must already be installed.</p>
-          <label for="server-features">Server features</label>
-          <select id="server-features" aria-describedby="server-features-help" value={draft.endpoint.protocol} disabled={!ready || busy} onchange={(event) => draft.endpoint = event.currentTarget.value === "shelf" ? { protocol: "shelf", max_item_bytes: 67108864, max_decoded_bytes: 268435456 } : { protocol: "legacy" }}>
-            <option value="legacy">Single shared item (legacy server)</option><option value="shelf">Temporary history (new server)</option>
-          </select>
-          <p id="server-features-help" class="field-help">Choose the features installed on this server. Temporary history requires the new server and an SSH key that allows its session endpoint.</p>
           <details class="advanced-connection" bind:open={advancedOpen}>
             <summary>Advanced connection settings</summary>
             <p id="advanced-help" class="field-help">These settings apply to this connection. Blank Port and Identity file use your SSH configuration or agent.</p>
@@ -638,19 +617,11 @@
             <p id="ssh-binary-help" class="field-help">An executable path, without command-line arguments.</p>
             <label for="timeout">Timeout (milliseconds)</label><input id="timeout" aria-describedby="timeout-help" inputmode="numeric" bind:value={draft.transport.timeoutMs} disabled={!ready || busy} />
             <p id="timeout-help" class="field-help">Default 7,000 ms (7 seconds).</p>
-            {#if draft.endpoint.protocol === "shelf"}
-              <label for="shelf-item-limit">Item limit (bytes)</label><input id="shelf-item-limit" aria-describedby="shelf-item-help" type="number" min="1" max="268435456" step="1" required bind:value={draft.endpoint.max_item_bytes} disabled={!ready || busy} />
+              <label for="shelf-item-limit">Item limit (bytes)</label><input id="shelf-item-limit" aria-describedby="shelf-item-help" type="number" min="1" max="268435456" step="1" required bind:value={draft.limits.max_item_bytes} disabled={!ready || busy} />
               <p id="shelf-item-help" class="field-help">Default 64 MiB. The server may negotiate a smaller limit.</p>
-              <label for="shelf-decode-limit">Decoded image limit (bytes)</label><input id="shelf-decode-limit" aria-describedby="shelf-decode-help" type="number" min="1" max="268435456" step="1" required bind:value={draft.endpoint.max_decoded_bytes} disabled={!ready || busy} />
+              <label for="shelf-decode-limit">Decoded image limit (bytes)</label><input id="shelf-decode-limit" aria-describedby="shelf-decode-help" type="number" min="1" max="268435456" step="1" required bind:value={draft.limits.max_decoded_bytes} disabled={!ready || busy} />
               <p id="shelf-decode-help" class="field-help">Default 256 MiB of decoded pixels. Images retain their original dimensions and fidelity.</p>
-            {:else}
-            <label for="transfer-limit">Transfer limit (bytes)</label><input id="transfer-limit" aria-describedby="transfer-limit-help" inputmode="numeric" bind:value={draft.transport.maxSize} disabled={!ready || busy} />
-            <p id="transfer-limit-help" class="field-help">Default 10,485,760 bytes (10 MiB), including metadata. Raising this client limit also needs matching proxy and daemon limits. Images still have a separate 64 MiB decoded-pixel limit.</p>
-            <label class="toggle"><input type="checkbox" aria-describedby="framing-help" bind:checked={draft.transport.resyncFrames} disabled={!ready || busy} />Recover from text before protocol frames</label>
-            <p id="framing-help" class="field-help">Handles a bounded SSH login banner. Turn off for strict framing.</p>
-            <label for="resync-budget">Framing recovery budget (bytes)</label><input id="resync-budget" aria-describedby="resync-budget-help" inputmode="numeric" bind:value={draft.transport.resyncMaxBytes} disabled={!ready || busy || !draft.transport.resyncFrames} />
-            <p id="resync-budget-help" class="field-help">Default 8,192 bytes. Retained while strict framing is selected.</p>
-            {/if}
+
             <button type="button" class="text-button" disabled={!ready || busy} onclick={resetTransport}>Restore advanced defaults</button>
           </details>
           <button type="button" class="test-button" disabled={!ready || !configured || dirty || busy} onclick={() => perform("test_connection", "SSH proxy and clipboard daemon responded.")}>Test saved connection</button>

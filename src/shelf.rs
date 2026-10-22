@@ -192,23 +192,6 @@ impl UploadBudget {
         self.allocate_reserved(bytes)
     }
 
-    pub(crate) fn allocate_framed(
-        &self,
-        bytes: usize,
-        metadata_allowance: usize,
-    ) -> Result<IncomingUpload, ShelfError> {
-        if metadata_allowance > 65536
-            || bytes
-                > self
-                    .limits
-                    .max_item_bytes
-                    .saturating_add(metadata_allowance)
-        {
-            return Err(ShelfError::ItemTooLarge);
-        }
-        self.allocate_reserved(bytes)
-    }
-
     fn allocate_reserved(&self, bytes: usize) -> Result<IncomingUpload, ShelfError> {
         let mut current = self.state.encoded.load(Ordering::SeqCst);
         loop {
@@ -251,49 +234,28 @@ impl IncomingUpload {
         &self.data
     }
 
-    /// Borrowed legacy decoding finds the payload inside its reserved frame. Compact
-    /// it in place, retaining the original allocation charge; no second payload Vec.
-    pub(crate) fn retain_payload(
-        mut self,
-        range: std::ops::Range<usize>,
-    ) -> Result<Self, ShelfError> {
-        if range.start > range.end || range.end > self.data.len() {
-            return Err(ShelfError::ForeignUpload);
-        }
-        let length = range.len();
-        if length > self.limits.max_item_bytes {
-            return Err(ShelfError::ItemTooLarge);
-        }
-        self.data.copy_within(range, 0);
-        self.data.truncate(length);
-        Ok(self)
-    }
     pub fn bytes_mut(&mut self) -> &mut [u8] {
         &mut self.data
     }
 
-    /// `operation_id=None` is reserved for legacy shares, which cannot deduplicate retries.
     pub fn validate(
         self,
         content_type: ContentType,
-        origin: Option<Origin>,
+        origin: Origin,
         created_at_ms: Option<i64>,
-        operation_id: Option<Uuid>,
+        operation_id: Uuid,
     ) -> Result<ValidatedUpload, ShelfError> {
         if self.data.len() > self.limits.max_item_bytes {
             return Err(ShelfError::ItemTooLarge);
         }
-        if let Some(origin) = &origin
-            && (origin.device_id.is_nil()
-                || origin.name.trim().is_empty()
-                || origin.name.len() > MAX_NAME_BYTES
-                || origin.name.chars().any(char::is_control))
+        if origin.device_id.is_nil()
+            || origin.name.trim().is_empty()
+            || origin.name.len() > MAX_NAME_BYTES
+            || origin.name.chars().any(char::is_control)
         {
             return Err(ShelfError::InvalidOrigin);
         }
-        if let Some(operation) = operation_id
-            && (operation.is_nil() || origin.is_none())
-        {
+        if operation_id.is_nil() {
             return Err(ShelfError::InvalidOperation);
         }
         let dimensions = match content_type {
@@ -311,8 +273,7 @@ impl IncomingUpload {
                 Some(validate_png(&self.data, self.limits.max_decoded_bytes)?)
             }
         };
-        let fingerprint =
-            operation_id.map(|_| fingerprint(content_type, &origin, created_at_ms, &self.data));
+        let fingerprint = fingerprint(content_type, &origin, created_at_ms, &self.data);
         let label = match content_type {
             ContentType::Text => {
                 let text = std::str::from_utf8(&self.data).map_err(|_| ShelfError::InvalidText)?;
@@ -396,7 +357,7 @@ pub(crate) fn validate_png(
 
 fn fingerprint(
     content_type: ContentType,
-    origin: &Option<Origin>,
+    origin: &Origin,
     created_at: Option<i64>,
     data: &[u8],
 ) -> [u8; 32] {
@@ -406,14 +367,10 @@ fn fingerprint(
         ContentType::Text => 0,
         ContentType::Png => 1,
     }]);
-    if let Some(origin) = origin {
-        hash.update([1]);
-        hash.update(origin.device_id.as_bytes());
-        hash.update((origin.name.len() as u64).to_le_bytes());
-        hash.update(origin.name.as_bytes());
-    } else {
-        hash.update([0]);
-    }
+    hash.update([1]);
+    hash.update(origin.device_id.as_bytes());
+    hash.update((origin.name.len() as u64).to_le_bytes());
+    hash.update(origin.name.as_bytes());
     if let Some(created_at) = created_at {
         hash.update([1]);
         hash.update(created_at.to_le_bytes());
@@ -440,10 +397,10 @@ impl std::fmt::Debug for Blob {
 pub struct ValidatedUpload {
     blob: Arc<Blob>,
     content_type: ContentType,
-    origin: Option<Origin>,
+    origin: Origin,
     created_at_ms: Option<i64>,
-    operation_id: Option<Uuid>,
-    fingerprint: Option<[u8; 32]>,
+    operation_id: Uuid,
+    fingerprint: [u8; 32],
     dimensions: Option<(u32, u32)>,
     decoded_bytes: Option<usize>,
     label: String,
@@ -651,33 +608,28 @@ impl Shelf {
             .checked_add(self.limits().retry_retention)
             .ok_or(ShelfError::Overflow)?;
         self.expire(now)?;
-        let key = upload
-            .operation_id
-            .zip(upload.origin.as_ref().map(|origin| origin.device_id))
-            .map(|(operation, device)| (device, operation));
-        if let Some(key) = key {
-            if let Some(record) = self.retries.iter().find(|record| record.key == key) {
-                if upload.fingerprint != Some(record.fingerprint) {
-                    return Err(ShelfError::OperationConflict);
-                }
-                return Ok(CommitOutcome {
-                    metadata: record.metadata.clone(),
-                    duplicate: true,
-                    available: self
-                        .items
-                        .iter()
-                        .any(|item| item.item.metadata.id == record.metadata.id),
-                });
+        let key = (upload.origin.device_id, upload.operation_id);
+        if let Some(record) = self.retries.iter().find(|record| record.key == key) {
+            if upload.fingerprint != record.fingerprint {
+                return Err(ShelfError::OperationConflict);
             }
-            if self.retries.len() == self.limits().max_retry_records {
-                return Err(ShelfError::RetryWindowFull);
-            }
+            return Ok(CommitOutcome {
+                metadata: record.metadata.clone(),
+                duplicate: true,
+                available: self
+                    .items
+                    .iter()
+                    .any(|item| item.item.metadata.id == record.metadata.id),
+            });
+        }
+        if self.retries.len() == self.limits().max_retry_records {
+            return Err(ShelfError::RetryWindowFull);
         }
         let sequence = self.sequence.checked_add(1).ok_or(ShelfError::Overflow)?;
         let metadata = ItemMetadata {
             id: Uuid::new_v4(),
             sequence,
-            origin: upload.origin,
+            origin: Some(upload.origin),
             content_type: upload.content_type,
             encoded_bytes: upload.blob.data.len(),
             created_at_ms: upload.created_at_ms,
@@ -700,14 +652,12 @@ impl Shelf {
             },
             expires,
         });
-        if let Some(key) = key {
-            self.retries.push_back(RetryRecord {
-                key,
-                fingerprint: upload.fingerprint.unwrap(),
-                metadata: metadata.clone(),
-                expires: retry_expires,
-            });
-        }
+        self.retries.push_back(RetryRecord {
+            key,
+            fingerprint: upload.fingerprint,
+            metadata: metadata.clone(),
+            expires: retry_expires,
+        });
         self.sequence = sequence;
         Ok(CommitOutcome {
             metadata,
@@ -737,11 +687,6 @@ impl Shelf {
             .iter()
             .find(|item| item.item.metadata.id == id)
             .map(|item| item.item.clone()))
-    }
-
-    pub fn latest(&mut self, now: Now) -> Result<Option<FetchedItem>, ShelfError> {
-        self.expire(now)?;
-        Ok(self.items.back().map(|item| item.item.clone()))
     }
 
     pub fn delete(&mut self, id: Uuid, now: Now) -> Result<bool, ShelfError> {

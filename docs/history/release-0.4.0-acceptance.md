@@ -10,7 +10,7 @@ Record acceptance of the immutable signed 0.4.0 drafts, separately from source t
 
 - `.github/workflows/desktop-release.yml`, `server-release.yml`: protected draft builders.
 - `desktop/src-tauri/src/bin/verify_desktop_update.rs`, `src/server_package.rs`: independent package admission.
-- [Release readiness](release-readiness.md) and [cutover procedure](../compatibility-and-cutover.md): remaining gates.
+- [Release readiness](release-readiness.md) and [cutover procedure](0.4/compatibility-and-cutover.md): remaining gates.
 
 ## Source and Trust
 

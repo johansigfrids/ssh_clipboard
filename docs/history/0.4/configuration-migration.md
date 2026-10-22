@@ -1,3 +1,5 @@
+> Historical 0.4 compatibility guide. The 0.5 source removes these implementations; use the current [fresh setup guide](../../compatibility-and-cutover.md).
+
 # Configuration Migration and Recovery
 
 ## Purpose
@@ -37,7 +39,7 @@ Legacy target, port, key-file reference, SSH options, encoded-frame limit, timeo
 
 The desktop and doctor prepend `BatchMode=yes` so a migrated `BatchMode=no` cannot trigger hidden authentication prompts. SSH's configured host-verification policy is preserved. Ordinary CLI transfers retain the selected profile's interactive behavior unless overridden.
 
-The desktop uses the selected encoded limit for capture and full-request validation, including metadata. Its separate 64 MiB decoded-pixel safety budget remains. Increasing a client setting does not reconfigure the remote proxy/daemon. Shelf profiles separately negotiate their encoded/decoded limits; see [endpoint selection](desktop-history.md#endpoint-selection-and-compatibility).
+The desktop uses the selected encoded limit for capture and full-request validation, including metadata. Its separate 64 MiB decoded-pixel safety budget remains. Increasing a client setting does not reconfigure the remote proxy/daemon. Shelf profiles separately negotiate their encoded/decoded limits; see [endpoint selection](../../desktop-history.md#endpoint-selection-and-compatibility).
 
 Autostart choice and legacy push/pull bindings are retained in schema 2. Direct shortcuts start disabled in the new app, and import neither changes OS startup registration nor stops the old agent. Direct shortcuts now have explicit opt-in desktop controls; installed builds also expose explicit start-at-login controls with actual-registration/save recovery. Portable prototypes cannot register startup. The import summary explains the retained choices. Unknown legacy fields, unsupported versions, or invalid policy values fail rather than being silently dropped. See [cutover ownership](compatibility-and-cutover.md#configuration-and-startup) before replacing the old agent.
 
@@ -68,7 +70,7 @@ Automatic startup migration only writes configuration/backups; it does not insta
 
 Temporary-file/executable tests cover exact source/backup bytes, current-agent serialization, missing/invalid sources, idempotency, backup conflicts, shared-file precedence, schema upgrades, strict fields, stable identity and advanced policy. Rendered/backend probes cover import-review discoverability, inert content, dirty-draft guards, stale writes, dismissal and retention of active session state.
 
-Keep the legacy TOML fixture under both dependency lockfiles; compatible parser ranges alone do not establish migration compatibility. The [configuration checkpoints](history/testing-checkpoints.md#configuration-and-build-checkpoints) retain dated Windows and controlled-adapter results. [Windows native history](history/native-history-acceptance.md) records synthetic import review/relaunch, while [Mac cutover](history/macos-cutover.md) separately records actual-user import and installation. Preserve these source and platform boundaries.
+Keep the legacy TOML fixture under both dependency lockfiles; compatible parser ranges alone do not establish migration compatibility. The [configuration checkpoints](../testing-checkpoints.md#configuration-and-build-checkpoints) retain dated Windows and controlled-adapter results. [Windows native history](../native-history-acceptance.md) records synthetic import review/relaunch, while [Mac cutover](../macos-cutover.md) separately records actual-user import and installation. Preserve these source and platform boundaries.
 
 ## Update Triggers
 
@@ -78,6 +80,6 @@ Keep the legacy TOML fixture under both dependency lockfiles; compatible parser 
 
 ## Related Docs
 
-- [Shared configuration](shared-configuration.md), [build variants](build-variants.md)
-- [Implementation plan](history/implementation-plan.md), [architecture](../ARCHITECTURE.md)
-- [CLI](cli.md), [agent](legacy/agent.md), [testing](testing.md)
+- [Shared configuration](../../shared-configuration.md), [build variants](../../build-variants.md)
+- [Implementation plan](../implementation-plan.md), [architecture](../../../ARCHITECTURE.md)
+- [CLI](../../cli.md), [agent](legacy/agent.md), [testing](../../testing.md)

@@ -5,7 +5,7 @@ use crate::server_package::{MAX_PACKAGE_BYTES, Policy, native_platform};
 use crate::server_releases::{Outcome, Verifier};
 use clap::{Args, Subcommand};
 use eyre::{Result, bail};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Args)]
 pub struct MaintenanceArgs {
@@ -100,12 +100,12 @@ fn run_sync(args: MaintenanceArgs) -> Result<()> {
             acknowledge_clipboard_loss,
         } => {
             acknowledge(acknowledge_clipboard_loss)?;
-            let key = String::from_utf8(read(&public_key, 4096)?)?;
+            let key = String::from_utf8(crate::server_management::input_file(&public_key, 4096)?)?;
             report(
                 Manager::install(
                     &location.path()?,
                     key,
-                    daemon,
+                    daemon.try_into()?,
                     &release.version,
                     release.package.as_deref(),
                     release.signature.as_deref(),
@@ -148,9 +148,11 @@ fn run_sync(args: MaintenanceArgs) -> Result<()> {
             signature,
             package,
         } => {
-            let public_key = String::from_utf8(read(&public_key, 4096)?)?;
-            let signature = String::from_utf8(read(&signature, 16384)?)?;
-            let bytes = read(&package, MAX_PACKAGE_BYTES)?;
+            let public_key =
+                String::from_utf8(crate::server_management::input_file(&public_key, 4096)?)?;
+            let signature =
+                String::from_utf8(crate::server_management::input_file(&signature, 16384)?)?;
+            let bytes = crate::server_management::input_file(&package, MAX_PACKAGE_BYTES)?;
             let platform = native_platform()?;
             Policy::new(&public_key, platform)?.verify(&version, signature.trim(), &bytes)?;
             println!(
@@ -194,6 +196,24 @@ fn report(outcome: Outcome, recovery: bool) -> Result<()> {
     Ok(())
 }
 
-fn read(path: &Path, limit: usize) -> Result<Vec<u8>> {
-    crate::server_management::input_file(path, limit)
+impl TryFrom<super::ShelfDaemonArgs> for crate::server_management::DaemonSettings {
+    type Error = eyre::Report;
+
+    fn try_from(args: super::ShelfDaemonArgs) -> Result<Self> {
+        Ok(Self {
+            socket_path: match args.socket_path {
+                Some(path) => path,
+                None => crate::shelf_daemon::default_socket_path()?,
+            },
+            max_items: args.max_items,
+            retention_secs: args.retention_secs,
+            max_item_bytes: args.max_item_bytes,
+            max_stored_bytes: args.max_stored_bytes,
+            max_resident_bytes: args.max_resident_bytes,
+            max_decoded_bytes: args.max_decoded_bytes,
+            max_connections: args.max_connections,
+            io_timeout_ms: args.io_timeout_ms,
+            idle_timeout_ms: args.idle_timeout_ms,
+        })
+    }
 }

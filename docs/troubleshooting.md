@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Locate failures in the current desktop, shelf server, shared settings and retained V2 routes without confusing their commands or limits.
+Locate failures in the current desktop, shelf server, shared settings and strict session routes without confusing their commands or limits.
 
 ## Key Files
 
@@ -13,14 +13,14 @@ Locate failures in the current desktop, shelf server, shared settings and retain
 
 ## Connection and Endpoint Selection
 
-Use Test saved connection in desktop settings: legacy profiles diagnose V2 PeekMeta; shelf profiles negotiate sessions and request Health. The test does not fetch clipboard payloads or enable Copy by itself. Apply an edited connection before testing it.
+Use Test saved connection in desktop settings to negotiate sessions and request Health. Apply edited settings before testing; Health does not fetch payloads or enable Copy.
 
-CLI `doctor --target <alias-or-user@host>` checks the V2 route only. For shelf health, use `ssh_clipboard shelf --target <alias-or-user@host> health`. A healthy route does not establish that a separate endpoint works. See [diagnostics](connection-diagnostics.md) and the [connection matrix](compatibility-and-cutover.md#connection-matrix).
+For CLI Health, use `ssh_clipboard shelf --target <alias-or-user@host> health`. Verify the actual restricted session route.
 
 - Authentication/host-trust failure: resolve the existing key, agent or known-hosts setup in an ordinary terminal. Keep host verification enabled.
 - Command unavailable: inspect the noninteractive SSH PATH or the reviewed absolute forced command. Managed installs use a per-user launcher; local service health does not prove SSH resolves it.
-- A key forced to `proxy` always remains V2. A shelf profile requires a reviewed `session-proxy` route. Keep maintenance access separate; do not widen a transfer key.
-- Noisy shell/MOTD: V2 permits bounded resynchronization unless `--strict-frames` is selected. Shelf framing is strict; keep its binary stdio path free of shell output.
+- Use an explicitly reviewed `session-proxy` forced command; keep maintenance access separate and preserve key restrictions.
+- Noisy shell/MOTD: session framing is strict. Keep the binary stdio path free of login output; there is no resynchronization fallback.
 
 ## Managed Shelf Service
 
@@ -35,36 +35,29 @@ An unfinished signed update uses explicit `server-maintenance recover --acknowle
 - Corrupt, unsupported or unknown-field settings: preserve the original and backup before repair. The desktop disables saves over unreadable data and reloads a repaired file; it must not silently replace it with defaults.
 - External revision conflict: retain any needed edits, then Discard to load the latest saved state before editing again. Transfers use saved settings while a local draft remains unapplied.
 - Startup mismatch/unknown state: actual OS registration and saved preference are separate. Current source applies an explicit pending startup choice with the draft; unrelated saves leave external startup changes alone.
-- Imported settings: review the backup and retained old-agent ownership. Dismissing the import review does not stop an agent or register startup.
+- Old settings/schema: preserve the file and configure afresh at settings.json. See [fresh cutover](compatibility-and-cutover.md).
 
-See [shared configuration](shared-configuration.md) and [migration/recovery](configuration-migration.md). On Windows, automation-process registry reads can differ from the registry service's real-profile view; verify installation/startup in the normal desktop context. See [startup guardrails](desktop-updates.md#start-at-login).
+See [shared configuration](shared-configuration.md) and [fresh cutover](compatibility-and-cutover.md). On Windows, automation-process registry reads can differ from the registry service's real-profile view; verify installation/startup in the normal desktop context. See [startup guardrails](desktop-updates.md#start-at-login).
 
 ## History, Copy and Uncertain Shares
 
-Selection and preview do not write the local clipboard. Shelf Copy revalidates the selected item/epoch; an expired/deleted item leaves the clipboard unchanged. Legacy Copy uses the displayed snapshot, so Refresh is required to display a different server value. Direct Copy deliberately targets the newest item.
+Selection and preview do not write the local clipboard. Shelf Copy revalidates the selected item/epoch; an expired/deleted item leaves the clipboard unchanged. Direct Copy deliberately targets the newest item.
 
 Transient shelf failures use bounded metadata reconnect; trust/authentication/protocol errors pause for explicit Reconnect history. Reconnect does not replay transfers. Cancel is not rollback: an unacknowledged Share may already have committed. Use Check share status before deciding on Retry captured share or Discard recovery data; a new clipboard sample is not a retry. See [share recovery](share-recovery.md).
 
 ## Clipboard and Limits
 
-A Windows clipboard can be temporarily locked by another application. For Linux CLI/legacy clipboard access, a working X11/Wayland session is required; headless builds require explicit stdin/stdout/file modes. Use supported plain text or PNG; `pull --output` or `--stdout --base64` avoids writing image data to a text-only destination.
+A Windows clipboard can be temporarily locked by another application. The desktop retains native ownership; the CLI has no OS clipboard access. Use `shelf share --file/--stdin` and `shelf fetch --output/--stdout` for explicit exports.
 
-| Endpoint | Default encoded policy | Decoded-image policy |
-| --- | --- | --- |
-| V2 CLI/legacy profile | 10 MiB frame, including serialized metadata | 64 MiB, narrowed by an adapter's shelf policy |
-| Shelf session | 64 MiB item, narrowed by negotiated client/server limits | 256 MiB default, narrowed by negotiation |
+Session defaults are 64 MiB encoded items, 256 MiB decoded images and 7,000 ms client operations; the server may narrow effective limits. Aggregate/resident budgets are separate. Inspect actual SSH failures before raising timeouts; uncertain mutations are not replayed automatically.
 
-Metadata can describe a shelf item too large for a V2 Get. Raising the client limit does not change the proxy/daemon or the shelf's aggregate/resident budgets. Coordinate policies deliberately; use smaller content when appropriate. See [V2 framing](protocol.md), [shelf limits](shelf-core.md) and [client validation](shelf-client.md).
-
-For timeouts, inspect the actual SSH failure and endpoint deadlines before increasing values. V2 uses client `--timeout-ms` and daemon/proxy `--io-timeout-ms`; shelf operation/idle/proxy policies are separate. An unacknowledged timed-out mutation remains uncertain.
-
-## Updates, Startup and Legacy Tools
+## Updates and Startup
 
 An update must pass signature and release-identity verification before Install is available. Resolve/discard an uncertain Share and apply/discard settings before installation. Verification failure does not justify bypassing trust, replacing a pinned key or rewriting a signed asset. See [desktop updates](desktop-updates.md) and [key recovery](releasing.md#key-rotation-and-recovery).
 
 For missing native notifications, check Behavior capability/help and OS notification settings; portable Windows uses panel fallback. Shortcuts act in the background and recording suppresses transfer dispatch. See [feedback](desktop-notifications.md) and [shortcuts](desktop-shortcuts.md).
 
-Old `install-client`, `setup-agent`, `config` and `autostart` commands require the retired agent compatibility build. Use [legacy agent guidance](legacy/agent.md), [legacy client setup](legacy/client-setup.md) and [legacy server setup](legacy/server-setup.md) only for those installations. New installs use [desktop setup](../README.md#install-the-desktop) and [managed server setup](server-setup.md).
+Removed commands/features are not available in 0.5. Configure the desktop and managed session server using [fresh setup](compatibility-and-cutover.md).
 
 ## Update Triggers
 
@@ -74,4 +67,4 @@ Old `install-client`, `setup-agent`, `config` and `autostart` commands require t
 ## Related Docs
 
 - [CLI reference](cli.md), [testing](testing.md), [security](security.md).
-- [Compatibility/cutover](compatibility-and-cutover.md), [docs index](index.md).
+- [Fresh setup/cutover](compatibility-and-cutover.md), [docs index](index.md).

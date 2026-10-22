@@ -10,7 +10,7 @@ Record the owner-authorized live installation of the signed 0.4.0 server and ret
 
 - `src/server_management.rs`, `src/server_releases.rs`: managed launcher/unit, pinned options, verified activation and recovery.
 - [0.4.0 artifact acceptance](release-0.4.0-acceptance.md): immutable source/package/trust and isolated service evidence.
-- [Compatibility and cutover](../compatibility-and-cutover.md): owner-requested clean replacement and return-path boundaries.
+- [Compatibility and cutover](0.4/compatibility-and-cutover.md): owner-requested clean replacement and return-path boundaries.
 
 ## Exact Artifact
 

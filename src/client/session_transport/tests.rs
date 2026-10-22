@@ -248,8 +248,7 @@ async fn explicit_session_selection_rejects_missing_or_option_targets_before_lau
         let config = SshConfig {
             target: target.into(),
             port: None,
-            user: None,
-            host: None,
+
             identity_file: None,
             ssh_options: vec![],
             ssh_bin: Some("does-not-exist".into()),

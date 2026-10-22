@@ -15,8 +15,7 @@ fn target(profile: &str) -> Target {
         ssh: SshConfig {
             target: "synthetic-only".into(),
             port: None,
-            user: None,
-            host: None,
+
             identity_file: None,
             ssh_options: vec![],
             ssh_bin: None,

@@ -57,7 +57,6 @@ async fn hello_wire_fixture_freezes_the_independent_bootstrap_and_json() {
     );
     assert_eq!(&frame[16..], HELLO);
     assert_eq!(read_hello(&mut frame.as_slice()).await.unwrap(), hello());
-    assert_ne!(MAGIC, crate::protocol::MAGIC);
 }
 
 #[test]
@@ -177,7 +176,15 @@ async fn metadata_space_does_not_reduce_the_exact_payload_budget() {
     let validated = received
         .upload
         .unwrap()
-        .validate(shelf::ContentType::Text, None, None, None)
+        .validate(
+            shelf::ContentType::Text,
+            shelf::Origin {
+                device_id: Uuid::from_u128(1),
+                name: "Test".into(),
+            },
+            None,
+            Uuid::new_v4(),
+        )
         .unwrap();
     drop(validated);
     assert_eq!(budget.resident_bytes(), 0);
@@ -308,7 +315,15 @@ fn response_payloads_and_list_page_boundaries_are_checked() {
     let mut input = shelf.upload_budget().allocate(4).unwrap();
     input.bytes_mut().copy_from_slice(b"test");
     let prepared = input
-        .validate(shelf::ContentType::Text, None, None, None)
+        .validate(
+            shelf::ContentType::Text,
+            shelf::Origin {
+                device_id: Uuid::from_u128(1),
+                name: "Test".into(),
+            },
+            None,
+            Uuid::new_v4(),
+        )
         .unwrap();
     let committed = shelf.commit(shelf.epoch(), prepared, now).unwrap();
     let item = Item::try_from(&committed.metadata).unwrap();
@@ -361,10 +376,15 @@ async fn negotiated_decode_budget_reaches_the_actual_png_validator() {
         .await
         .unwrap();
     assert!(matches!(
-        received
-            .upload
-            .unwrap()
-            .validate(shelf::ContentType::Png, None, None, None),
+        received.upload.unwrap().validate(
+            shelf::ContentType::Png,
+            shelf::Origin {
+                device_id: Uuid::from_u128(1),
+                name: "Test".into()
+            },
+            None,
+            Uuid::new_v4()
+        ),
         Err(shelf::ShelfError::InvalidImage)
     ));
     assert_eq!(shelf.upload_budget().resident_bytes(), 0);

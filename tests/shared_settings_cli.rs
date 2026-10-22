@@ -172,8 +172,9 @@ fn failed_cli_edits_preserve_corrupt_files_and_existing_profiles() {
 fn missing_profile_fails_before_ssh_or_clipboard_access() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("settings.json");
-    for command in ["push", "pull", "peek", "doctor"] {
+    for command in ["health", "list"] {
         let output = Command::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
+            .arg("shelf")
             .arg(command)
             .arg("--settings-file")
             .arg(&path)
@@ -211,21 +212,31 @@ fn relative_settings_paths_work_without_rewriting_other_files() {
     assert!(directory.path().join("local.json").is_file());
 }
 
-#[cfg(not(feature = "system-clipboard"))]
 #[test]
-fn headless_clipboard_requests_explain_stdio_alternatives_before_starting_ssh() {
-    for command in ["push", "pull"] {
-        let output = Command::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
-            .args([
-                command,
-                "--target",
-                "synthetic-hub",
-                "--ssh-bin",
-                "nonexistent-test-ssh",
-            ])
-            .output()
-            .unwrap();
-        assert_eq!(output.status.code(), Some(6));
-        assert!(String::from_utf8_lossy(&output.stderr).contains("no OS clipboard support"));
+fn old_and_future_schemas_are_rejected_without_rewriting_or_importing() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("settings.json");
+    let old = directory.path().join("settings-v1.json");
+    let agent = directory.path().join("agent.toml");
+    std::fs::write(&old, b"old shared settings").unwrap();
+    std::fs::write(&agent, b"old agent settings").unwrap();
+    let fresh = document(cli(&path, &["show"]));
+    assert_eq!(fresh.schema_version, 3);
+    assert!(!path.exists());
+    for schema in [1, 2, 4] {
+        let bytes = format!("{{\"schema_version\":{schema}}}");
+        std::fs::write(&path, &bytes).unwrap();
+        for command in [vec!["show"], vec!["set", "--target", "replacement"]] {
+            let output = cli(&path, &command);
+            assert!(!output.status.success());
+            assert!(String::from_utf8_lossy(&output.stderr).contains("unsupported schema"));
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
+        }
     }
+    assert_eq!(std::fs::read(&old).unwrap(), b"old shared settings");
+    assert_eq!(std::fs::read(&agent).unwrap(), b"old agent settings");
+    assert_eq!(
+        ConfigStore::user().unwrap().path().file_name().unwrap(),
+        "settings.json"
+    );
 }

@@ -57,5 +57,5 @@ Anonymous HTTPS requests verified the public latest-release API, repository-wide
 
 ## Related Docs
 
-- [Desktop updates](../desktop-updates.md), [compatibility and cutover](../compatibility-and-cutover.md), [server maintenance](../server-maintenance.md).
+- [Desktop updates](../desktop-updates.md), [compatibility and cutover](0.4/compatibility-and-cutover.md), [server maintenance](../server-maintenance.md).
 - [Implementation plan](implementation-plan.md), [architecture](../../ARCHITECTURE.md), [docs index](../index.md).

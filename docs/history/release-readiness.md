@@ -12,7 +12,7 @@ Keep delivered release evidence and its explicit limits in one place. The [imple
 - `.github/workflows/desktop-release.yml`, `server-release.yml`: master-only protected draft staging.
 - `desktop/scripts/build-installed.mjs`, `release-source.mjs`: desktop source/package evidence.
 - `desktop/tests/desktop-release.test.mjs`, `release-source.test.mjs`: source admission and actual draft-handoff refusal tests.
-- [Release operations](../releasing.md) and [compatibility/cutover](../compatibility-and-cutover.md): trust, publication and live migration procedure.
+- [Release operations](../releasing.md) and [compatibility/cutover](0.4/compatibility-and-cutover.md): trust, publication and live migration procedure.
 
 ## Candidate Scope
 
@@ -56,7 +56,7 @@ Desktop 0.4.2 and server 0.4.0 are published with independent exact-source/signa
 
 On 2026-10-18 the owner deferred Linux desktop work and additional broad manual verification of rare scenarios. Recorded native image/Gatekeeper, interruption/recovery and server reboot/logout gaps remain accurately unverified, but are non-blocking and not scheduled test assignments. Automated regression coverage remains. Native checks are reconsidered only for a specific relevant change or real defect, using a short finite checklist.
 
-[Legacy retirement](../legacy-retirement.md) removes the old agent from default builds and retires its automatic publisher while retaining opt-in agent source, V2 routes/imports and backups through 0.4. No live service, installed app or signed asset changes in that cleanup. The [implementation plan](implementation-plan.md) is closed for the agreed Windows/Apple Silicon/Linux-server scope; future platforms/features or compatibility removal need a new explicit scope decision.
+[Legacy retirement](0.4/legacy-retirement.md) removes the old agent from default builds and retires its automatic publisher while retaining opt-in agent source, V2 routes/imports and backups through 0.4. No live service, installed app or signed asset changes in that cleanup. The [implementation plan](implementation-plan.md) is closed for the agreed Windows/Apple Silicon/Linux-server scope; future platforms/features or compatibility removal need a new explicit scope decision.
 
 ## Update Triggers
 
@@ -67,4 +67,4 @@ On 2026-10-18 the owner deferred Linux desktop work and additional broad manual 
 
 - [Implementation plan](implementation-plan.md), [architecture](../../ARCHITECTURE.md), and [testing](../testing.md).
 - [Release operations](../releasing.md), [desktop updates](../desktop-updates.md), and [server maintenance](../server-maintenance.md).
-- [Compatibility/cutover](../compatibility-and-cutover.md) and [native history acceptance](native-history-acceptance.md).
+- [Compatibility/cutover](0.4/compatibility-and-cutover.md) and [native history acceptance](native-history-acceptance.md).

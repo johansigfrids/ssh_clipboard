@@ -1,4 +1,4 @@
-use ssh_clipboard::configuration::{ConfigError, ConfigStore, Configuration};
+use ssh_clipboard::configuration::{ConfigError, ConfigStore};
 
 #[cfg(any(all(target_os = "macos", native_update_test), test))]
 fn isolated_store(shared: &ConfigStore) -> Result<ConfigStore, ConfigError> {
@@ -8,8 +8,7 @@ fn isolated_store(shared: &ConfigStore) -> Result<ConfigStore, ConfigError> {
         .and_then(std::path::Path::parent)
         .ok_or(ConfigError::Invalid)?;
     Ok(ConfigStore::new(
-        root.join("ssh_clipboard-update-test")
-            .join("settings-v1.json"),
+        root.join("ssh_clipboard-update-test").join("settings.json"),
     ))
 }
 
@@ -25,26 +24,15 @@ pub fn store() -> Result<ConfigStore, ConfigError> {
     }
 }
 
-pub fn initialize(store: &ConfigStore) -> Result<Option<Configuration>, ConfigError> {
-    // Native Mac rehearsals must neither discover nor back up real legacy files.
-    #[cfg(all(target_os = "macos", native_update_test))]
-    {
-        store.load()
-    }
-    #[cfg(not(all(target_os = "macos", native_update_test)))]
-    {
-        store.initialize()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ssh_clipboard::configuration::Configuration;
 
     #[test]
     fn rehearsal_settings_writes_preserve_the_normal_store() {
         let directory = tempfile::tempdir().unwrap();
-        let normal = ConfigStore::new(directory.path().join("ssh_clipboard/settings-v1.json"));
+        let normal = ConfigStore::new(directory.path().join("ssh_clipboard/settings.json"));
         let production = normal
             .prepare(None, Configuration::default())
             .unwrap()

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe the shelf endpoint's bootstrap, framing, negotiated messages and resource contracts. Version 2 (`SCB1`) remains a separately selected compatibility endpoint; see [the connection matrix](compatibility-and-cutover.md#connection-matrix).
+Describe the shelf endpoint's bootstrap, framing, negotiated messages and resource contracts. Version 2 (`SCB1`) remains a separately selected compatibility endpoint; see [the connection matrix](history/0.4/compatibility-and-cutover.md#connection-matrix).
 
 ## Key Files
 
@@ -10,7 +10,6 @@ Describe the shelf endpoint's bootstrap, framing, negotiated messages and resour
 - `src/session_protocol/framing.rs`: bounded metadata/raw payload frames.
 - `src/session_protocol/tests.rs`: fixtures and malformed/boundary probes.
 - `src/shelf.rs`: validated payload ownership and shelf mutations.
-- `src/protocol.rs`, `src/framing.rs`: frozen legacy version 2, unchanged.
 
 ## Endpoint and Bootstrap
 
@@ -65,21 +64,21 @@ Shared replies return item metadata, `duplicate`, and `available`. Identical ret
 
 Stable errors: `invalid_request`, `unsupported_version`, `invalid_state`, `payload_too_large`, `invalid_content`, `busy`, `retry_window_full`, `retry_expired`, `operation_conflict`, `epoch_changed`, `not_found`, `resync_required`, `daemon_unavailable`, and `internal`.
 
-Stored PNG descriptors also include `decoded_bytes`, the larger of native decoder output and RGBA pixel bytes. This prevents sending a 16-bit image to a peer whose budget fits its dimensions as RGBA but cannot hold its native decode buffer. Text uses null. A Share may omit the field when unknown; supplied dimensions/decoded counts must agree with validation. This descriptor is part of session version 1; it does not change Hello or V2 fixtures.
+Stored PNG descriptors also include `decoded_bytes`, the larger of native decoder output and RGBA pixel bytes. This prevents sending a 16-bit image to a peer whose budget fits its dimensions as RGBA but cannot hold its native decode buffer. Text uses null. A Share may omit the field when unknown; supplied dimensions/decoded counts must agree with validation. This descriptor is part of session version 1; it does not change Hello.
 
 ## Resource and Session Rules
 
-Item metadata includes a bounded `label` (nonempty, at most 256 UTF-8 bytes, no control characters). The shelf derives it from the first nonempty text line (60 Unicode characters plus optional ellipsis) or validated image dimensions, without changing payload bytes. This label is part of the session item descriptor; Hello and V2 bytes are unchanged. Labels are content previews, so metadata must not be logged or sent through hidden-preview IPC. Health/legacy PeekMeta do not include labels.
+Item metadata includes a bounded `label` (nonempty, at most 256 UTF-8 bytes, no control characters). The shelf derives it from the first nonempty text line (60 Unicode characters plus optional ellipsis) or validated image dimensions, without changing payload bytes. This label is part of the session item descriptor; Hello bytes are unchanged. Labels are content previews, so metadata must not be logged or sent through hidden-preview IPC. Health does not include labels.
 
 The frame reader separates header, metadata, and payload stages. Decode/validate the control object and body association before reserving raw upload bytes. Read directly into the shelf's bounded upload buffer. Framing/decode failure closes the stream. A resource rejection may drain only its validated bounded body under the operation deadline before replying; never continue from an undrained body. Send payloads from immutable leases without duplicating their bytes into JSON or a combined frame buffer.
 
 The [service](shelf-service.md) and [Linux endpoint](shelf-server.md) bound accepted connections and queued work before allocation, apply operation/idle/write deadlines, enforce same-UID/socket ownership, release leases on disconnect, and run expiry without traffic. Client/session state validates per-peer limits, epoch, IDs, response kind, pagination and representations. Preserve these integration requirements when changing framing; codec tests alone do not establish them.
 
-New framing is strict initially; bounded noisy-shell resynchronization belongs to the client session driver and must never scan payload bytes as new messages after a framing failure. Legacy one-shot noisy-shell support remains unchanged.
+Session framing is strict throughout. Do not scan for another header after corrupt or noisy output; close and reconnect without replaying mutations.
 
 ## Validation
 
-Codec and negotiation fixtures run independently of sockets and SSH. [Stream tests](shelf-service.md) cover actions, pagination and deadlines; [Linux endpoint tests](shelf-server.md#validation) cover real processes and mixed V2/session routes. [Client tests](shelf-client.md) validate association/content and lifecycle behavior. Real SSH, native Windows history and installed Linux acceptance are recorded separately in [testing](testing.md) and [release evidence](history/release-readiness.md).
+Codec and negotiation fixtures run independently of sockets and SSH. [Stream tests](shelf-service.md) cover actions, pagination and deadlines; [Linux endpoint tests](shelf-server.md#validation) cover real session processes. [Client tests](shelf-client.md) validate association/content and lifecycle behavior. Real SSH, native Windows history and installed Linux acceptance are recorded separately in [testing](testing.md) and [release evidence](history/release-readiness.md).
 
 ## Update Triggers
 
@@ -88,7 +87,7 @@ Codec and negotiation fixtures run independently of sockets and SSH. [Stream tes
 
 ## Related Docs
 
-- [Legacy protocol](protocol.md)
+- [Legacy protocol](history/0.4/protocol.md)
 - [Shelf core](shelf-core.md)
 - [Implementation plan](history/implementation-plan.md)
 - [Connection diagnostics](connection-diagnostics.md)

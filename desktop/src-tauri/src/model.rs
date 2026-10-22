@@ -1,36 +1,12 @@
+use crate::clipboard_payload::{CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardPayload};
 use crate::connection::TransportDraft;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use image::ImageEncoder;
 use serde::{Deserialize, Serialize};
-use ssh_clipboard::client::transport::ClientConfig;
+use ssh_clipboard::client::config::ClientConfig;
+
 #[cfg(test)]
-use ssh_clipboard::protocol::DEFAULT_MAX_SIZE;
-use ssh_clipboard::protocol::{
-    CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardValue, Request, RequestKind,
-};
-
-pub const MAX_DECODED_BYTES: usize = 64 * 1024 * 1024;
-
-pub fn validate_transfer_size(request: &Request, max_size: usize) -> Result<(), String> {
-    if let RequestKind::Set { value } = &request.kind {
-        let bytes = ssh_clipboard::framing::encode_message(request)
-            .map_err(|_| "Could not prepare this item for sharing.".to_string())?
-            .len();
-        if bytes > max_size {
-            let item = if value.content_type == CONTENT_TYPE_PNG {
-                "image"
-            } else {
-                "text"
-            };
-            return Err(format!(
-                "This {item} needs {:.2} MiB to share, above the {:.2} MiB ({max_size} bytes) transfer limit including metadata. Copy a smaller item and try again.",
-                bytes as f64 / 1048576.0,
-                max_size as f64 / 1048576.0
-            ));
-        }
-    }
-    Ok(())
-}
+pub(crate) const MAX_DECODED_BYTES: usize = 256 * 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,7 +18,7 @@ pub struct SessionSettings {
     pub identity_file: String,
     pub transport: TransportDraft,
     #[serde(default)]
-    pub endpoint: ssh_clipboard::configuration::Endpoint,
+    pub limits: ssh_clipboard::configuration::SessionLimits,
     pub open_shortcut: String,
     pub shortcut_enabled: bool,
     pub direct_shortcuts_enabled: bool,
@@ -62,7 +38,7 @@ impl Default for SessionSettings {
             port: None,
             identity_file: String::new(),
             transport: TransportDraft::default(),
-            endpoint: Default::default(),
+            limits: Default::default(),
             open_shortcut: "CommandOrControl+Alt+Shift+S".into(),
             shortcut_enabled: !is_wayland(),
             direct_shortcuts_enabled: false,
@@ -87,7 +63,7 @@ impl SessionSettings {
             port: profile.port,
             identity_file: profile.identity_file.clone(),
             transport: TransportDraft::from(&profile.transport),
-            endpoint: profile.endpoint.clone(),
+            limits: profile.limits.clone(),
             open_shortcut: config.preferences.open_shortcut.clone(),
             shortcut_enabled: config.preferences.shortcut_enabled,
             direct_shortcuts_enabled: config.preferences.direct_shortcuts_enabled,
@@ -127,7 +103,7 @@ impl SessionSettings {
         profile.port = self.port;
         profile.identity_file = self.identity_file.clone();
         profile.transport = transport;
-        profile.endpoint = self.endpoint.clone();
+        profile.limits = self.limits.clone();
         config.preferences.open_shortcut = self.open_shortcut.clone();
         config.preferences.shortcut_enabled = self.shortcut_enabled;
         config.preferences.direct_shortcuts_enabled = self.direct_shortcuts_enabled;
@@ -144,7 +120,7 @@ impl SessionSettings {
             return Err("Enter a connection name without control characters.".into());
         }
         let transport = self.transport.to_shared()?;
-        self.endpoint.session_policy(transport.timeout_ms)?;
+        self.limits.session_policy(transport.timeout_ms)?;
         ssh_clipboard::configuration::validate_connection(
             self.target.trim(),
             self.port,
@@ -161,16 +137,16 @@ impl SessionSettings {
     }
 
     pub fn client_config(&self) -> Result<ClientConfig, String> {
-        Ok(ssh_clipboard::configuration::Profile {
+        ssh_clipboard::configuration::Profile {
             id: self.profile_id.clone().unwrap_or_default(),
             name: self.profile_name.clone(),
             target: self.target.trim().into(),
             port: self.port,
             identity_file: self.identity_file.clone(),
             transport: self.transport.to_shared()?,
-            endpoint: self.endpoint.clone(),
+            limits: self.limits.clone(),
         }
-        .client_config())
+        .client_config()
     }
 }
 
@@ -183,7 +159,7 @@ pub struct ConnectionProfile {
     pub port: Option<u16>,
     pub identity_file: String,
     pub transport: TransportDraft,
-    pub endpoint: ssh_clipboard::configuration::Endpoint,
+    pub limits: ssh_clipboard::configuration::SessionLimits,
 }
 
 impl From<&ssh_clipboard::configuration::Profile> for ConnectionProfile {
@@ -195,7 +171,7 @@ impl From<&ssh_clipboard::configuration::Profile> for ConnectionProfile {
             port: profile.port,
             identity_file: profile.identity_file.clone(),
             transport: TransportDraft::from(&profile.transport),
-            endpoint: profile.endpoint.clone(),
+            limits: profile.limits.clone(),
         }
     }
 }
@@ -221,12 +197,13 @@ pub struct ItemPreview {
 }
 
 impl ItemPreview {
-    pub fn from_value(value: &ClipboardValue, show_preview: bool) -> Result<Self, String> {
+    #[cfg(test)]
+    pub fn from_value(value: &ClipboardPayload, show_preview: bool) -> Result<Self, String> {
         Self::from_value_with_limit(value, show_preview, MAX_DECODED_BYTES)
     }
 
     pub fn from_value_with_limit(
-        value: &ClipboardValue,
+        value: &ClipboardPayload,
         show_preview: bool,
         max_decoded: usize,
     ) -> Result<Self, String> {
@@ -239,7 +216,7 @@ impl ItemPreview {
             created_at: value.created_at,
             dimensions: None,
         };
-        match value.content_type.as_str() {
+        match value.content_type {
             CONTENT_TYPE_TEXT => {
                 let text = std::str::from_utf8(&value.data)
                     .map_err(|_| "The remote text is not valid UTF-8.".to_string())?;
@@ -293,7 +270,6 @@ impl ItemPreview {
                         Some(format!("data:image/png;base64,{}", STANDARD.encode(png)));
                 }
             }
-            _ => return Err("The remote clipboard format is not supported.".into()),
         }
         Ok(preview)
     }
@@ -385,46 +361,9 @@ mod tests {
     }
 
     #[test]
-    fn share_budget_includes_metadata_at_the_actual_wire_boundary() {
-        let mut request = Request {
-            request_id: u64::MAX,
-            kind: RequestKind::Set {
-                value: ClipboardValue {
-                    content_type: CONTENT_TYPE_PNG.into(),
-                    data: vec![0; DEFAULT_MAX_SIZE],
-                    created_at: i64::MAX,
-                },
-            },
-        };
-        assert!(
-            validate_transfer_size(&request, DEFAULT_MAX_SIZE)
-                .unwrap_err()
-                .contains("including metadata")
-        );
-        let overhead = ssh_clipboard::framing::encode_message(&request)
-            .unwrap()
-            .len()
-            - DEFAULT_MAX_SIZE;
-        if let RequestKind::Set { value } = &mut request.kind {
-            value.data.truncate(DEFAULT_MAX_SIZE - overhead);
-        }
-        assert_eq!(
-            ssh_clipboard::framing::encode_message(&request)
-                .unwrap()
-                .len(),
-            DEFAULT_MAX_SIZE
-        );
-        assert!(validate_transfer_size(&request, DEFAULT_MAX_SIZE).is_ok());
-        if let RequestKind::Set { value } = &mut request.kind {
-            value.data.push(0);
-        }
-        assert!(validate_transfer_size(&request, DEFAULT_MAX_SIZE).is_err());
-    }
-
-    #[test]
     fn labels_use_content_without_modifying_the_payload() {
-        let value = ClipboardValue {
-            content_type: CONTENT_TYPE_TEXT.into(),
+        let value = ClipboardPayload {
+            content_type: CONTENT_TYPE_TEXT,
             data: "\n  Notes\nKeep spacing  ".as_bytes().to_vec(),
             created_at: 7,
         };
@@ -436,8 +375,8 @@ mod tests {
 
     #[test]
     fn hidden_previews_do_not_send_text_or_labels_to_the_frontend() {
-        let value = ClipboardValue {
-            content_type: CONTENT_TYPE_TEXT.into(),
+        let value = ClipboardPayload {
+            content_type: CONTENT_TYPE_TEXT,
             data: b"private contents".to_vec(),
             created_at: 0,
         };
@@ -481,47 +420,6 @@ mod tests {
     }
 
     #[test]
-    fn prototype_codec_preserves_the_legacy_version_two_wire_contract() {
-        use ssh_clipboard::framing::{decode_message, encode_message};
-        use ssh_clipboard::protocol::{ErrorCode, Request, RequestKind, Response, ResponseKind};
-        // Match the locked fixtures in src/protocol.rs using this project's lockfile.
-        let set_fixture: &[u8] = &[
-            42, 0, 25, 116, 101, 120, 116, 47, 112, 108, 97, 105, 110, 59, 32, 99, 104, 97, 114,
-            115, 101, 116, 61, 117, 116, 102, 45, 56, 5, 104, 101, 108, 108, 111, 246,
-        ];
-        let error_fixture: &[u8] = &[7, 4, 1, 7, 116, 111, 111, 32, 98, 105, 103];
-        let request = Request {
-            request_id: 42,
-            kind: RequestKind::Set {
-                value: ClipboardValue {
-                    content_type: CONTENT_TYPE_TEXT.into(),
-                    data: b"hello".to_vec(),
-                    created_at: 123,
-                },
-            },
-        };
-        assert_eq!(encode_message(&request).unwrap(), set_fixture);
-        assert_eq!(
-            decode_message::<Request>(set_fixture).unwrap().request_id,
-            42
-        );
-        let response = Response {
-            request_id: 7,
-            kind: ResponseKind::Error {
-                code: ErrorCode::PayloadTooLarge,
-                message: "too big".into(),
-            },
-        };
-        assert_eq!(encode_message(&response).unwrap(), error_fixture);
-        assert_eq!(
-            decode_message::<Response>(error_fixture)
-                .unwrap()
-                .request_id,
-            7
-        );
-    }
-
-    #[test]
     fn image_preview_is_bounded_and_can_be_hidden_without_losing_payload() {
         let data =
             ssh_clipboard::client::image::encode_png(ssh_clipboard::client::image::ImageData {
@@ -530,8 +428,8 @@ mod tests {
                 bytes: vec![255, 0, 0, 255].into(),
             })
             .unwrap();
-        let value = ClipboardValue {
-            content_type: CONTENT_TYPE_PNG.into(),
+        let value = ClipboardPayload {
+            content_type: CONTENT_TYPE_PNG,
             data: data.clone(),
             created_at: 0,
         };

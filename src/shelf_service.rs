@@ -278,12 +278,12 @@ impl ShelfService {
             let prepared = tokio::task::spawn_blocking(move || {
                 input.validate(
                     representation.content_type.into(),
-                    Some(Origin {
+                    Origin {
                         device_id: origin.device_id,
                         name: origin.name,
-                    }),
+                    },
                     created_at_ms.map(|time| time.get()),
-                    Some(operation_id),
+                    operation_id,
                 )
             })
             .await
@@ -472,6 +472,5 @@ fn code(error: &ShelfError) -> ErrorCode {
     }
 }
 
-mod legacy;
 #[cfg(test)]
 mod tests;

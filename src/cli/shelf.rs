@@ -1,6 +1,6 @@
 //! Explicit item-aware CLI. Metadata on stdout unless an explicit fetch exports bytes.
 use super::{ClientConfigArgs, build_client_config, settings};
-use crate::client::session::{Action, SessionPolicy};
+use crate::client::session::Action;
 use crate::client::session_transport::{self as transport, Operation, Outcome};
 use crate::session_protocol::{ContentType, Origin, Representation};
 use clap::{Args, Subcommand, ValueEnum};
@@ -27,11 +27,11 @@ pub struct ShelfArgs {
     ssh_bin: Option<PathBuf>,
     #[arg(long, global = true)]
     timeout_ms: Option<u64>,
-    /// Encoded payload budget for the new endpoint; independent of the V2 frame setting.
-    #[arg(long, global=true, default_value_t=64*1024*1024)]
-    max_item_bytes: u32,
-    #[arg(long, global=true, default_value_t=256*1024*1024)]
-    max_decoded_bytes: u32,
+    /// Override the selected profile's encoded item limit.
+    #[arg(long, global = true)]
+    max_item_bytes: Option<u32>,
+    #[arg(long, global = true)]
+    max_decoded_bytes: Option<u32>,
     #[command(subcommand)]
     command: ShelfCommand,
 }
@@ -95,13 +95,10 @@ pub async fn run(args: ShelfArgs) -> Result<()> {
         ssh_option: args.ssh_option,
         ssh_bin: args.ssh_bin,
         timeout_ms: args.timeout_ms,
-        ..Default::default()
-    })?;
-    let policy = SessionPolicy {
         max_item_bytes: args.max_item_bytes,
         max_decoded_bytes: args.max_decoded_bytes,
-        operation_timeout: std::time::Duration::from_millis(config.timeout_ms),
-    };
+    })?;
+    let policy = config.policy;
     policy.validate()?;
     let mut payload = Vec::new();
     let mut export = None;

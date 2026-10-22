@@ -17,14 +17,10 @@ pub enum FailureKind {
     ProxyMissing,
     Timeout,
     ProtocolVersion,
-    ProtocolFraming,
     InvalidResponse,
-    ResponseTooLarge,
     RequestEncoding,
-    ResponseMismatch,
     SshExit,
     Io,
-    InvalidTimeout,
 }
 
 impl FailureKind {
@@ -42,14 +38,10 @@ impl FailureKind {
             Self::ProxyMissing => "SSH reported that the clipboard proxy command is unavailable.",
             Self::Timeout => "The clipboard operation timed out.",
             Self::ProtocolVersion => "The server uses an incompatible clipboard protocol.",
-            Self::ProtocolFraming => "SSH output did not contain a valid clipboard frame.",
             Self::InvalidResponse => "The server sent an invalid clipboard reply.",
-            Self::ResponseTooLarge => "The server reply exceeds this connection's transfer limit.",
             Self::RequestEncoding => "The clipboard request could not be prepared.",
-            Self::ResponseMismatch => "The server reply did not match this request.",
             Self::SshExit => "SSH exited before completing the clipboard operation.",
             Self::Io => "The SSH stream closed before the operation completed.",
-            Self::InvalidTimeout => "The configured timeout is not supported on this computer.",
         }
     }
 
@@ -83,23 +75,14 @@ impl FailureKind {
             Self::Timeout => {
                 "Check the network and server. Increase the timeout only if the connection needs longer."
             }
-            Self::ProtocolVersion | Self::InvalidResponse | Self::ResponseMismatch => {
+            Self::ProtocolVersion | Self::InvalidResponse => {
                 "Check compatible client/server versions and that SSH runs the clipboard proxy."
-            }
-            Self::ResponseTooLarge => {
-                "Use a smaller item or coordinate compatible client, proxy, and daemon limits."
             }
             Self::RequestEncoding => {
                 "Try a supported text or PNG item and check the connection settings."
             }
-            Self::ProtocolFraming => {
-                "Check the remote proxy and SSH login output. Use bounded framing recovery for a login banner."
-            }
             Self::SshExit | Self::Io => {
                 "Check the SSH connection, remote proxy, and running clipboard daemon. Unrecognized SSH output is kept out of the report."
-            }
-            Self::InvalidTimeout => {
-                "Choose a smaller positive timeout in Advanced connection settings."
             }
         }
     }

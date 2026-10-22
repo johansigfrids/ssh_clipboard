@@ -19,16 +19,13 @@ From the repository root, choose the affected Rust variants:
 ```powershell
 cargo fmt -- --check
 cargo test --locked
-cargo test --locked --features agent
-cargo clippy --locked --features agent -- -D warnings
-cargo test --locked --no-default-features
-cargo clippy --locked --no-default-features --all-targets -- -D warnings
+cargo clippy --locked --all-targets -- -D warnings
 ```
 
-The default build is the clipboard CLI; `agent` is an explicit compatibility feature. Linux-only daemon/service tests require Linux. On this Windows workspace the established WSL command is:
+The root build is the session-only headless CLI/server. Linux-only socket/service tests require Linux. On this Windows workspace the established WSL command is:
 
 ```powershell
-wsl.exe -d Ubuntu -- bash -lc 'cargo test --locked --no-default-features --target-dir target/linux-wsl'
+wsl.exe -d Ubuntu -- bash -lc 'cargo test --locked --target-dir target/linux-wsl'
 ```
 
 From `desktop/`, validate frontend and release helpers:
@@ -52,16 +49,16 @@ cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --all-features
 
 | Surface | Observable contracts |
 | --- | --- |
-| Protocol and shelf | Frozen V2 bytes, strict SCBS metadata/raw frames, epoch/correlation, paging, budgets, expiry, deduplication and deadline-protected retry. |
+| Protocol and shelf | Strict SCBS metadata/raw frames, epoch/correlation, paging, budgets, expiry, deduplication and deadline-protected retry. |
 | Configuration | Exact backups, corrupt/future-file preservation, stale writers, retained descriptor locks, profile isolation, atomic save and activation rollback. Use temporary settings paths. |
-| CLI | Default versus agent command surface, direct-target precedence, explicit shelf input/export, no-clobber outputs and failure before SSH/clipboard access. |
+| CLI | Session-only command surface and removed-command refusal, direct-target precedence, explicit shelf input/export, no-clobber outputs and failure before SSH/clipboard access. |
 | Transport | Flood/EOF/deadline/reaping, poisoned sessions, no replay, metadata-only recovery and stale-generation rejection. |
 | Desktop | Draft/Apply/Discard, startup/shortcut rollback, preview privacy, selected-item copy, cancellation and retained outcomes. Native adapters are controlled in automated tests. |
 | Release | Exact source/profile/platform/bytes, synthetic signatures, bounded downloads, real draft-handoff refusal and package identity. Normal tests need no production secrets. |
 
 ## Desktop IPC Contract
 
-`desktop/src-tauri/src/panel/ipc_contract_tests.rs` serializes real legacy/shelf panel views, operation state and update state into the checked-in `desktop/tests/fixtures/ipc.ts`. The generated file uses TypeScript `satisfies` against the frontend interfaces and is included in the normal Svelte check. Rust tests reject unreviewed fixture drift; rendered tests consume the same backend-shaped history/recovery data. Only host-dependent platform/shortcut availability is normalized for the fixture.
+`desktop/src-tauri/src/panel/ipc_contract_tests.rs` serializes real initial/populated history views, operation state and update state into the checked-in `desktop/tests/fixtures/ipc.ts`. The generated file uses TypeScript `satisfies` against the frontend interfaces and is included in the normal Svelte check. Rust tests reject unreviewed fixture drift; rendered tests consume the same backend-shaped history/recovery data. Only host-dependent platform/shortcut availability is normalized for the fixture.
 
 Shared `ipc-requests.json` values are emitted by rendered selection tests and decoded by actual Tauri command wrappers under its mock runtime. The probes check stale revision and malformed argument refusal before native clipboard initialization; they do not establish installed webview/native behavior. UI responders enumerate command response kinds and reject unknown commands instead of returning a successful snapshot for a typo.
 
@@ -87,7 +84,7 @@ CI runs this credential-free Chromium lane whenever desktop checks are selected.
 
 Pipe fixtures use noninteractive PowerShell or `/bin/sh`, with no SSH or clipboard. All transport fixture families share two-slot admission; keep timeout/uncertainty/reaping assertions and production deadlines intact. Linux process cases serialize cases to prevent fork-inherited executable writers causing ETXTBSY, while retaining concurrent clients inside each case. Fixture runtimes cap Tokio workers at two. See [session guardrails](persistent-sessions.md#evidence-and-fixture-guardrails).
 
-Native Linux probes use disposable sockets and synthetic data. They test duplicate-startup preservation, held-open stdin cleanup, restart epochs and mixed V2/session storage. [Released compatibility](released-compatibility.md) separately runs the pinned actual v0.3.0 Linux executable after digest verification; local fixed-route shims do not establish actual SSH-key authorization.
+Native Linux probes use disposable sockets and synthetic data to cover session exchanges, duplicate listeners, EOF/held-open stdin cleanup, restart epochs, and CLI exports/mutations. They do not establish live SSH-key authorization or native clipboard behavior.
 
 For an authorized disposable shelf SSH probe from Windows:
 
@@ -95,7 +92,7 @@ For an authorized disposable shelf SSH probe from Windows:
 ./scripts/Test-LiveShelf.ps1 -Target user@host -Binary target/linux-wsl/debug/ssh_clipboard
 ```
 
-The runner builds the test first and starts a private remote daemon with a 120-second fixture lifetime. It checks protected Share/retry, exact bytes, Watch, operation lookup and cleanup on one owned SSH child. It neither installs a service nor accesses the OS clipboard. The separate V2 desktop probe is in [desktop development](desktop-development.md#validation).
+The runner builds the test first and starts a private remote daemon with a 120-second fixture lifetime. It checks protected Share/retry, exact bytes, Watch, operation lookup and cleanup on one owned SSH child. It neither installs a service nor accesses the OS clipboard.
 
 ## Desktop Update Evidence
 

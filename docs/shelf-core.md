@@ -2,13 +2,12 @@
 
 ## Purpose
 
-Define the bounded in-memory shelf used by the managed Linux server, session clients and desktop history. Its optional V2 adapter exposes the latest shelf item to compatibility clients; the standalone legacy daemon remains a separate single-item implementation.
+Define the bounded in-memory shelf used by the managed Linux server, session clients and desktop history. Every new upload has a validated origin and operation UUID; session metadata retains its existing wire shape.
 
 ## Key Files
 
 - `src/shelf.rs`: limits, upload reservations/validation, item leases, expiry, and mutations.
 - `src/shelf/tests.rs`: platform-independent behavioral/resource tests.
-- `src/protocol.rs`, `src/daemon.rs`: existing single-value version 2 implementation, still unchanged.
 
 ## Model and Defaults
 
@@ -35,7 +34,7 @@ Validate outside the shelf lock. UTF-8 is checked without changing bytes. PNG li
 
 Stored and fetched items share one immutable, reference-counted buffer. Its charge stays alive until the last lease drops, including after expiry/deletion/eviction. Fetching does not copy a large payload. Uploads can be refused while slow readers pin removed items; removing them from the list does not make their resident bytes disappear.
 
-These are logical buffer bounds, not a measured total-process RSS limit. PNG decoder working memory and its output buffer each use the decode limit; allocator/container overhead and bounded metadata are additional. The [service](shelf-service.md) and [native endpoint](shelf-server.md) bound connections, metadata frames, queued work, operation deadlines and serialization allocations, and release fetch leases after socket deadlines. Legacy wincode serialization uses separate reservations under shared admission control. No aggregate memory claim should be made from stored-payload limits alone.
+These are logical buffer bounds, not a measured total-process RSS limit. PNG decoder working memory and its output buffer each use the decode limit; allocator/container overhead and bounded metadata are additional. The [service](shelf-service.md) and [native endpoint](shelf-server.md) bound connections, metadata frames, queued work, operation deadlines and serialization allocations, and release fetch leases after socket deadlines. No aggregate memory claim should be made from stored-payload limits alone.
 
 ## Ordering, Expiry, and Atomic Commit
 
@@ -51,7 +50,7 @@ The session endpoint requires an expected epoch and a device-scoped operation UU
 
 An identical retry within the retained record window returns the original item metadata without a new item, sequence, receipt time, or expiry. If that item was deleted/cleared/evicted, `available=false` is returned; it is never resurrected. Restart changes the epoch and rejects automatic retry into a new shelf. Uploads prepared against another shelf's resource budget are also rejected.
 
-Retry records have separate fixed count and monotonic retention limits. When the window fills, reject new deduplicated operations until records expire; do not evict an unexpired record and silently shorten the advertised retry guarantee. Legacy shares have no operation ID and cannot deduplicate. After record expiry or a server restart, a client must reconcile/report uncertainty rather than promise exactly-once behavior or silently retry.
+Retry records have separate fixed count and monotonic retention limits. When the window fills, reject new deduplicated operations until records expire; do not evict an unexpired record and silently shorten the advertised retry guarantee. After record expiry or a server restart, a client must reconcile/report uncertainty rather than promise exactly-once behavior or silently retry.
 
 ## Validation
 
@@ -66,7 +65,7 @@ Integration is implemented in the [wire codec](session-protocol.md), [stream ser
 
 ## Related Docs
 
-- [Protocol](protocol.md)
+- [Protocol](history/0.4/protocol.md)
 - [Architecture](../ARCHITECTURE.md)
 - [Implementation plan](history/implementation-plan.md)
 - [Testing](testing.md)

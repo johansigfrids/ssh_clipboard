@@ -49,9 +49,9 @@ jobs:
         run: |
           cargo +1.99.0 fmt -- --check
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cargo +1.99.0 clippy --locked --features agent --all-targets -- -D warnings
+          cargo +1.99.0 clippy --locked --all-targets -- -D warnings
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cargo +1.99.0 test --locked --features agent
+          cargo +1.99.0 test --locked
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Validate desktop without release credentials
         working-directory: desktop

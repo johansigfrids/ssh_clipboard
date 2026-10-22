@@ -7,7 +7,7 @@ Describe how `ssh_clipboard` relies on SSH for transport security and provide re
 - `src/client/ssh.rs`
 - `src/proxy.rs`
 - `src/daemon.rs`
-- [docs/protocol.md](protocol.md)
+- [docs/protocol.md](history/0.4/protocol.md)
 
 ## Threat Model
 In scope:
@@ -42,7 +42,7 @@ Notes:
 - If `ssh_clipboard` is not on `PATH` for that user, use an absolute path in `command="..."`.
 - Keep the options, key type, key and comment on one authorized_keys line.
 - `no-pty` helps ensure the proxy’s binary protocol isn’t corrupted by terminal behavior.
-- A fixed `proxy` key remains V2. The new shelf endpoint needs a separately reviewed absolute `session-proxy` forced command and matching custom socket arguments. Use separate routes/keys for fixed legacy/new endpoints during migration. Transfer keys never gain maintenance permissions; see [compatibility and cutover](compatibility-and-cutover.md#ssh-route-and-privilege-boundary).
+- A fixed `proxy` key remains V2. The new shelf endpoint needs a separately reviewed absolute `session-proxy` forced command and matching custom socket arguments. Use separate routes/keys for fixed legacy/new endpoints during migration. Transfer keys never gain maintenance permissions; see [compatibility and cutover](history/0.4/compatibility-and-cutover.md#ssh-route-and-privilege-boundary).
 
 ### 3. Avoid “insecure convenience” defaults
 Do not disable host key checking by default. If a user wants that behavior, it should be explicit via SSH config or `--ssh-option`.
@@ -68,6 +68,6 @@ Establish first-install trust through a reviewed checkout or independent owner c
 
 ## Related Docs
 - [docs/server-setup.md](server-setup.md)
-- [docs/legacy/client-setup.md](legacy/client-setup.md)
-- [docs/protocol.md](protocol.md)
+- [docs/legacy/client-setup.md](history/0.4/legacy/client-setup.md)
+- [docs/protocol.md](history/0.4/protocol.md)
 - [ARCHITECTURE.md](../ARCHITECTURE.md)

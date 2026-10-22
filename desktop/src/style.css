@@ -56,6 +56,8 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 190px; overflo
 .history-list li { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .history-list button { display: flex; flex-direction: column; gap: 5px; width: 100%; text-align: left; min-width: 0; padding: 10px 12px 6px; border-color: transparent; background: transparent; }
 .history-list li.selected { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.history-list li:has(> button:hover:not(:disabled)) { background: var(--hover); }
+.history-list button:hover:not(:disabled) { border-color: transparent; background: transparent; }
 .history-times { padding: 0 12px 8px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .history-times summary { font-size: 11px; padding: 4px 0; width: fit-content; }
 .history-times dl { margin: 4px 0; }

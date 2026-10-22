@@ -25,7 +25,7 @@ The shelf mode invokes the separately selected `session-proxy`; legacy mode keep
 
 ## Selection, Copy, and Mutations
 
-Refresh lists metadata and loads the selected item, retaining its ID only within the same epoch and current snapshot. If it is absent, select the newest remaining item. A restart replaces the epoch and invalidates the old selection. Rows show bounded labels, source, size, receipt time, and expiry; source is unknown for legacy-origin items. Selection fetches/previews by ID and brings the preview into view. Neither operation writes the OS clipboard.
+When a new item arrives, metadata updates select the newest item so Panel Copy is ready to copy it. Ordinary refreshes and expiry/deletion updates retain a manually selected ID within the same epoch and current snapshot. If it is absent, select the newest remaining item. A restart replaces the epoch and invalidates the old selection. Refresh lists metadata and loads the selected item; passive updates clear an old preview when selection changes and do not fetch the new payload. Rows show bounded labels, source, size, receipt time, and expiry; source is unknown for legacy-origin items. Explicit selection fetches/previews by ID and brings the preview into view. These operations do not write the OS clipboard.
 
 Panel Copy fetches the selected ID again, guarded by the loaded epoch, validates the exact text/PNG and descriptor, then writes through the persistent clipboard owner. Expired/deleted/wrong/oversized items leave the local clipboard unchanged. Legacy panel Copy retains the displayed-snapshot contract. Optional background direct Copy deliberately clears the retained selection before listing so it always copies the newest item. Share captures once under the local endpoint budget and creates one upload operation; no automatic capture/replay is added.
 
@@ -63,7 +63,7 @@ The [2026-10-16 Windows native pass](history/native-history-acceptance.md) confi
 
 ## Prevention Guidance
 
-- A selected row is an item UUID plus server epoch, never an index or an implicit latest value.
+- A selected row is an item UUID plus server epoch, never an index or an implicit latest value. Detect arrivals by comparing the new head with the previous item IDs, rather than treating every sequence change as an arrival: expiry/deletion also advances the sequence. Retain a cached preview only when both epoch and selected ID stay unchanged.
 - Check availability before writing the clipboard; a displayed cached preview does not prove the item still exists.
 - Freeze confirmation context and cancel it on reload. Do not silently retarget an old confirmation to a restarted server.
 - Direct Copy and panel Copy have different explicit targets; refreshing metadata must not make direct Copy retain an older selection.

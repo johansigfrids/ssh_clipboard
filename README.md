@@ -39,7 +39,7 @@ Close hides the panel in the tray/menu bar; Quit exits. Configure panel and tran
 
 Save connection settings before transferring; transfers use the saved configuration. Named profiles let you switch between servers, and the desktop and CLI share settings. See [shared settings](docs/shared-configuration.md) and [migration/recovery](docs/configuration-migration.md).
 
-Temporary history refreshes automatically without reading or replacing your local clipboard. Panel Copy uses the selected history item, or the displayed snapshot on a legacy server. See [history controls](docs/desktop-history.md).
+Temporary history refreshes automatically and selects the newest item when it arrives, ready for Copy. You can still select an older item; ordinary refreshes retain that selection until another new item arrives. These updates do not read or replace your local clipboard. Panel Copy uses the selected history item, or the displayed snapshot on a legacy server. See [history controls](docs/desktop-history.md).
 
 For connection failures or an interrupted Share, start with [troubleshooting](docs/troubleshooting.md) and [share recovery](docs/share-recovery.md). Transfer limits and reconnect details are in the [shelf client](docs/shelf-client.md) and [SSH sessions](docs/persistent-sessions.md) guides.
 

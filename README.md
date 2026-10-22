@@ -8,7 +8,7 @@ Your computers connect to a Linux server running `ssh_clipboard` through your ex
 - Server package: Linux x86_64, with bounded temporary history held in memory only.
 - CLI: explicit session file/stdin/stdout transfers, shared settings and metadata Health.
 
-This checkout targets 0.5.0 with fresh settings and managed-server setup. See [cutover](docs/compatibility-and-cutover.md) before installing it; existing published 0.4 packages retain their recorded behavior.
+Version 0.5.0 requires fresh settings and managed-server setup. See [cutover](docs/compatibility-and-cutover.md) before installing it; older published packages retain their recorded behavior.
 
 ![SSH Clipboard desktop panel showing a selected text item, Share and Copy actions, and temporary history](docs/images/desktop-ux-pr6/history-after.png)
 
@@ -18,7 +18,7 @@ This checkout targets 0.5.0 with fresh settings and managed-server setup. See [c
 
 Before connecting a desktop, you need a Linux x86_64 server account with SSH access and a functioning user systemd manager. The desktop does not install the server for you.
 
-Follow [managed server setup](docs/server-setup.md) for the exact reviewed server version. A fresh 0.5 installation requires a 0.5 package; source changes do not publish it. That guide covers first-install signature trust, installation, the SSH command route and a connection check. Use the explicit server release; desktop and server versions are released separately.
+Follow [managed server setup](docs/server-setup.md) for the exact reviewed server version. Use the signed [server 0.5.0 package](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.5.0) for fresh setup. That guide covers first-install signature trust, installation, the SSH command route and a connection check. Use the explicit server release; desktop and server versions are released separately.
 
 History is held in memory, expires automatically and is lost when the server restarts.
 
@@ -26,7 +26,7 @@ For 0.5, follow [fresh setup and cutover](docs/compatibility-and-cutover.md). On
 
 ## Install the desktop
 
-[Download desktop 0.4.3](https://github.com/johansigfrids/ssh_clipboard/releases/tag/desktop-v0.4.3). Both packages include the desktop and matching CLI, with signed package verification for updates.
+[Download desktop 0.5.0](https://github.com/johansigfrids/ssh_clipboard/releases/tag/desktop-v0.5.0). Both packages include the desktop and matching CLI, with signed package verification for updates.
 
 1. On Windows, run the per-user installer. On Apple Silicon Mac, extract the `.app.tar.gz` and move **SSH Clipboard.app** into a stable Applications folder before opening it.
 2. In Settings, enter your server's SSH alias or `user@host`. Apply and test the saved connection.

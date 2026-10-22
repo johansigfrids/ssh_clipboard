@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
 - Keep clipboard payloads/adapters in the desktop and make the core headless and session-only.
 - Resolve CLI limits from explicit flags, selected profile, then shared defaults; retain strict session framing and signed installation recovery.
 
+### Release status
+- Published signed `desktop-v0.5.0` (latest) and `server-v0.5.0`, with independent package/public-delivery verification. Installed systems are unchanged; see [evidence and native limits](docs/history/release-0.5.0-acceptance.md).
+
 ## [0.4.3] - 2026-10-19
 
 ### Changed

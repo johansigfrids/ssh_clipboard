@@ -1,7 +1,7 @@
 //! One RAM-only frozen share. Never recapture, renew its retry window, or cross epochs.
+use crate::clipboard_payload::ClipboardPayload;
 use serde::Serialize;
 use ssh_clipboard::client::session::Action;
-use ssh_clipboard::protocol::ClipboardValue;
 use ssh_clipboard::session_protocol::{Number, Origin, Representation};
 use tokio::time::Instant;
 use uuid::Uuid;
@@ -11,7 +11,7 @@ pub struct PendingShare {
     pub operation_id: Uuid,
     pub origin: Origin,
     pub representation: Representation,
-    pub value: Option<ClipboardValue>,
+    pub value: Option<ClipboardPayload>,
     deadline: Instant,
     server_deadline: Option<Number>,
 }
@@ -27,7 +27,7 @@ impl PendingShare {
         operation_id: Uuid,
         origin: Origin,
         representation: Representation,
-        value: ClipboardValue,
+        value: ClipboardPayload,
         retry_ms: u32,
         server_time: Option<Number>,
     ) -> Self {
@@ -109,8 +109,8 @@ mod tests {
     use super::*;
     #[test]
     fn retry_keeps_original_identity_bytes_timestamp_and_deadline_and_rejects_other_epochs() {
-        let value = ClipboardValue {
-            content_type: "text/plain".into(),
+        let value = ClipboardPayload {
+            content_type: crate::clipboard_payload::CONTENT_TYPE_TEXT,
             data: b"original bytes".to_vec(),
             created_at: 123,
         };

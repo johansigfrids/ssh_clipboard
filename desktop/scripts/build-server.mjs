@@ -59,7 +59,7 @@ if(!platform)throw new Error("Unsupported native Linux server target.");
 const target=path.join(root,"target",windows?"linux-wsl":"server-package");
 const profile=flags.has("--debug")?"debug":"release";
 process.stdout.write(`Building headless ${platform} server ${version}...\n`);
-linux("cargo",["build","--locked","--no-default-features","--bin","ssh_clipboard","--target-dir",linuxPath(target),...(!flags.has("--debug")?["--release"]:[])]);
+linux("cargo",["build","--locked","--bin","ssh_clipboard","--target-dir",linuxPath(target),...(!flags.has("--debug")?["--release"]:[])]);
 const binary=path.join(target,profile,"ssh_clipboard");
 if(linux(linuxPath(binary),["--version"]).trim()!==`ssh_clipboard ${version}`)throw new Error("Server binary/core version mismatch.");
 const stage=path.join(root,"desktop/artifacts",`${flags.has("--test-build")?"TEST-only-":""}server-${version}-${randomUUID()}`);

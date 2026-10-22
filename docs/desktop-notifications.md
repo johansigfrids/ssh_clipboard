@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Explain saved feedback choices, privacy, capability reporting, and retained direct-action results. These controls belong to the rework desktop; they do not change legacy agent notifications.
+Explain saved feedback choices, privacy, capability reporting, and retained direct-action results. These controls belong to the native desktop.
 
 ## Key Files
 

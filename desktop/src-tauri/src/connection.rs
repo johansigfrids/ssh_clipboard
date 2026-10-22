@@ -7,10 +7,7 @@ use ssh_clipboard::configuration::TransportSettings;
 pub struct TransportDraft {
     pub ssh_options: Vec<String>,
     pub ssh_binary: String,
-    pub max_size: String,
     pub timeout_ms: String,
-    pub resync_frames: bool,
-    pub resync_max_bytes: String,
 }
 
 impl Default for TransportDraft {
@@ -28,10 +25,7 @@ impl From<&TransportSettings> for TransportDraft {
                 .as_ref()
                 .map(|p| p.to_string_lossy().into_owned())
                 .unwrap_or_default(),
-            max_size: settings.max_size.to_string(),
             timeout_ms: settings.timeout_ms.to_string(),
-            resync_frames: settings.resync_frames,
-            resync_max_bytes: settings.resync_max_bytes.to_string(),
         }
     }
 }
@@ -49,10 +43,7 @@ impl TransportDraft {
         let settings = TransportSettings {
             ssh_options: self.ssh_options.clone(),
             ssh_bin: (!self.ssh_binary.is_empty()).then(|| self.ssh_binary.clone().into()),
-            max_size: integer(&self.max_size, "Transfer limit")?,
             timeout_ms: integer(&self.timeout_ms, "Timeout")?,
-            resync_frames: self.resync_frames,
-            resync_max_bytes: integer(&self.resync_max_bytes, "Framing recovery budget")?,
         };
         settings.validate()?;
         Ok(settings)
@@ -72,9 +63,6 @@ mod tests {
             ],
             ssh_bin: Some("path with spaces/ssh".into()),
             timeout_ms: u64::MAX,
-            max_size: usize::MAX,
-            resync_frames: false,
-            resync_max_bytes: 4096,
         };
         let draft = TransportDraft::from(&saved);
         assert_eq!(draft.timeout_ms, "18446744073709551615");
@@ -90,16 +78,6 @@ mod tests {
             };
             assert!(draft.to_shared().is_err(), "{invalid:?}");
         }
-        let draft = TransportDraft {
-            max_size: "0".into(),
-            ..Default::default()
-        };
-        assert!(draft.to_shared().unwrap_err().contains("Transfer limit"));
-        let draft = TransportDraft {
-            resync_max_bytes: "0".into(),
-            ..Default::default()
-        };
-        assert!(draft.to_shared().unwrap_err().contains("Framing recovery"));
         let draft = TransportDraft {
             ssh_options: vec!["Option=one\nother".into()],
             ..Default::default()

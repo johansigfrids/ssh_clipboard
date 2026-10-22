@@ -114,9 +114,74 @@ impl Drop for SocketBinding {
     }
 }
 
+use std::{env, os::fd::AsRawFd};
+pub fn default_socket_path() -> Result<PathBuf> {
+    if let Ok(dir) = env::var("XDG_RUNTIME_DIR") {
+        return Ok(Path::new(&dir).join("ssh_clipboard").join("shelf.sock"));
+    }
+
+    if let Ok(dir) = env::var("TMPDIR") {
+        return Ok(Path::new(&dir)
+            .join(format!("ssh_clipboard-{}", get_uid()))
+            .join("shelf.sock"));
+    }
+
+    Ok(Path::new("/tmp")
+        .join(format!("ssh_clipboard-{}", get_uid()))
+        .join("shelf.sock"))
+}
+
+fn get_uid() -> u32 {
+    unsafe { libc::getuid() }
+}
+
+pub(crate) fn verify_peer_credentials(stream: &UnixStream) -> Result<()> {
+    let expected = get_uid();
+    let actual = peer_uid(stream)?;
+    if !peer_uid_matches(actual, expected) {
+        return Err(eyre::eyre!(
+            "peer uid mismatch (expected {expected}, got {actual})"
+        ));
+    }
+    Ok(())
+}
+
+fn peer_uid_matches(actual: u32, expected: u32) -> bool {
+    actual == expected
+}
+
+fn peer_uid(stream: &UnixStream) -> Result<u32> {
+    let fd = stream.as_raw_fd();
+    let mut cred: libc::ucred = unsafe { std::mem::zeroed() };
+    let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    let ret = unsafe {
+        libc::getsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_PEERCRED,
+            &mut cred as *mut _ as *mut libc::c_void,
+            &mut len as *mut _,
+        )
+    };
+    if ret != 0 {
+        return Err(eyre::eyre!("getsockopt SO_PEERCRED failed"));
+    }
+    Ok(cred.uid)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn peer_credentials_identify_the_current_user_on_real_sockets() {
+        let (first, second) = UnixStream::pair().unwrap();
+        assert_eq!(peer_uid(&first).unwrap(), unsafe { libc::getuid() });
+        verify_peer_credentials(&first).unwrap();
+        verify_peer_credentials(&second).unwrap();
+        let uid = unsafe { libc::getuid() };
+        assert!(!peer_uid_matches(uid.wrapping_add(1), uid));
+    }
     #[tokio::test]
     async fn duplicate_startup_preserves_the_active_socket_and_lock_inode() {
         let dir = tempfile::tempdir().unwrap();

@@ -182,8 +182,8 @@ describe("quick panel contracts", () => {
     state.history.epoch="new";changed();
     await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("heading",{name:"Temporary history 1"})));
     expect(screen.getByRole("button",{name:/Epoch item/})).not.toBe(row);
-    state.history=null;state.settings.target="other";changed();
-    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("main",{name:"Clipboard panel"})));
+    state.history={epoch:null,selectedId:null,items:[]};state.settings.target="other";changed();
+    await waitFor(()=>expect(document.activeElement).toBe(screen.getByRole("heading",{name:"Temporary history 0"})));
     expect(bridge.invoke.mock.calls.every(([name])=>["get_operation","get_panel"].includes(name))).toBe(true);
   });
 
@@ -827,7 +827,7 @@ describe("quick panel contracts", () => {
 
   it("background history changes update metadata without fetching, sharing, or copying", async () => {
     state.settings.target="hub";
-    state.settings.endpoint={protocol:"shelf",max_item_bytes:1024,max_decoded_bytes:1024};
+    state.settings.limits={max_item_bytes:1024,max_decoded_bytes:1024};
     state.history={epoch:"one",selectedId:null,items:[]};
     state.historyStatus={phase:"live",detail:"History is up to date.",retryInMs:null};
     render(App);
@@ -860,7 +860,7 @@ describe("quick panel contracts", () => {
     });
     render(App);
     await screen.findByText("hub");
-    await fireEvent.click(screen.getByRole("button",{name:"Refresh shared clipboard"}));
+    await fireEvent.click(screen.getByRole("button",{name:"Refresh history"}));
     const changed = bridge.listen.mock.calls.find(([name])=>name==="operation-state")![1];
     changed({payload:{generation:"1",active:{id:"41",label:"Refreshing shared clipboard",cancellable:true,cancelling:false}}});
     await fireEvent.click(await screen.findByRole("button",{name:"Cancel operation"}));
@@ -869,7 +869,7 @@ describe("quick panel contracts", () => {
     changed({payload:{generation:"3",active:null}});
     reject("Cancelled. This computer's clipboard was left unchanged.");
     await screen.findByRole("alert");
-    expect(screen.queryByText("Shared clipboard refreshed.")).toBeNull();
+    expect(screen.queryByText("History refreshed.")).toBeNull();
     expect(bridge.invoke.mock.calls.some(([name])=>["share_clipboard","copy_item"].includes(name))).toBe(false);
   });
 
@@ -905,7 +905,7 @@ describe("quick panel contracts", () => {
 
   it("history selection previews by stable ID and revision without copying or sharing", async () => {
     state.settings.target = "hub";
-    state.settings.endpoint = {protocol:"shelf", max_item_bytes:67108864, max_decoded_bytes:268435456};
+    state.settings.limits = {max_item_bytes:67108864, max_decoded_bytes:268435456};
     state.settingsRevision = "19";
     state.history = {epoch:"server-epoch", selectedId:"second", items:[{id:"first",label:"Earlier snippet",kind:"text",encodedBytes:12,source:"Laptop",receivedAt:"100",expiresAt:"200"}, {id:"second",label:"Recent snippet",kind:"text",encodedBytes:14,source:"Desktop",receivedAt:"101",expiresAt:"201"}]};
     render(App);
@@ -918,7 +918,7 @@ describe("quick panel contracts", () => {
 
   it("clearing server history requires confirmation and carries the displayed epoch", async () => {
     state.settings.target = "hub";
-    state.settings.endpoint = {protocol:"shelf",max_item_bytes:67108864,max_decoded_bytes:268435456};
+    state.settings.limits = {max_item_bytes:67108864,max_decoded_bytes:268435456};
     state.settingsRevision = "4";
     state.history = {epoch:"old-epoch",selectedId:"item",items:[{id:"item",label:"Text",kind:"text",encodedBytes:1,source:null,receivedAt:"1",expiresAt:"2"}]};
     render(App);
@@ -933,21 +933,19 @@ describe("quick panel contracts", () => {
     expect(bridge.invoke.mock.calls[2]).toEqual(["clear_history",{epoch:"old-epoch",expectedRevision:"4"}]);
   });
 
-  it("endpoint changes stay in a draft until Apply and do not probe or transfer", async () => {
-    render(App);
-    await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
-    await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
-    await fireEvent.change(screen.getByLabelText("Server features"),{target:{value:"shelf"}});
-    expect(state.settings.endpoint.protocol).toBe("legacy");
-    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation", "get_panel"]);
-    await fireEvent.click(screen.getByRole("button",{name:"Apply settings"}));
+  it("session limit edits remain a draft until Apply without network I/O", async () => {
+    savedProfiles(); render(App); await screen.findByText("shared-hub");
+    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+    await fireEvent.input(screen.getByLabelText("Item limit (bytes)"), { target: { value: "1024" } });
+    expect(state.settings.limits.max_item_bytes).toBe(67108864);
+    await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
     await screen.findByText("Settings applied.");
-    expect(state.settings.endpoint).toEqual({protocol:"shelf",max_item_bytes:67108864,max_decoded_bytes:268435456});
+    expect(state.settings.limits.max_item_bytes).toBe(1024);
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel","apply_settings"]);
   });
-
   it("a history reload cancels an open removal confirmation instead of retargeting it", async () => {
     state.settings.target="hub";
-    state.settings.endpoint={protocol:"shelf",max_item_bytes:67108864,max_decoded_bytes:268435456};
+    state.settings.limits={max_item_bytes:67108864,max_decoded_bytes:268435456};
     state.history={epoch:"old",selectedId:"item",items:[{id:"item",label:"Text",kind:"text",encodedBytes:1,source:null,receivedAt:"1",expiresAt:"2"}]};
     render(App);
     await screen.findByRole("button",{name:"Clear history…"});
@@ -1159,8 +1157,8 @@ describe("quick panel contracts", () => {
     state.settingsSaved = true;
     state.settingsRevision = "4";
     state.profiles = [
-      { id: "default", name: "Default", target: "shared-hub", port: null, identityFile: "first/key", transport: defaultTransport() },
-      { id: "other", name: "Other account", target: "shared-hub", port: 2222, identityFile: "other/key", transport: { ...defaultTransport(), timeoutMs: "15000", sshOptions: ["ServerAliveInterval=20"] } },
+      { id: "default", name: "Default", target: "shared-hub", port: null, identityFile: "first/key", limits: { ...initialView.settings.limits }, transport: defaultTransport() },
+      { id: "other", name: "Other account", target: "shared-hub", port: 2222, identityFile: "other/key", limits: { ...initialView.settings.limits }, transport: { ...defaultTransport(), timeoutMs: "15000", sshOptions: ["ServerAliveInterval=20"] } },
     ];
   }
 
@@ -1288,32 +1286,21 @@ describe("quick panel contracts", () => {
     expect(transport.sshOptions).toEqual(["BatchMode=no", "ServerAliveInterval=20"]);
   });
 
-  it("advanced defaults remain a cancellable draft and strict framing retains its budget", async () => {
-    savedProfiles();
-    state.settings.transport = { ...defaultTransport(), timeoutMs: "12000", resyncFrames: false, resyncMaxBytes: "4096", sshOptions: ["ServerAliveInterval=30"] };
-    render(App);
-    await screen.findByText("shared-hub");
+  it("advanced defaults remain a cancellable draft", async () => {
+    savedProfiles(); state.settings.transport = { ...defaultTransport(), timeoutMs: "12000", sshOptions: ["ServerAliveInterval=30"] }; state.settings.limits.max_item_bytes=1024;
+    render(App); await screen.findByText("shared-hub");
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    const budget = screen.getByLabelText("Framing recovery budget (bytes)") as HTMLInputElement;
-    expect(budget.value).toBe("4096");
-    expect(budget.disabled).toBe(true);
-    await fireEvent.click(screen.getByLabelText("Recover from text before protocol frames"));
-    expect(budget.disabled).toBe(false);
-    expect(budget.value).toBe("4096");
     await fireEvent.click(screen.getByRole("button", { name: "Restore advanced defaults" }));
     expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("7000");
-    expect(budget.value).toBe("8192");
+    expect((screen.getByLabelText("Item limit (bytes)") as HTMLInputElement).value).toBe("67108864");
     await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     expect((screen.getByLabelText("Timeout (milliseconds)") as HTMLInputElement).value).toBe("12000");
-    expect(budget.value).toBe("4096");
-    expect((screen.getByLabelText(/SSH options/) as HTMLTextAreaElement).value).toBe("ServerAliveInterval=30");
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
+    expect((screen.getByLabelText("Item limit (bytes)") as HTMLInputElement).value).toBe("1024");
+    expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
   });
-
-  it("a preference-only edit preserves advanced integers larger than JavaScript's exact range", async () => {
+  it("a preference-only edit preserves the saved session policy", async () => {
     savedProfiles();
-    state.settings.transport.timeoutMs = "18446744073709551615";
-    state.settings.transport.maxSize = "9007199254740993";
+    state.settings.transport.timeoutMs = "300000";
     render(App);
     await screen.findByText("shared-hub");
     await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
@@ -1322,8 +1309,7 @@ describe("quick panel contracts", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Apply settings" }));
     await screen.findByText("Settings applied.");
     const transport = bridge.invoke.mock.calls.find(([name]) => name === "apply_settings")![1].settings.transport;
-    expect(transport.timeoutMs).toBe("18446744073709551615");
-    expect(transport.maxSize).toBe("9007199254740993");
+    expect(transport.timeoutMs).toBe("300000");
   });
 
   it("external edits preserve an advanced draft until Discard loads the latest policy", async () => {
@@ -1347,52 +1333,7 @@ describe("quick panel contracts", () => {
     expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel", "get_panel"]);
   });
 
-  it("an imported configuration explains preserved setup choices while remaining editable", async () => {
-    state.settings.target = "legacy-hub";
-    state.settingsSaved = true;
-    state.settingsRevision = "1";
-    state.settings.directShareShortcut = "Ctrl+Alt+C";
-    state.settings.directCopyShortcut = "Ctrl+Alt+V";
-    state.migrationSummary = { deviceName: "My laptop", backupPath: "saved/agent.pre-shared.bak", startAtLogin: true };
-    render(App);
-    await screen.findByRole("region", { name: "Review imported settings" });
-    expect(screen.getByText("My laptop")).toBeTruthy();
-    expect(screen.getByText("saved/agent.pre-shared.bak")).toBeTruthy();
-    expect(screen.getByText(/On. Review Behavior/)).toBeTruthy();
-    expect(screen.getByText(/Disabled. Share: Ctrl/)).toBeTruthy();
-    expect(screen.getByText(/Your old agent and its startup entry were left in place/)).toBeTruthy();
-    expect(bridge.invoke.mock.calls.map(([name]) => name)).toEqual(["get_operation", "get_panel"]);
-    await fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-    expect(screen.getByRole("region", { name: "Review imported settings" })).toBeTruthy();
-    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "edited-hub" } });
-    expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(false);
-    expect(screen.getByRole("button", { name: "Got it" }).hasAttribute("disabled")).toBe(true);
-    await fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Got it" }));
-    await waitFor(() => expect(screen.queryByRole("region", { name: "Review imported settings" })).toBeNull());
-    expect(bridge.invoke.mock.calls.find(([name]) => name === "acknowledge_migration_summary")![1]).toEqual({ expectedRevision: "1" });
-    expect(state.settings.target).toBe("legacy-hub");
-    expect(bridge.invoke.mock.calls.some(([name]) => ["apply_settings", "set_start_at_login", "share_clipboard", "copy_item"].includes(name))).toBe(false);
-    // The next settings edit uses the updated revision, rather than a stale draft.
-    await fireEvent.input(screen.getByLabelText("SSH alias or user@host"), { target: { value: "edited-hub" } });
-    expect(screen.getByRole("button", { name: "Apply settings" }).hasAttribute("disabled")).toBe(false);
-  });
 
-  it("a failed import acknowledgement retains the summary and displays the error", async () => {
-    state.settingsSaved = true;
-    state.settingsRevision = "4";
-    state.migrationSummary = { deviceName: "<img src=x onerror=alert(1)>", backupPath: "backup/<script>inert</script>", startAtLogin: false };
-    const normal = bridge.invoke.getMockImplementation()!;
-    bridge.invoke.mockImplementation((name, args) => name === "acknowledge_migration_summary" ? Promise.reject(new Error("Saved settings changed. Reload the panel before continuing.")) : normal(name, args));
-    render(App);
-    await screen.findByRole("region", { name: "Review imported settings" });
-    expect(screen.getByText("<img src=x onerror=alert(1)>").tagName).toBe("DD");
-    expect(document.querySelector(".migration-summary img, .migration-summary script")).toBeNull();
-    await fireEvent.click(screen.getByRole("button", { name: "Got it" }));
-    await screen.findByRole("alert");
-    expect(screen.getByRole("region", { name: "Review imported settings" })).toBeTruthy();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Got it" }).hasAttribute("disabled")).toBe(false));
-  });
 
   it("a failed subscription removes the listeners already installed and still loads the panel", async () => {
     const stop = vi.fn();
@@ -1433,7 +1374,7 @@ describe("quick panel contracts", () => {
     bridge.invoke.mockImplementation((name, args) => name === "refresh_item" ? new Promise<PanelView>((resolve) => { finish = resolve; }) : normal(name, args));
     render(App);
     await screen.findByText("first-hub");
-    await fireEvent.click(screen.getByRole("button", { name: "Refresh shared clipboard" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Refresh history" }));
     state.settings.target = "second-hub";
     state.settingsRevision = "2";
     bridge.listen.mock.calls.find(([name]) => name === "settings-changed")![1]();
@@ -1563,7 +1504,7 @@ describe("quick panel contracts", () => {
     });
     render(App);
     await screen.findByText("No shared item loaded");
-    await fireEvent.click(screen.getByRole("button", { name: "Refresh shared clipboard" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Refresh history" }));
     await screen.findByText("Server clipboard is empty");
     expect(screen.queryByText("No shared item loaded")).toBeNull();
     expect(screen.getByRole("button", { name: "Copy to this computer" }).hasAttribute("disabled")).toBe(true);
@@ -1583,7 +1524,7 @@ describe("quick panel contracts", () => {
     bridge.invoke.mockImplementation((name, args) => name === "refresh_item" ? Promise.reject("Server unavailable") : normal(name, args));
     render(App);
     await screen.findByText("No shared item loaded");
-    await fireEvent.click(screen.getByRole("button", { name: "Refresh shared clipboard" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Refresh history" }));
     await screen.findByRole("alert");
     expect(screen.queryByText("Server clipboard is empty")).toBeNull();
     expect(screen.queryByText("Checked the server. No shared item is available.")).toBeNull();

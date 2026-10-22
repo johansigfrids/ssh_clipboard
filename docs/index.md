@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Maintainer and agent navigation for current behavior, development, operations, retained compatibility and dated evidence. Start with the guide that owns the affected contract; history records earlier builds and decisions.
+Maintainer and agent navigation for current behavior, development, operations, fresh cutover and dated evidence. Start with the guide that owns the affected contract; history records earlier builds and decisions.
 
 ## Key Files
 
@@ -14,7 +14,7 @@ Maintainer and agent navigation for current behavior, development, operations, r
 ## Development
 
 - [Desktop development](desktop-development.md): source builds, standalone artifacts, layout and native-resource guardrails.
-- [Build variants](build-variants.md): default clipboard CLI, headless server/stdio, retired agent and desktop dependencies.
+- [Build variants](build-variants.md): headless core/CLI and native desktop dependencies.
 - [Testing](testing.md): check commands, fixture isolation, evidence boundaries and documentation checks.
 - [CI](ci.md): platform matrices, prerequisites, package checks and protected release workflows.
 - [Dependency decisions](dependency-decisions.md): codec, framework, configuration, adapters and signature-verifier rationale.
@@ -23,8 +23,8 @@ Maintainer and agent navigation for current behavior, development, operations, r
 ## Desktop and Configuration
 
 - [Shared configuration](shared-configuration.md): schema, profiles, draft/save transaction, CLI precedence and reload.
-- [Configuration migration](configuration-migration.md): source selection, one-time review, exact backups and recovery.
-- [History](desktop-history.md): endpoint selection, labels/privacy, selection, safe copy and mutations.
+- [Fresh setup and cutover](compatibility-and-cutover.md): schema boundaries, backups and explicit replacement.
+- [History](desktop-history.md): labels/privacy, selection, safe copy and mutations.
 - [Shortcuts](desktop-shortcuts.md): registration, recording, background actions and keyboard behavior.
 - [Feedback and notifications](desktop-notifications.md): preferences, capability fallback and retained outcomes.
 - [Persistent sessions](persistent-sessions.md): SSH ownership, metadata Watch/reconnect, cancellation and no replay.
@@ -35,32 +35,28 @@ Maintainer and agent navigation for current behavior, development, operations, r
 
 - [Shelf core](shelf-core.md): bounded state, allocation, expiry, ordering and deduplication.
 - [Session protocol](session-protocol.md): SCBS bootstrap, negotiated messages, decimal precision and payload framing.
-- [Session service](shelf-service.md): stream admission, deadlines, actions and V2 adapter.
+- [Session service](shelf-service.md): stream admission, deadlines and actions.
 - [Linux shelf endpoint](shelf-server.md): commands, private sockets, ownership and stdio lifecycle.
 - [Shelf client](shelf-client.md): session validation, explicit CLI input/export and process lifecycle.
-- [V2 protocol](protocol.md): preserved SCB1 framing and latest-item compatibility contract.
 
 ## Operations and Reference
 
 - [Managed server setup](server-setup.md): trust, user-service installation and actual SSH-route checks.
 - [Server maintenance](server-maintenance.md): pinned signed releases, stable launcher/unit and rollback/recovery.
-- [CLI reference](cli.md): current commands, endpoint selection and explicitly marked legacy command sections.
-- [Connection diagnostics](connection-diagnostics.md): endpoint-aware metadata health and safe transport failures.
-- [Troubleshooting](troubleshooting.md): desktop, settings, shelf, V2 and updater repair paths.
+- [CLI reference](cli.md): session commands and explicit I/O.
+- [Connection diagnostics](connection-diagnostics.md): session metadata health and safe transport failures.
+- [Troubleshooting](troubleshooting.md): desktop, settings, shelf and updater repair paths.
 - [Security](security.md): SSH boundaries, private sockets and [public-key trust](security.md#signed-package-trust).
 - [Production public key](update-signing-public-key.pub): public verification material; it contains no secret.
 - [Releasing](releasing.md): protected signed draft staging, release notes, publication and key operations.
-- [Compatibility and cutover](compatibility-and-cutover.md): protocol matrix, fixed SSH routes, migration order and return paths.
-- [Released compatibility](released-compatibility.md): pinned actual v0.3.0 Linux probes and isolation.
-- [Legacy retirement policy](legacy-retirement.md): current default/distribution boundary and retained 0.4 contracts.
 
-## Legacy Compatibility
 
-These describe explicit compatibility builds or frozen archives, not the recommended new desktop/server installation.
+## Archived 0.4 Compatibility
 
-- [Retired agent](legacy/agent.md): configuration, tray, notifications, consolidated autostart and Linux platform notes.
-- [V2 client setup](legacy/client-setup.md): older CLI/agent setup, SSH and explicit input/output.
-- [Standalone V2 server setup](legacy/server-setup.md): old installer/unit/socket workflow.
+These guides describe removed code and past contracts, not current installation instructions.
+
+- [Released V2 compatibility](history/0.4/released-compatibility.md), [retirement policy](history/0.4/legacy-retirement.md), [serializer decisions](history/0.4/dependency-decisions-v2.md).
+- [Agent](history/0.4/legacy/agent.md), [client setup](history/0.4/legacy/client-setup.md), [standalone server](history/0.4/legacy/server-setup.md).
 
 ## History and Acceptance
 

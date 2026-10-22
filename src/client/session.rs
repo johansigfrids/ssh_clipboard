@@ -20,7 +20,7 @@ impl Default for SessionPolicy {
         Self {
             max_item_bytes: 64 * 1024 * 1024,
             max_decoded_bytes: 256 * 1024 * 1024,
-            operation_timeout: Duration::from_secs(30),
+            operation_timeout: Duration::from_millis(7000),
         }
     }
 }

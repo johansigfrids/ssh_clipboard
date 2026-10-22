@@ -17,9 +17,9 @@ Unknown paths select all checks; shared Rust changes select core and desktop, fr
 
 Superseded runs for the same PR are cancelled. Each master push and manual dispatch uses its own concurrency group, so Actions can schedule them independently (subject to account capacity). Do not group master runs by branch with cancellation disabled: Actions keeps only one running and one pending run per group, so a third push replaces the pending run even though cancellation is disabled. Distinct run IDs prevent both that loss and unnecessary branch-level serialization. The always-run `CI complete` check fails if selection or any selected job fails or is cancelled. Use this stable check for future branch protection rather than a conditionally skipped matrix entry.
 
-Cargo caches use the pinned Rust Cache action, which keys by actual toolchain/environment and prunes workspace binaries and incremental output. Core variants have separate keys, so Linux server and agent no longer compete for one cache.
+Cargo caches use the pinned Rust Cache action, which keys by actual toolchain/environment and prunes workspace binaries and incremental output. Core platforms have separate cache keys.
 
-Package-selected Windows/Mac jobs separately cache the bundled CLI's dependencies in `target/desktop-sidecar`. The installed-build helper selects that directory only when `SSH_CLIPBOARD_CLI_TARGET_DIR` is provided; ordinary local builds retain root `target/`. Keep the exact `--no-default-features --features system-clipboard` build and CLI/archive verification: the retired-agent binary is not an interchangeable sidecar. The desktop cache alone does not cover the root CLI workspace, which previously rebuilt all of those dependencies on each package run.
+Package-selected Windows/Mac jobs separately cache the bundled CLI's dependencies in `target/desktop-sidecar`. The installed-build helper selects that directory only when `SSH_CLIPBOARD_CLI_TARGET_DIR` is provided; ordinary local builds retain root `target/`. Keep the exact headless CLI build and CLI/archive verification: the packaged CLI has the same session-only contract as the root build. The desktop cache alone does not cover the root CLI workspace, which previously rebuilt all of those dependencies on each package run.
 
 On Mac, set `MACOSX_DEPLOYMENT_TARGET` from the checked-in Tauri configuration before restoring caches or invoking Cargo. Build helpers use that same value. Tauri CLI sets it automatically, whereas plain Cargo inherits the shell; switching between the two environments rebuilds native dependencies. The explicit `10.13` configuration preserves Tauri's previous default, and the value participates in desktop/sidecar cache keys.
 
@@ -28,16 +28,12 @@ The frontend check/build runs once per desktop job and records a generated proof
 Platform-sensitive Node tooling tests run on all desktop hosts. Pure Svelte interactions run once on Linux. Default-feature desktop Rust is linted everywhere and tested on Linux; all-feature tests and standalone embedded-asset builds run on every desktop host. Keep default lint and Linux tests: installed features exclude portable-only code.
 - `ci.yml` runs on PRs and pushes to `master`:
   - `cargo fmt -- --check`
-  - `cargo clippy --features agent -- -D warnings`
-  - `cargo test --features agent`
-  - `cargo build --release --features agent`
-- Matrix variants:
-  - `windows-agent`
-  - `mac-agent` (host default architecture on macOS runner)
-  - `linux-agent`
-  - `linux-server` (`--no-default-features`)
+  - `cargo clippy --locked --all-targets -- -D warnings`
+  - `cargo test --locked`
+  - `cargo build --locked --release`
+- Core matrix: Windows, macOS and Linux, each using the same headless commands.
 
-The server job installs no GUI prerequisites and rejects OS clipboard/tray/hotkey/X11/Wayland/GTK dependencies in its normal Cargo tree before building. The `system-clipboard` feature can enable native clipboard access without the legacy agent; see [build variants](build-variants.md).
+The server job installs no GUI prerequisites and rejects OS clipboard/tray/hotkey/X11/Wayland/GTK dependencies in its normal Cargo tree before building. The desktop owns native clipboard access; the root CLI is always headless; see [build variants](build-variants.md).
 
 Linux-only maintenance code must pass warnings-as-errors on the CI toolchain as well as Windows checks. Use `Err(eyre!(...))` for match-result expressions, or a statement block with `bail!(...);`: the pinned eyre macro emits a trailing semicolon that Rust rejects in expression position. Older local Linux toolchains may miss this diagnostic.
 
@@ -53,9 +49,7 @@ The `desktop` job checks the desktop source and portable development build on Wi
 
 ## Retired Legacy Publisher
 
-The old automatic `v*` agent/server publisher (`release.yml`) is removed as part of [legacy retirement](legacy-retirement.md). Historical v0.3.0 archives/tags are preserved. Current distribution uses the protected desktop/server draft workflows below; creating a new `v*` tag on current source does not publish an old-agent build.
-
-The existing compatibility matrix remains automated regression coverage. Its agent runners also check the default dependency tree for absence of old agent/tray/startup libraries and execute the default CLI command-surface regression. Existing Linux desktop compilation is not a new native Linux acceptance requirement.
+Only the protected desktop and server release workflows remain. Historical tags/assets are preserved. No agent build or release workflow exists.
 
 ## Desktop Release Staging
 
@@ -75,7 +69,7 @@ The manual server workflow validates the exact stable core commit on master, pin
 
 ## Released Compatibility Baseline
 
-After its optimized headless build, the Linux server job runs the seven standard-library Python guard tests and [released-client compatibility probe](released-compatibility.md). The latter downloads the fixed v0.3.0 archive, checks its reviewed SHA-256 before execution and exercises old/new CLI/proxy/daemon routes using private sockets and synthetic data. It never starts SSH, systemd or an OS clipboard adapter. A pinned upload-artifact action retains the metadata-only pass/failure/cleanup report for 14 days, including on a failed probe. Reports live in the job's fresh runner temporary directory, outside cached Cargo output, so a restored cache cannot collide with the no-overwrite evidence contract. Other platform jobs do not execute this Linux baseline. A network/download failure fails the check; it is not reported as successful compatibility.
+The released V2 binary download/probe and evidence artifact are removed in 0.5. Core CI runs one headless build on each Windows/macOS/Linux platform, retaining dependency guards and session process tests.
 
 ## Update Triggers
 - Changing build variants, features, or supported OSes.

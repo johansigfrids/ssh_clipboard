@@ -54,8 +54,7 @@ fn startup_only_save_commits_once_and_retains_preview_selection_and_pending_shar
     let selected = Uuid::from_u128(2);
     session.history.epoch = Some(epoch);
     session.history.selected = Some(selected);
-    session.history.preview =
-        Some(ItemPreview::from_value(session.item.as_ref().unwrap(), true).unwrap());
+    session.history.preview = session.history.preview.clone();
     session.pending_share = Some(PendingShare::new(
         epoch,
         selected,
@@ -70,7 +69,7 @@ fn startup_only_save_commits_once_and_retains_preview_selection_and_pending_shar
             dimensions: None,
             decoded_bytes: None,
         },
-        session.item.clone().unwrap(),
+        crate::clipboard_payload::build_text_value("retained snapshot".into(), 1024).unwrap(),
         60000,
         None,
     ));
@@ -97,7 +96,10 @@ fn startup_only_save_commits_once_and_retains_preview_selection_and_pending_shar
         session.pending_share.as_ref().unwrap().operation_id,
         selected
     );
-    assert_eq!(session.item.as_ref().unwrap().data, b"retained snapshot");
+    assert_eq!(
+        session.history.preview.as_ref().unwrap().text.as_deref(),
+        Some("retained snapshot")
+    );
     assert!(session.connected);
 }
 
@@ -319,7 +321,7 @@ fn commit_failure_rolls_back_both_activations_and_retains_saved_configuration() 
     assert_eq!(startup.actual.get(), Some(false));
     assert_eq!(store.load().unwrap(), Some(original.clone()));
     assert_eq!(session.saved_config, Some(original));
-    assert!(session.item.is_some());
+    assert!(session.history.preview.is_some());
 }
 
 #[test]

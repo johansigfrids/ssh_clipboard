@@ -1,3 +1,5 @@
+> Historical 0.4 compatibility guide. The 0.5 source removes these implementations; use the current [fresh setup guide](../../compatibility-and-cutover.md).
+
 # Legacy V2 Protocol
 
 ## Purpose
@@ -13,7 +15,7 @@ Document the protocol framing and message types used between:
 
 ## Framing
 
-This page describes the current version 2 endpoint. The new [shelf core](shelf-core.md) is implemented separately and has not changed these serialized enums or endpoint bytes. Its [session/bootstrap protocol](session-protocol.md) is integrated with the shelf daemon, client and desktop. V2 and sessions remain explicitly selected endpoints.
+This page describes the current version 2 endpoint. The new [shelf core](../../shelf-core.md) is implemented separately and has not changed these serialized enums or endpoint bytes. Its [session/bootstrap protocol](../../session-protocol.md) is integrated with the shelf daemon, client and desktop. V2 and sessions remain explicitly selected endpoints.
 Each request/response is **one-shot** per connection/session.
 
 Wire format:
@@ -77,11 +79,11 @@ Proxy process exit codes (Linux):
 The proxy may exit non-zero while still writing a valid `Response::Error` frame to stdout.
 Clients should treat the framed `Response` as the primary signal and use the process exit status only as a secondary hint (or for logging).
 
-The rework one-shot client verifies the request ID and expected reply kind before accepting any response. Stderr is drained concurrently with bounded retention, and one operation deadline covers stream work and process completion. A framed error can survive a nonzero proxy exit; success requires successful completion. These client lifecycle changes preserve the version 2 wire bytes; see [transport guardrails](connection-diagnostics.md#one-shot-lifecycle-guardrails).
+The rework one-shot client verifies the request ID and expected reply kind before accepting any response. Stderr is drained concurrently with bounded retention, and one operation deadline covers stream work and process completion. A framed error can survive a nonzero proxy exit; success requires successful completion. These client lifecycle changes preserve the version 2 wire bytes; see [transport guardrails](../../persistent-sessions.md).
 
 ## Update Triggers
 - Any changes to `MAGIC`, `VERSION`, message enums, or size limits.
 - Adding binary/image clipboard formats or multi-format metadata.
 
 ## Related Docs
-- [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [ARCHITECTURE.md](../../../ARCHITECTURE.md)

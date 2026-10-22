@@ -5,38 +5,13 @@ Capture high-impact dependency choices, their rationale, and guardrails for futu
 
 ## Key Files
 - `Cargo.toml`
-- `src/framing.rs`
-- `src/protocol.rs`
-- [docs/protocol.md](protocol.md)
+- `src/session_protocol/framing.rs`
+- `src/session_protocol.rs`
+- [Session protocol](session-protocol.md)
 
-## bincode -> wincode (2026-02)
+## Session Serialization
 
-### Decision
-- Replace `bincode` with `wincode` for protocol payload serialization.
-
-### Why
-- `bincode` `3.0.0` is intentionally non-functional and emits a compile error.
-- The crate is marked unmaintained, so staying on `2.x` long-term is a maintenance risk.
-- `wincode` is bincode-compatible for the used protocol shapes and is actively maintained.
-
-### Compatibility Requirement
-- Protocol wire version remains `2`.
-- Serialized bytes for representative `Request`/`Response` fixtures are locked by tests in `src/protocol.rs`.
-- Any codec/config change must preserve fixtures or explicitly bump protocol version and update docs.
-
-### Implementation Guardrails
-- Codec config is centralized in `src/framing.rs` (`codec_config()` + `CodecConfig`).
-- Config intentionally uses little-endian + varint to match prior behavior.
-- Preallocation limit is intentionally disabled to avoid introducing a new 4 MiB serialization/deserialization cap.
-
-### Upgrade Checklist (Codec-Related)
-- Update dependency in `Cargo.toml`.
-- Verify `cargo test --features agent` and `cargo test --no-default-features`.
-- Verify fixture tests in `src/protocol.rs` still pass.
-- If wire bytes change:
-  - decide whether this is acceptable,
-  - bump protocol version if needed,
-  - update [docs/protocol.md](protocol.md) and release notes.
+SCBS uses strict bounded JSON metadata and raw payload frames. Historical [V2 serializer decisions](history/0.4/dependency-decisions-v2.md) do not describe current dependencies.
 
 ## Desktop Foundation (2026-10)
 
@@ -46,7 +21,7 @@ The installed desktop uses a direct, Windows-only optional `auto-launch` depende
 
 ### Accepted Decision for Shipped Platforms
 
-Tauri 2 with Svelte/TypeScript is the shipped Windows/Apple Silicon desktop. Actual owner migration, settings, native text, login/shortcut and installed update acceptance are recorded in [publication acceptance](history/release-0.4.2-acceptance.md). Separate lockfiles and an explicit desktop identifier remain. The old agent is [retired](legacy-retirement.md); Linux desktop and additional rare manual checks are deferred, not an unresolved framework-selection gate.
+Tauri 2 with Svelte/TypeScript is the shipped Windows/Apple Silicon desktop. Actual owner migration, settings, native text, login/shortcut and installed update acceptance are recorded in [publication acceptance](history/release-0.4.2-acceptance.md). Separate lockfiles and an explicit desktop identifier remain. The old agent is [retired](history/0.4/legacy-retirement.md); Linux desktop and additional rare manual checks are deferred, not an unresolved framework-selection gate.
 
 ### Guardrails
 
@@ -54,7 +29,7 @@ Tauri 2 with Svelte/TypeScript is the shipped Windows/Apple Silicon desktop. Act
 - Keep clipboard ownership on one worker thread for the process lifetime; initialize access only on an explicit transfer action. Validate native paste separately from adapter tests.
 - Select a TypeScript version supported by `svelte-check`; the latest TypeScript major was outside its peer range, so the desktop uses TypeScript 6. Commit the npm lockfile and use `npm ci` for reproducibility.
 - Avoid unrelated dependency churn between root and desktop lockfiles. Recheck both graphs when updating shared APIs or codec/parser dependencies.
-- Check legacy codec fixtures with both dependency graphs; a separate Cargo lockfile can choose a newer compatible `wincode` version.
+- Check session wire fixtures and shared APIs under both dependency lockfiles.
 - A host consuming the library on Windows opts into `external-resource-owner`. Tauri embeds the executable's resources; embedding them again in the library causes duplicate VERSION records at link time. Normal CLI builds keep their original resources.
 - Wayland currently uses visible alternate entry points, with portal support pending. Do not claim OS shortcut or tray capability from a browser screenshot or a successful compile.
 
@@ -62,11 +37,11 @@ See [desktop development](desktop-development.md) for build guardrails and links
 
 ## Shared Configuration Storage
 
-The shared configuration store uses `dirs` for a common per-user path and `tempfile` for same-directory atomic replacement, with standard-library file locks to coordinate writers. Keep the lock file stable across replacement and read settings without implicitly creating defaults. `confy` supplies the exact legacy path; migration reads bounded bytes and parses TOML directly rather than using its default-creating loader. A UUID is assigned once on durable save for future device identity. See [shared configuration](shared-configuration.md) and [migration/recovery](configuration-migration.md).
+The shared configuration store uses `dirs` for a common per-user path and `tempfile` for same-directory atomic replacement, with standard-library file locks to coordinate writers. Keep the lock file stable across replacement and read settings without implicitly creating defaults. Only schema 3 settings.json is read; there is no source discovery or migration parser. A UUID is assigned once on durable save for future device identity. See [shared configuration](shared-configuration.md) and [fresh cutover](compatibility-and-cutover.md).
 
 ## Headless Image and Clipboard Boundary
 
-Shared PNG/image actions use a library-owned RGBA type. OS clipboard access is optional through `system-clipboard`; the old `agent` feature includes it, while the new desktop owns a retained adapter. Disable default image codecs and select PNG explicitly, since no other image representation is supported by the protocol. See [build variants](build-variants.md) for the dependency guard and checks.
+Shared PNG/image actions use a library-owned RGBA type. Only the desktop owns native clipboard payloads, adapter traits and retained ownership; the core remains headless. Disable default image codecs and select PNG explicitly, since no other image representation is supported by the protocol. See [build variants](build-variants.md) for the dependency guard and checks.
 
 ## Desktop Notification Adapter
 
@@ -90,7 +65,7 @@ Signed desktop/server packages use the locked `minisign-verify` implementation f
 ## Related Docs
 
 - [Desktop development](desktop-development.md)
-- [docs/protocol.md](protocol.md)
+- [Session protocol](session-protocol.md)
 - [docs/testing.md](testing.md)
 - [docs/releasing.md](releasing.md)
 - [docs/index.md](index.md)

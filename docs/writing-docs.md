@@ -17,10 +17,10 @@ Keep current behavior, reusable procedures, compatibility notes and dated eviden
 | [README.md](../README.md) | Product entry point, downloads, short setup and usage | Link to detailed guides; avoid test counts and installation chronology. |
 | [ARCHITECTURE.md](../ARCHITECTURE.md) | Current components and cross-component contracts | Link to feature references for details and history for evidence. |
 | `docs/*.md` | Current feature contracts, development and operations | Describe implemented behavior in present tense; keep root cause and guardrail near the owning contract. |
-| `docs/legacy/` | Retained agent and standalone V2 compatibility workflows | State the feature/build boundary and link to the recommended current path. |
+| `docs/history/0.4/` | Archived agent/V2 workflows and contracts | Preserve historical context and link to current fresh setup. |
 | `docs/history/` | Completed plans, acceptance and development checkpoints | Add a historical/scope notice; preserve exact source, package, date and test boundaries. |
 
-Current ownership is intentionally focused: shared configuration owns saves/reload; migration owns imports/backups; history owns selection/copy; sessions/recovery own transport and uncertain uploads; desktop updates owns startup/package handoff; releasing owns staging/publication/key operations; testing owns check commands and isolation. Shelf core, protocol, service, native endpoint and client remain separate component references.
+Current ownership is intentionally focused: shared configuration owns saves/reload; fresh cutover owns the schema break and rollback guidance; history owns selection/copy; sessions/recovery own transport and uncertain uploads; desktop updates owns startup/package handoff; releasing owns staging/publication/key operations; testing owns check commands and isolation. Shelf core, protocol, service, native endpoint and client remain separate component references.
 
 Completed plans retain decisions and screenshots, but do not define a new backlog. A pending gate in an old session means that session did not prove it. Link later evidence and the closed-scope decision rather than silently relabeling an old test as passed. Record a PR merge from local Git as such; it does not establish fresh hosted CI or native acceptance.
 

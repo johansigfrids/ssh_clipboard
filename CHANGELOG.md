@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-22
+
+### Changed
+- Remove the retired agent, V2 protocol, compatibility routes, old installers and native clipboard CLI commands.
+- Require fresh schema 3 `settings.json` and schema 2 managed server installations; preserve old files and backups.
+- Keep clipboard payloads/adapters in the desktop and make the core headless and session-only.
+- Resolve CLI limits from explicit flags, selected profile, then shared defaults; retain strict session framing and signed installation recovery.
+
 ## [0.4.3] - 2026-10-19
 
 ### Changed

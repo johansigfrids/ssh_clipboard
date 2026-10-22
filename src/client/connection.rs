@@ -1,9 +1,9 @@
 //! One reusable SSH child and negotiated stream. Own/drop this across cancelled calls.
 use super::failure::{FailureKind, TransportFailure, classify_stderr};
+use super::process::StderrCapture;
 use super::session::{Action, Reply, Session, SessionError, SessionPolicy, Snapshot};
 use super::session_transport::{Pipes, RunError};
 use super::ssh::{SshConfig, resolve_target_and_port, spawn_ssh_session_proxy};
-use super::transport::StderrCapture;
 use crate::session_protocol::EffectiveLimits;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;

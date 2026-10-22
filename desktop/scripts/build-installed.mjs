@@ -60,7 +60,7 @@ const profile=flags.has("--debug")?"debug":"release";
 const extension=platform.startsWith("windows")?".exe":"";
 const cliTarget=path.resolve(root,process.env.SSH_CLIPBOARD_CLI_TARGET_DIR??"target");
 const cliEnv={...desktopBuildEnv(),CARGO_TARGET_DIR:cliTarget};
-run("cargo",["build","--locked",...(!flags.has("--debug")?["--release"]:[]),"--no-default-features","--features","system-clipboard","--bin","ssh_clipboard"],root,cliEnv);
+run("cargo",["build","--locked",...(!flags.has("--debug")?["--release"]:[]),"--bin","ssh_clipboard"],root,cliEnv);
 const cliBinary=path.join(cliTarget,profile,`ssh_clipboard${extension}`);
 const reported=run(cliBinary,["--version"],root,cliEnv,true).trim();
 if(reported!==`ssh_clipboard ${version}`)throw new Error("Bundled CLI/core version mismatch.");

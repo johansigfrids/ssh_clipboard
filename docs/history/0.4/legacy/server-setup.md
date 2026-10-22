@@ -1,8 +1,10 @@
+> Historical 0.4 compatibility guide. The 0.5 source removes these implementations; use the current [fresh setup guide](../../../compatibility-and-cutover.md).
+
 # Legacy Standalone V2 Server Setup
 
 ## Current Installation
 
-For new Linux installations use the signed [managed server maintenance](../server-maintenance.md) path. The commands below document the retained single-item daemon/proxy compatibility path; the owner's live server has completed its [clean 0.4 cutover](../history/linux-cutover-acceptance.md). See [legacy retirement](../legacy-retirement.md).
+For new Linux installations use the signed [managed server maintenance](../../../server-maintenance.md) path. The commands below document the retained single-item daemon/proxy compatibility path; the owner's live server has completed its [clean 0.4 cutover](../../linux-cutover-acceptance.md). See [legacy retirement](../legacy-retirement.md).
 
 ## Purpose
 Explain how to run the daemon on the Linux server and how the SSH-invoked proxy interacts with it.
@@ -11,10 +13,10 @@ Explain how to run the daemon on the Linux server and how the SSH-invoked proxy 
 - `src/main.rs`
 - `src/daemon.rs`
 - `src/proxy.rs`
-- [README.md](../../README.md)
+- [README.md](../../../../README.md)
 
 ## Build
-Preferred: download the [signed Linux x86_64 server 0.4.0 release](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) and use the [managed installer and verification instructions](../server-maintenance.md). The repository-wide latest release contains the Windows desktop installer. The legacy daemon examples below are an explicit compatibility alternative.
+Preferred: download the [signed Linux x86_64 server 0.4.0 release](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.4.0) and use the [managed installer and verification instructions](../../../server-maintenance.md). The repository-wide latest release contains the Windows desktop installer. The legacy daemon examples below are an explicit compatibility alternative.
 
 Build from source on the Linux server:
 ```
@@ -23,11 +25,11 @@ cargo build --release --no-default-features
 
 The resulting binary is `target/release/ssh_clipboard`.
 
-The rework exposes explicit signed `server-maintenance install|update|status|recover|verify` commands. They retain per-user versioned executables, create a stable launcher and actual `ssh_clipboard-shelf.service`, pin trust/socket/limits, and restore the previous executable if proxy protocol health fails. Signed production 0.4.0 installation and clean live migration now pass; anonymous public server delivery also passes, while actual reboot/last-session logout remain separate. This is a separately reviewed migration from the legacy installer below; see [commands](../server-maintenance.md), [public verification trust](../security.md#signed-package-trust) and [live acceptance](../history/linux-cutover-acceptance.md).
+The rework exposes explicit signed `server-maintenance install|update|status|recover|verify` commands. They retain per-user versioned executables, create a stable launcher and actual `ssh_clipboard-shelf.service`, pin trust/socket/limits, and restore the previous executable if proxy protocol health fails. Signed production 0.4.0 installation and clean live migration now pass; anonymous public server delivery also passes, while actual reboot/last-session logout remain separate. This is a separately reviewed migration from the legacy installer below; see [commands](../../../server-maintenance.md), [public verification trust](../../../security.md#signed-package-trust) and [live acceptance](../../linux-cutover-acceptance.md).
 
 ## Legacy daemon
 
-Current source also provides the managed [shelf daemon/session proxy](../shelf-server.md). It is not installed automatically. Its optional explicit V2 compatibility socket lets existing clients share the shelf; running separate old/new daemon modes without that adapter produces separate stores. Both current-source daemon modes reject duplicate ownership/live sockets and require an owner-only final socket directory; custom paths should use a dedicated private directory. Startup no longer unlinks a live socket or chmods an arbitrary existing parent.
+Current source also provides the managed [shelf daemon/session proxy](../../../shelf-server.md). It is not installed automatically. Its optional explicit V2 compatibility socket lets existing clients share the shelf; running separate old/new daemon modes without that adapter produces separate stores. Both current-source daemon modes reject duplicate ownership/live sockets and require an owner-only final socket directory; custom paths should use a dedicated private directory. Startup no longer unlinks a live socket or chmods an arbitrary existing parent.
 Run as the target user (per-user daemon):
 ```
 ssh_clipboard daemon
@@ -118,4 +120,4 @@ The rework maintenance command instead writes a stable actual user unit; it does
 
 ## Related Docs
 - [docs/protocol.md](../protocol.md)
-- [ARCHITECTURE.md](../../ARCHITECTURE.md)
+- [ARCHITECTURE.md](../../../../ARCHITECTURE.md)

@@ -2,7 +2,7 @@
 
 Uses a temporary HOME/launcher/socket and only a new, verified-absent unit in the
 user manager's runtime search path. Never changes persistent configuration or
-stops/restarts the existing legacy service.
+stops/restarts the existing managed service.
 """
 import json
 import os
@@ -35,8 +35,8 @@ def ctl(*args, success=True):
                   env=CONTROL_ENV, success=success)
 
 
-def legacy_identity():
-    return ctl("show", "ssh_clipboard.service", "-p", "MainPID", "-p", "InvocationID",
+def installed_identity():
+    return ctl("show", "ssh_clipboard-shelf.service", "-p", "MainPID", "-p", "InvocationID",
                "-p", "ActiveState", "-p", "FragmentPath").stdout
 
 
@@ -118,10 +118,10 @@ def main():
         raise RuntimeError("Managed unit name is already in use; nothing changed")
     if shutil.disk_usage("/tmp").free < 1024**3:
         raise RuntimeError("Fixture needs at least 1 GiB of temporary disk space")
-    previous_identity = legacy_identity()
+    previous_identity = installed_identity()
     previous_route = shutil.which("ssh_clipboard")
     root = Path(tempfile.mkdtemp(prefix="ssh-clipboard-systemd-", dir="/tmp"))
-    (root / "baseline.json").write_text(json.dumps({"legacy": previous_identity.decode(), "ssh_route": previous_route}))
+    (root / "baseline.json").write_text(json.dumps({"installed": previous_identity.decode(), "ssh_route": previous_route}))
     signal.signal(signal.SIGALRM, interrupt)
     signal.signal(signal.SIGTERM, interrupt)
     signal.signal(signal.SIGINT, interrupt)
@@ -158,11 +158,11 @@ def main():
                 limits.unlink()
                 dropin.rmdir()
             ctl("daemon-reload")
-        if legacy_identity() != previous_identity or shutil.which("ssh_clipboard") != previous_route:
+        if installed_identity() != previous_identity or shutil.which("ssh_clipboard") != previous_route:
             raise RuntimeError(f"Existing service identity or SSH route changed; retained fixture at {root}")
         assert root.parent == Path("/tmp") and root.name.startswith("ssh-clipboard-systemd-")
         shutil.rmtree(root)
-        emit({"cleaned": True, "legacy_unchanged": True, "ssh_route_unchanged": True})
+        emit({"cleaned": True, "installed_unchanged": True, "ssh_route_unchanged": True})
 
 
 main()

@@ -1,3 +1,5 @@
+> Historical 0.4 compatibility guide. The 0.5 source removes these implementations; use the current [fresh setup guide](../../../compatibility-and-cutover.md).
+
 # Legacy V2 Client Setup (Windows/macOS)
 
 ## Purpose
@@ -5,7 +7,7 @@ Document how to run the client CLI on Windows and macOS, including SSH prerequis
 For Linux desktop specifics (Wayland/X11, tray/hotkeys), see [docs/legacy/agent.md](agent.md#linux-platform-notes).
 
 ## Key Files
-- [README.md](../../README.md)
+- [README.md](../../../../README.md)
 - `src/main.rs`
 - `src/client/ssh.rs`
 - `src/client/clipboard.rs`
@@ -18,7 +20,7 @@ For Linux desktop specifics (Wayland/X11, tray/hotkeys), see [docs/legacy/agent.
   - macOS: OpenSSH is included.
 
 ## Basic Usage
-For new Windows/Apple Silicon installations use the [signed desktop](../../README.md#install-the-desktop). The following `install-client` procedure is retained only for frozen archives or an explicit `--features agent` compatibility build; see [retirement](../legacy-retirement.md).
+For new Windows/Apple Silicon installations use the [signed desktop](../../../../README.md#install-the-desktop). The following `install-client` procedure is retained only for frozen archives or an explicit `--features agent` compatibility build; see [retirement](../legacy-retirement.md).
 
 Legacy first-time setup:
 ```
@@ -116,7 +118,7 @@ ssh_clipboard push --target user@server --ssh-option "ConnectTimeout=5" --ssh-op
 - Changes to SSH argument handling (target parsing, options, defaults).
 
 ## Related Docs
-- [docs/server-setup.md](../server-setup.md)
+- [docs/server-setup.md](../../../server-setup.md)
 - [docs/protocol.md](../protocol.md)
-- [ARCHITECTURE.md](../../ARCHITECTURE.md)
+- [ARCHITECTURE.md](../../../../ARCHITECTURE.md)
 - [docs/legacy/agent.md](agent.md#linux-platform-notes)

@@ -1,5 +1,4 @@
-//! Per-user managed installation. Existing global/legacy installations are never adopted.
-use crate::cli::ShelfDaemonArgs;
+//! Per-user managed installation. Existing installations are never adopted.
 use crate::server_package::{MAX_PACKAGE_BYTES, Policy, artifact_name, native_platform};
 use crate::server_releases::{Outcome, Service, Store, Verifier, version_numbers};
 use eyre::{Result, WrapErr, bail, ensure};
@@ -20,13 +19,28 @@ const CONFIG: &str = "installation.json";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct DaemonSettings {
+    pub socket_path: PathBuf,
+    pub max_items: usize,
+    pub retention_secs: u64,
+    pub max_item_bytes: usize,
+    pub max_stored_bytes: usize,
+    pub max_resident_bytes: usize,
+    pub max_decoded_bytes: usize,
+    pub max_connections: usize,
+    pub io_timeout_ms: u64,
+    pub idle_timeout_ms: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Configuration {
     schema: u32,
     uid: u32,
     public_key: String,
     launcher: PathBuf,
     unit: PathBuf,
-    daemon: ShelfDaemonArgs,
+    daemon: DaemonSettings,
 }
 
 #[derive(Serialize)]
@@ -58,9 +72,8 @@ impl Manager {
             root.is_dir(),
             "No managed installation exists at this path."
         );
+        let config = read_configuration(&root.join(CONFIG))?;
         let store = Store::open(root)?;
-        let config: Configuration =
-            serde_json::from_slice(&owned_file(&store.root().join(CONFIG), 32768)?)?;
         validate(&config)?;
         Ok(Self {
             store,
@@ -73,18 +86,17 @@ impl Manager {
     pub fn install(
         root: &Path,
         public_key: String,
-        mut daemon: ShelfDaemonArgs,
+        daemon: DaemonSettings,
         version: &str,
         package: Option<&Path>,
         signature: Option<&Path>,
     ) -> Result<Outcome> {
-        daemon.socket_path = Some(match daemon.socket_path {
-            Some(path) => path,
-            None => crate::shelf_daemon::default_socket_path()?,
-        });
+        if root.join(CONFIG).exists() {
+            read_configuration(&root.join(CONFIG))?;
+        }
         let home = dirs::home_dir().ok_or_else(|| eyre::eyre!("home directory is unavailable"))?;
         let config = Configuration {
-            schema: 1,
+            schema: 2,
             uid: unsafe { libc::geteuid() },
             public_key: public_key.trim().into(),
             launcher: home.join(".local/bin/ssh_clipboard"),
@@ -108,8 +120,7 @@ impl Manager {
         let config_path = store.root().join(CONFIG);
         match fs::symlink_metadata(&config_path) {
             Ok(_) => {
-                let previous: Configuration =
-                    serde_json::from_slice(&owned_file(&config_path, 32768)?)?;
+                let previous = read_configuration(&config_path)?;
                 ensure!(
                     previous == config,
                     "This installation already has different pinned trust or daemon options. Use update; migration needs separate review."
@@ -256,7 +267,7 @@ impl Manager {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
             Err(error) => return Err(error.into()),
         };
-        // Detect both legacy conflicts before creating either managed file.
+        // Detect both launcher/unit conflicts before creating either managed file.
         if create_launcher {
             symlink(target, &self.config.launcher)?;
             sync_parent(&self.config.launcher)?;
@@ -302,13 +313,7 @@ impl Manager {
                 command
                     .arg("session-proxy")
                     .arg("--socket-path")
-                    .arg(
-                        self.config
-                            .daemon
-                            .socket_path
-                            .as_ref()
-                            .expect("validated socket"),
-                    )
+                    .arg(&self.config.daemon.socket_path)
                     .args(["--io-timeout-ms", "1000", "--idle-timeout-ms", "1000"])
                     .stdin(std::process::Stdio::piped())
                     .stdout(std::process::Stdio::piped())
@@ -372,19 +377,11 @@ fn runtime() -> Result<tokio::runtime::Runtime> {
 
 fn validate(config: &Configuration) -> Result<()> {
     ensure!(
-        config.schema == 1 && config.uid == unsafe { libc::geteuid() },
+        config.schema == 2 && config.uid == unsafe { libc::geteuid() },
         "Installation schema or target user does not match."
     );
     Policy::new(&config.public_key, native_platform()?)?;
-    for path in [
-        &config.launcher,
-        &config.unit,
-        config
-            .daemon
-            .socket_path
-            .as_ref()
-            .ok_or_else(|| eyre::eyre!("missing saved socket"))?,
-    ] {
+    for path in [&config.launcher, &config.unit, &config.daemon.socket_path] {
         ensure!(path.is_absolute(), "Managed paths must be absolute.");
         quote(
             path.to_str()
@@ -395,23 +392,6 @@ fn validate(config: &Configuration) -> Result<()> {
         config.unit.file_name().is_some_and(|name| name == UNIT),
         "Unexpected managed service name."
     );
-    if let Some(path) = &config.daemon.legacy_socket_path {
-        ensure!(
-            path.is_absolute() && Some(path) != config.daemon.socket_path.as_ref(),
-            "Compatibility socket must be a different absolute path."
-        );
-        ensure!(
-            config.daemon.legacy_max_frame_bytes > 0
-                && config.daemon.legacy_max_frame_bytes
-                    <= crate::session_protocol::MAX_PAYLOAD_BYTES
-                        + crate::protocol::RESPONSE_OVERHEAD,
-            "Invalid compatibility limit."
-        );
-        quote(
-            path.to_str()
-                .ok_or_else(|| eyre::eyre!("Socket path must be UTF-8"))?,
-        )?;
-    }
     let d = &config.daemon;
     crate::shelf_service::ShelfService::new(
         crate::shelf::ShelfLimits {
@@ -433,15 +413,11 @@ fn validate(config: &Configuration) -> Result<()> {
     Ok(())
 }
 
-fn daemon_argv(d: &ShelfDaemonArgs) -> Vec<String> {
+fn daemon_argv(d: &DaemonSettings) -> Vec<String> {
     let mut args = vec![
         "shelf-daemon".into(),
         "--socket-path".into(),
-        d.socket_path
-            .as_ref()
-            .expect("validated")
-            .to_string_lossy()
-            .into_owned(),
+        d.socket_path.to_string_lossy().into_owned(),
     ];
     for (flag, value) in [
         ("--max-items", d.max_items.to_string()),
@@ -455,14 +431,6 @@ fn daemon_argv(d: &ShelfDaemonArgs) -> Vec<String> {
         ("--idle-timeout-ms", d.idle_timeout_ms.to_string()),
     ] {
         args.extend([flag.into(), value]);
-    }
-    if let Some(path) = &d.legacy_socket_path {
-        args.extend([
-            "--legacy-socket-path".into(),
-            path.to_string_lossy().into_owned(),
-            "--legacy-max-frame-bytes".into(),
-            d.legacy_max_frame_bytes.to_string(),
-        ]);
     }
     args
 }
@@ -625,4 +593,14 @@ async fn download(url: &str, limit: usize, seconds: u64) -> Result<Vec<u8>> {
     process::output(&mut command, limit, Duration::from_secs(seconds))
         .await
         .wrap_err("Could not download the requested signed server package")
+}
+
+fn read_configuration(path: &Path) -> Result<Configuration> {
+    let bytes = owned_file(path, 32768)?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes)?;
+    ensure!(
+        value.get("schema").and_then(|value| value.as_u64()) == Some(2),
+        "Unsupported installation schema. Preserve the old installation and perform a fresh 0.5 setup."
+    );
+    Ok(serde_json::from_value(value)?)
 }

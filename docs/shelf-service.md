@@ -2,13 +2,12 @@
 
 ## Purpose
 
-Describe the transport-independent service connecting session and V2 compatibility codecs to one shelf. The [Linux listener/proxy](shelf-server.md), [item-aware client](shelf-client.md) and desktop integrate this service; stream tests establish its own lifecycle and resource contracts.
+Describe the transport-independent service connecting strict session messages to one shelf. The [Linux listener/proxy](shelf-server.md), [item-aware client](shelf-client.md) and desktop integrate this service; stream tests establish its own lifecycle and resource contracts.
 
 ## Key Files
 
 - `src/shelf_service.rs`: connection admission, deadlines, handlers, and maintenance hook.
 - `src/shelf_service/tests.rs`: duplex stream lifecycle and action tests.
-- `src/shelf_service/legacy.rs`: frozen V2 borrowed shapes and budgeted compatibility handler.
 - `src/session_protocol.rs`, `src/session_protocol/framing.rs`: typed metadata and bounded raw frames.
 - `src/shelf.rs`: payload validation/ownership and shelf state.
 
@@ -30,13 +29,8 @@ The shelf mutex is never held over stream I/O or image validation. Reply metadat
 
 `maintenance()` expires items/retry records and returns epoch/sequence. The native shelf daemon calls it every second even with no traffic. Authentication is outside this generic stream layer: a native listener must enforce private socket/directory permissions, same-UID peers, exclusive daemon ownership, bounded accepted tasks, and safe stale-socket recovery before calling `serve`.
 
-The service now supports bounded metadata Watch requests. A watch channel retains only the latest sequence, notifications include legacy mutations and maintenance expiry, and no shelf mutex is held while waiting. Slow consumers resnapshot rather than accumulating events. Each observer occupies one normal bounded connection slot. No cancellation request, reconnection driver, or OS clipboard access exists in this service layer. The [native endpoint](shelf-server.md) supplies the listener and optional V2 socket; [persistent sessions](persistent-sessions.md) own client reconnection and cancellation. Installed/native evidence is recorded separately in [Linux cutover acceptance](history/linux-cutover-acceptance.md) and [Windows history acceptance](history/native-history-acceptance.md). The standalone legacy daemon remains single-item; its behavior must not be confused with the shelf adapter.
+The service now supports bounded metadata Watch requests. A watch channel retains only the latest sequence, notifications include session mutations and maintenance expiry, and no shelf mutex is held while waiting. Slow consumers resnapshot rather than accumulating events. Each observer occupies one normal bounded connection slot. No cancellation request, reconnection driver, or OS clipboard access exists in this service layer. The [native endpoint](shelf-server.md) supplies the listener and optional V2 socket; [persistent sessions](persistent-sessions.md) own client reconnection and cancellation. Installed/native evidence is recorded separately in [Linux cutover acceptance](history/linux-cutover-acceptance.md) and [Windows history acceptance](history/native-history-acceptance.md). The standalone legacy daemon remains single-item; its behavior must not be confused with the shelf adapter.
 
-## Legacy Adapter
-
-`serve_legacy` handles exactly one V2 request under the shared nonwaiting admission guard and operation deadline. Validate its header before reserving bytes. Borrow `&str`/`&[u8]` directly from a budgeted frame, then compact the payload in place for validation/commit. Keep the original frame capacity charged until the stored blob's last lease drops. No unchecked second payload allocation follows decoding. Frozen borrowed DTOs preserve V2 enum order, integer encoding, bytes, and timestamps; reject malformed/trailing data. Legacy uploads have neither invented device metadata nor operation-ID retry guarantees.
-
-Get leases the newest item and computes the serialized response size before allocation. Its serialization buffer is charged to the same resident budget, while the original item remains pinned. Small control/error responses are bounded to 1 KiB. The configured legacy frame policy and historical 64 MiB decoded-image cap stay explicit; metadata can describe an item that Get must refuse. Resource/validation errors preserve existing content. A timed-out validation job cannot commit later.
 
 ## Evidence
 
@@ -51,7 +45,6 @@ These tests prove generic stream/service behavior. They do not prove native sock
 - Do not write an early Busy reply and wait forever while a sequential client is still blocked writing its body. Bound/drain the validated rejected body or close the stream.
 - Use actual decoder output size as well as RGBA dimensions when enforcing a peer's image budget.
 - Capture server time under the shelf mutex, never before waiting for validation/another request.
-- Legacy decoding/encoding must reserve memory too; borrowed DTOs and in-place compaction avoid a hidden payload copy while retaining the full allocation charge.
 
 ## Update Triggers
 

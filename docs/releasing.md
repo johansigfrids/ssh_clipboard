@@ -1,7 +1,7 @@
 # Releasing
 
 ## Purpose
-Describe legacy releases, staged signed desktop releases, key operations, and verified recovery.
+Describe protected signed desktop/server releases, artifact review, key operations and verified recovery.
 
 ## Key Files
 - `.github/workflows/desktop-release.yml`
@@ -12,7 +12,7 @@ Describe legacy releases, staged signed desktop releases, key operations, and ve
 
 ## Retired Legacy Distribution
 
-The old automatic `v*` CLI/agent/server release publisher is removed. The legacy tray agent is retired from default builds and future distribution; its explicit compatibility feature and published v0.3.0 archives remain through the 0.4 compatibility period. See [legacy retirement](legacy-retirement.md).
+The automatic `v*` CLI/agent/server publisher, agent runtime and V2 compatibility code are removed. Published legacy archives remain historical downloads; [legacy retirement](history/0.4/legacy-retirement.md) records the former 0.4 policy. Current releases use only the protected session desktop/server workflows.
 
 Do not create a legacy tag to publish a current desktop or server. Use the existing protected signed workflows, independent artifact admission and separate publication authorization below. Do not delete/rewrite historical tags or assets. An exceptional new legacy release would require a separate owner decision and reviewed staging workflow.
 

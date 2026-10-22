@@ -60,4 +60,4 @@ This portable synthetic migration pass does not prove import of the owner's actu
 ## Related Docs
 
 - [Desktop history](../desktop-history.md), [persistent sessions](../persistent-sessions.md), and [share recovery](../share-recovery.md).
-- [Configuration migration](../configuration-migration.md), [testing](../testing.md), and [implementation plan](implementation-plan.md).
+- [Configuration migration](0.4/configuration-migration.md), [testing](../testing.md), and [implementation plan](implementation-plan.md).

@@ -5,9 +5,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 
-pub mod migration;
-
-const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION: u32 = 3;
 const MAX_CONFIG_BYTES: u64 = 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,7 +17,6 @@ pub struct Configuration {
     pub profiles: Vec<Profile>,
     pub preferences: Preferences,
     pub device: Device,
-    pub legacy_import: Option<LegacyImport>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,44 +29,38 @@ pub struct Profile {
     pub identity_file: String,
     pub transport: TransportSettings,
     #[serde(default)]
-    pub endpoint: Endpoint,
+    pub limits: SessionLimits,
 }
 
-/// Selecting a new endpoint is explicit and never rewrites a restricted SSH key.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "protocol", rename_all = "snake_case", deny_unknown_fields)]
-pub enum Endpoint {
-    Legacy {},
-    Shelf {
-        max_item_bytes: u32,
-        max_decoded_bytes: u32,
-    },
+#[serde(deny_unknown_fields)]
+pub struct SessionLimits {
+    pub max_item_bytes: u32,
+    pub max_decoded_bytes: u32,
 }
-impl Default for Endpoint {
+impl Default for SessionLimits {
     fn default() -> Self {
-        Self::Legacy {}
+        let policy = crate::client::session::SessionPolicy::default();
+        Self {
+            max_item_bytes: policy.max_item_bytes,
+            max_decoded_bytes: policy.max_decoded_bytes,
+        }
     }
 }
-impl Endpoint {
+impl SessionLimits {
     pub fn session_policy(
         &self,
         timeout_ms: u64,
-    ) -> Result<Option<crate::client::session::SessionPolicy>, String> {
-        match self {
-            Self::Legacy {} => Ok(None),
-            Self::Shelf {
-                max_item_bytes,
-                max_decoded_bytes,
-            } => {
-                let policy = crate::client::session::SessionPolicy {
-                    max_item_bytes: *max_item_bytes,
-                    max_decoded_bytes: *max_decoded_bytes,
-                    operation_timeout: std::time::Duration::from_millis(timeout_ms),
-                };
-                policy.validate().map_err(|error| error.to_string())?;
-                Ok(Some(policy))
-            }
-        }
+    ) -> Result<crate::client::session::SessionPolicy, String> {
+        let policy = crate::client::session::SessionPolicy {
+            max_item_bytes: self.max_item_bytes,
+            max_decoded_bytes: self.max_decoded_bytes,
+            operation_timeout: std::time::Duration::from_millis(timeout_ms),
+        };
+        policy
+            .validate()
+            .map_err(|_| "Session limits or timeout are invalid.".to_string())?;
+        Ok(policy)
     }
 }
 
@@ -117,23 +108,10 @@ impl Default for Device {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct LegacyImport {
-    pub source: PathBuf,
-    pub backup: PathBuf,
-    /// Existing schema 2 receipts have not yet been reviewed in the desktop.
-    #[serde(default)]
-    pub reviewed: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct TransportSettings {
     pub ssh_options: Vec<String>,
     pub ssh_bin: Option<PathBuf>,
-    pub max_size: usize,
     pub timeout_ms: u64,
-    pub resync_frames: bool,
-    pub resync_max_bytes: usize,
 }
 
 impl Default for TransportSettings {
@@ -141,24 +119,17 @@ impl Default for TransportSettings {
         Self {
             ssh_options: Vec::new(),
             ssh_bin: None,
-            max_size: crate::protocol::DEFAULT_MAX_SIZE,
-            timeout_ms: 7000,
-            resync_frames: true,
-            resync_max_bytes: 8192,
+            timeout_ms: crate::client::session::SessionPolicy::default()
+                .operation_timeout
+                .as_millis() as u64,
         }
     }
 }
 
 impl TransportSettings {
     pub fn validate(&self) -> Result<(), String> {
-        if self.max_size == 0 {
-            return Err("Transfer limit must be greater than zero.".into());
-        }
         if self.timeout_ms == 0 {
             return Err("Timeout must be greater than zero.".into());
-        }
-        if self.resync_max_bytes == 0 {
-            return Err("Framing recovery budget must be greater than zero.".into());
         }
         if self
             .ssh_options
@@ -181,27 +152,24 @@ impl Profile {
             port: None,
             identity_file: String::new(),
             transport: TransportSettings::default(),
-            endpoint: Endpoint::default(),
+            limits: SessionLimits::default(),
         }
     }
 
-    pub fn client_config(&self) -> crate::client::transport::ClientConfig {
-        crate::client::transport::ClientConfig {
+    pub fn client_config(&self) -> Result<crate::client::config::ClientConfig, String> {
+        self.transport.validate()?;
+        validate_connection(&self.target, self.port, &self.identity_file)?;
+        Ok(crate::client::config::ClientConfig {
             ssh: crate::client::ssh::SshConfig {
                 target: self.target.clone(),
                 port: self.port,
                 identity_file: (!self.identity_file.trim().is_empty())
                     .then(|| self.identity_file.trim().into()),
-                user: None,
-                host: None,
                 ssh_options: self.transport.ssh_options.clone(),
                 ssh_bin: self.transport.ssh_bin.clone(),
             },
-            max_size: self.transport.max_size,
-            timeout_ms: self.transport.timeout_ms,
-            resync_frames: self.transport.resync_frames,
-            resync_max_bytes: self.transport.resync_max_bytes,
-        }
+            policy: self.limits.session_policy(self.transport.timeout_ms)?,
+        })
     }
 }
 
@@ -218,7 +186,7 @@ impl Default for Configuration {
                 port: None,
                 identity_file: String::new(),
                 transport: TransportSettings::default(),
-                endpoint: Endpoint::default(),
+                limits: SessionLimits::default(),
             }],
             preferences: Preferences {
                 open_shortcut: "CommandOrControl+Alt+Shift+S".into(),
@@ -233,7 +201,6 @@ impl Default for Configuration {
                 notifications: NotificationPreference::default(),
             },
             device: Device::default(),
-            legacy_import: None,
         }
     }
 }
@@ -287,7 +254,7 @@ impl Configuration {
                 .validate()
                 .map_err(|_| ConfigError::Invalid)?;
             profile
-                .endpoint
+                .limits
                 .session_policy(profile.transport.timeout_ms)
                 .map_err(|_| ConfigError::Invalid)?;
         }
@@ -329,26 +296,14 @@ pub enum ConfigError {
     Io(#[from] std::io::Error),
     #[error("Settings are invalid. Preserve the file and repair it before saving.")]
     Invalid,
-    #[error("Settings use unsupported schema version {0}. Use the matching application version.")]
+    #[error(
+        "Settings use unsupported schema version {0}. Preserve this file and create fresh 0.5 settings.json, or use the matching application version."
+    )]
     UnsupportedVersion(u32),
     #[error("Settings changed in another process. Reload saved settings before editing again.")]
     Conflict,
     #[error("Another process is saving settings. Try again after it finishes.")]
     Busy,
-    #[error(
-        "A migration backup already exists with different contents. Preserve or move that backup before retrying."
-    )]
-    BackupConflict,
-    #[error(
-        "Legacy agent settings are invalid or unsupported. Repair the original file; it has not been replaced."
-    )]
-    LegacyInvalid,
-    #[error("Could not migrate legacy settings from {path}: {error}")]
-    Migration {
-        path: PathBuf,
-        #[source]
-        error: Box<ConfigError>,
-    },
 }
 
 #[derive(Clone)]
@@ -365,7 +320,7 @@ impl ConfigStore {
             )
         })?;
         Ok(Self::new(
-            directory.join("ssh_clipboard").join("settings-v1.json"),
+            directory.join("ssh_clipboard").join("settings.json"),
         ))
     }
 
@@ -383,56 +338,6 @@ impl ConfigStore {
             .transpose()
     }
 
-    /// Only default startup/target-less CLI discovery imports the legacy agent.
-    pub fn initialize(&self) -> Result<Option<Configuration>, ConfigError> {
-        if let Some(config) = self.load()? {
-            return Ok(Some(config));
-        }
-        let legacy_path = confy::get_configuration_file_path("ssh_clipboard", Some("agent"))
-            .map_err(|_| ConfigError::LegacyInvalid)?;
-        self.initialize_from_legacy(&legacy_path)
-    }
-
-    pub fn initialize_from_legacy(
-        &self,
-        legacy_path: &Path,
-    ) -> Result<Option<Configuration>, ConfigError> {
-        let legacy_path = if legacy_path.is_absolute() {
-            legacy_path.to_path_buf()
-        } else {
-            std::env::current_dir()?.join(legacy_path)
-        };
-        self.import_legacy(&legacy_path)
-            .map_err(|error| ConfigError::Migration {
-                path: legacy_path,
-                error: Box::new(error),
-            })
-    }
-
-    fn import_legacy(&self, legacy_path: &Path) -> Result<Option<Configuration>, ConfigError> {
-        if let Some(config) = self.load()? {
-            return Ok(Some(config));
-        }
-        let Some(bytes) = read_bounded(legacy_path)? else {
-            return Ok(None);
-        };
-        let mut next = migration::convert_agent(&bytes)?;
-        let backup = legacy_path.with_extension("pre-shared.bak");
-        next.legacy_import = Some(LegacyImport {
-            source: legacy_path.into(),
-            backup: backup.clone(),
-            reviewed: false,
-        });
-        let pending = self.prepare(None, next)?;
-        create_backup(&backup, &bytes)?;
-        if read_bounded(legacy_path)?.as_deref() != Some(bytes.as_slice()) {
-            return Err(ConfigError::Conflict);
-        }
-        // Keep the writer lock held while the backup and provenance are completed.
-        Ok(Some(pending.commit()?))
-    }
-
-    /// Keep the separate lock inode/handle stable across atomic replacement.
     /// The caller may activate OS settings after preparation, before committing.
     pub fn prepare(
         &self,
@@ -479,13 +384,6 @@ impl ConfigStore {
         if next.device.id.is_none() {
             next.device.id = Some(uuid::Uuid::new_v4().to_string());
         }
-        if let Some(bytes) = &original {
-            let version = serde_json::from_slice::<serde_json::Value>(bytes)
-                .map_err(|_| ConfigError::Invalid)?;
-            if version["schema_version"] == 1 {
-                create_backup(&self.path.with_extension("schema-1.bak"), bytes)?;
-            }
-        }
         let temporary = NamedTempFile::new_in(parent)?;
         let mut pending = PreparedSave {
             path: self.path.clone(),
@@ -514,42 +412,19 @@ fn read_bounded(path: &Path) -> Result<Option<Vec<u8>>, ConfigError> {
 
 fn decode_config(bytes: &[u8]) -> Result<Configuration, ConfigError> {
     // Check the schema before decoding fields, so future files get a useful error.
-    let mut value: serde_json::Value =
+    let value: serde_json::Value =
         serde_json::from_slice(bytes).map_err(|_| ConfigError::Invalid)?;
     let version = value
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
         .and_then(|v| u32::try_from(v).ok())
         .ok_or(ConfigError::Invalid)?;
-    if version != 1 && version != SCHEMA_VERSION {
+    if version != SCHEMA_VERSION {
         return Err(ConfigError::UnsupportedVersion(version));
-    }
-    if version == 1 {
-        migration::upgrade_schema_one(&mut value)?;
     }
     let config: Configuration = serde_json::from_value(value).map_err(|_| ConfigError::Invalid)?;
     config.validate()?;
     Ok(config)
-}
-
-fn create_backup(path: &Path, bytes: &[u8]) -> Result<(), ConfigError> {
-    match fs::symlink_metadata(path) {
-        Ok(metadata) => {
-            if !metadata.file_type().is_file() || read_bounded(path)?.as_deref() != Some(bytes) {
-                return Err(ConfigError::BackupConflict);
-            }
-            return Ok(());
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
-    }
-    let mut temporary = NamedTempFile::new_in(path.parent().ok_or(ConfigError::Invalid)?)?;
-    temporary.write_all(bytes)?;
-    temporary.as_file().sync_all()?;
-    temporary
-        .persist_noclobber(path)
-        .map_err(|error| ConfigError::Io(error.error))?;
-    Ok(())
 }
 
 pub struct PreparedSave {
@@ -586,7 +461,7 @@ mod tests {
     use super::*;
     fn store() -> (tempfile::TempDir, ConfigStore) {
         let directory = tempfile::tempdir().unwrap();
-        let store = ConfigStore::new(directory.path().join("config/settings-v1.json"));
+        let store = ConfigStore::new(directory.path().join("config/settings.json"));
         (directory, store)
     }
 
@@ -747,47 +622,5 @@ mod tests {
         fs::write(store.path(), &bytes).unwrap();
         assert_eq!(store.load().unwrap(), Some(original.clone()));
         assert!(store.prepare(Some(&original), original.clone()).is_ok());
-    }
-
-    #[test]
-    fn omitted_endpoints_remain_legacy_and_new_policy_is_validated_without_rewriting_reads() {
-        let (_directory, store) = store();
-        let mut value = serde_json::to_value(Configuration::default()).unwrap();
-        value["profiles"][0]
-            .as_object_mut()
-            .unwrap()
-            .remove("endpoint");
-        let bytes = serde_json::to_vec(&value).unwrap();
-        fs::create_dir_all(store.path().parent().unwrap()).unwrap();
-        fs::write(store.path(), &bytes).unwrap();
-        let mut config = store.load().unwrap().unwrap();
-        assert_eq!(config.profiles[0].endpoint, Endpoint::Legacy {});
-        assert_eq!(fs::read(store.path()).unwrap(), bytes);
-        for endpoint in [
-            serde_json::json!({"protocol":"future"}),
-            serde_json::json!({"protocol":"shelf","max_item_bytes":0,"max_decoded_bytes":1024}),
-            serde_json::json!({"protocol":"legacy","max_item_bytes":1024}),
-        ] {
-            value["profiles"][0]["endpoint"] = endpoint;
-            let invalid = serde_json::to_vec(&value).unwrap();
-            fs::write(store.path(), &invalid).unwrap();
-            assert!(store.load().is_err());
-            assert_eq!(fs::read(store.path()).unwrap(), invalid);
-        }
-        fs::write(store.path(), &bytes).unwrap();
-        config.profiles[0].endpoint = Endpoint::Shelf {
-            max_item_bytes: 64 * 1024 * 1024,
-            max_decoded_bytes: 256 * 1024 * 1024,
-        };
-        let saved = store
-            .prepare(Some(&store.load().unwrap().unwrap()), config)
-            .unwrap()
-            .commit()
-            .unwrap();
-        assert!(matches!(saved.profiles[0].endpoint, Endpoint::Shelf { .. }));
-        let mut invalid = saved.clone();
-        invalid.profiles[0].transport.timeout_ms = u64::MAX;
-        assert!(store.prepare(Some(&saved), invalid).is_err());
-        assert_eq!(store.load().unwrap(), Some(saved));
     }
 }

@@ -77,5 +77,5 @@ The owner completed actual sign-out/sign-in and confirmed one menu-bar icon with
 ## Related Docs
 
 - [Implementation plan](implementation-plan.md), [architecture](../../ARCHITECTURE.md)
-- [Compatibility and cutover](../compatibility-and-cutover.md), [configuration migration](../configuration-migration.md)
+- [Compatibility and cutover](0.4/compatibility-and-cutover.md), [configuration migration](0.4/configuration-migration.md)
 - [Desktop updates](../desktop-updates.md), [release operations](../releasing.md), [security](../security.md)

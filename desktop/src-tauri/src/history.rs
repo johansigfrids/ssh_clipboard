@@ -1,9 +1,9 @@
 //! Metadata history and selected preview. Clipboard writes remain in panel orchestration.
+use crate::clipboard_payload::ClipboardPayload;
 use crate::model::ItemPreview;
 use serde::Serialize;
 use ssh_clipboard::client::connection::Connection;
 use ssh_clipboard::client::session::{Action, Snapshot};
-use ssh_clipboard::protocol::{CONTENT_TYPE_PNG, CONTENT_TYPE_TEXT, ClipboardValue};
 use ssh_clipboard::session_protocol::{ContentType, Item, Response};
 use uuid::Uuid;
 
@@ -132,7 +132,7 @@ impl History {
         connection: &mut Connection,
         id: Uuid,
         show_preview: bool,
-    ) -> Result<ClipboardValue, String> {
+    ) -> Result<ClipboardPayload, String> {
         let epoch = self.epoch.ok_or("Refresh history first.")?;
         if connection.epoch() != Some(epoch) {
             return Err("The server restarted. Refresh history before continuing. Your clipboard was left unchanged.".into());
@@ -153,12 +153,8 @@ impl History {
         let Response::Value { item, .. } = reply.response else {
             return Err("Unexpected item reply.".into());
         };
-        let value = ClipboardValue {
-            content_type: match item.representations[0].content_type {
-                ContentType::Text => CONTENT_TYPE_TEXT,
-                ContentType::Png => CONTENT_TYPE_PNG,
-            }
-            .into(),
+        let value = ClipboardPayload {
+            content_type: item.representations[0].content_type,
             data: reply.payload,
             created_at: item.created_at_ms.unwrap_or(item.received_at_ms).get(),
         };
@@ -221,8 +217,8 @@ mod tests {
         });
         history.preview = Some(
             ItemPreview::from_value(
-                &ClipboardValue {
-                    content_type: CONTENT_TYPE_TEXT.into(),
+                &ClipboardPayload {
+                    content_type: ContentType::Text,
                     data: b"Loaded explicitly".to_vec(),
                     created_at: 100,
                 },
@@ -262,8 +258,8 @@ mod tests {
         assert!(history.preview.is_none());
         history.preview = Some(
             ItemPreview::from_value(
-                &ClipboardValue {
-                    content_type: CONTENT_TYPE_TEXT.into(),
+                &ClipboardPayload {
+                    content_type: ContentType::Text,
                     data: b"Old epoch".to_vec(),
                     created_at: 100,
                 },

@@ -1,3 +1,5 @@
+> Historical 0.4 compatibility guide. The 0.5 source removes these implementations; use the current [fresh setup guide](../../compatibility-and-cutover.md).
+
 # Released Client Compatibility
 
 ## Purpose
@@ -66,5 +68,5 @@ This establishes the tested Linux x86_64 `v0.3.0` protocol pairing. It does not 
 
 ## Related Docs
 
-- [Compatibility and cutover](compatibility-and-cutover.md), [testing](testing.md), and [CI](ci.md)
-- [Shelf server](shelf-server.md), [session protocol](session-protocol.md), and [implementation plan](history/implementation-plan.md)
+- [Compatibility and cutover](compatibility-and-cutover.md), [testing](../../testing.md), and [CI](../../ci.md)
+- [Shelf server](../../shelf-server.md), [session protocol](../../session-protocol.md), and [implementation plan](../implementation-plan.md)

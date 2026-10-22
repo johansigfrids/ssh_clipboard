@@ -3,7 +3,7 @@ import { ipc } from "../fixtures/ipc";
 import type { PanelView } from "../../src/api";
 import type {} from "./tauri-core";
 
-async function openPanel(page: Page, state: PanelView = structuredClone(ipc.legacy)) {
+async function openPanel(page: Page, state: PanelView = structuredClone(ipc.initial)) {
   // Block accidental external navigation/fetches. This suite has no native or SSH adapters.
   await page.route("**/*", route => new URL(route.request().url()).origin === "http://127.0.0.1:1421" ? route.continue() : route.abort());
   await page.addInitScript(state => { window.__panelFixture = { state, calls: [] }; }, state);
@@ -12,7 +12,7 @@ async function openPanel(page: Page, state: PanelView = structuredClone(ipc.lega
 }
 
 test("real Tab navigation, settings arrows and confirmation cancellation restore focus without commands", async ({ page }) => {
-  const state: PanelView = structuredClone(ipc.legacy);
+  const state: PanelView = structuredClone(ipc.initial);
   state.profiles.push({ ...structuredClone(state.profiles[0]), id: "other", name: "Other connection" });
   await openPanel(page, state);
   const open = page.getByRole("button", { name: "Open settings" });
@@ -44,7 +44,7 @@ test("real Tab navigation, settings arrows and confirmation cancellation restore
 
 test("minimum panel size keeps Apply and Discard reachable while long update content scrolls", async ({ page }) => {
   await page.setViewportSize({ width: 340, height: 440 });
-  const state: PanelView = structuredClone(ipc.legacy);
+  const state: PanelView = structuredClone(ipc.initial);
   state.settings.profileName = "A long connection name that should wrap within the supported minimum panel width";
   state.profiles[0].name = state.settings.profileName;
   state.updateStatus = { ...ipc.updates, notes: Array.from({ length: 40 }, (_, i) => `- Change ${i}: long synthetic release notes that require scrolling in a small panel.`).join("\n") };

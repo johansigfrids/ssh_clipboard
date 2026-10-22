@@ -2,12 +2,16 @@
 import type { PanelView, OperationView, UpdateView } from "../../src/api";
 
 export const ipc = {
-  "legacy": {
+  "initial": {
     "activeShortcut": "CommandOrControl+Alt+Shift+S",
     "clipboardChecked": true,
     "connected": true,
     "connectionReport": null,
-    "history": null,
+    "history": {
+      "epoch": null,
+      "items": [],
+      "selectedId": null
+    },
     "historyStatus": null,
     "item": {
       "createdAt": 1,
@@ -17,7 +21,6 @@ export const ipc = {
       "label": "retained snapshot",
       "text": "retained snapshot"
     },
-    "migrationSummary": null,
     "notificationStatus": {
       "available": false,
       "detail": "Test fixture"
@@ -27,18 +30,16 @@ export const ipc = {
     "platform": "windows",
     "profiles": [
       {
-        "endpoint": {
-          "protocol": "legacy"
-        },
         "id": "default",
         "identityFile": "",
+        "limits": {
+          "max_decoded_bytes": 268435456,
+          "max_item_bytes": 67108864
+        },
         "name": "Default",
         "port": null,
         "target": "first-hub",
         "transport": {
-          "maxSize": "10485760",
-          "resyncFrames": true,
-          "resyncMaxBytes": "8192",
           "sshBinary": "",
           "sshOptions": [],
           "timeoutMs": "7000"
@@ -50,10 +51,11 @@ export const ipc = {
       "directCopyShortcut": null,
       "directShareShortcut": null,
       "directShortcutsEnabled": false,
-      "endpoint": {
-        "protocol": "legacy"
-      },
       "identityFile": "",
+      "limits": {
+        "max_decoded_bytes": 268435456,
+        "max_item_bytes": 67108864
+      },
       "notifications": "panel",
       "openShortcut": "CommandOrControl+Alt+Shift+S",
       "port": null,
@@ -63,9 +65,6 @@ export const ipc = {
       "showPreview": true,
       "target": "first-hub",
       "transport": {
-        "maxSize": "10485760",
-        "resyncFrames": true,
-        "resyncMaxBytes": "8192",
         "sshBinary": "",
         "sshOptions": [],
         "timeoutMs": "7000"
@@ -150,11 +149,6 @@ export const ipc = {
       "label": "retained snapshot",
       "text": "retained snapshot"
     },
-    "migrationSummary": {
-      "backupPath": "synthetic-backup.toml",
-      "deviceName": "Contract laptop",
-      "startAtLogin": false
-    },
     "notificationStatus": {
       "available": false,
       "detail": "Test fixture"
@@ -171,20 +165,16 @@ export const ipc = {
     "platform": "windows",
     "profiles": [
       {
-        "endpoint": {
-          "max_decoded_bytes": 67108864,
-          "max_item_bytes": 10485760,
-          "protocol": "shelf"
-        },
         "id": "default",
         "identityFile": "",
+        "limits": {
+          "max_decoded_bytes": 67108864,
+          "max_item_bytes": 10485760
+        },
         "name": "Default",
         "port": null,
         "target": "first-hub",
         "transport": {
-          "maxSize": "10485760",
-          "resyncFrames": true,
-          "resyncMaxBytes": "8192",
           "sshBinary": "",
           "sshOptions": [],
           "timeoutMs": "7000"
@@ -196,12 +186,11 @@ export const ipc = {
       "directCopyShortcut": null,
       "directShareShortcut": null,
       "directShortcutsEnabled": false,
-      "endpoint": {
-        "max_decoded_bytes": 67108864,
-        "max_item_bytes": 10485760,
-        "protocol": "shelf"
-      },
       "identityFile": "",
+      "limits": {
+        "max_decoded_bytes": 67108864,
+        "max_item_bytes": 10485760
+      },
       "notifications": "panel",
       "openShortcut": "CommandOrControl+Alt+Shift+S",
       "port": null,
@@ -211,9 +200,6 @@ export const ipc = {
       "showPreview": true,
       "target": "first-hub",
       "transport": {
-        "maxSize": "10485760",
-        "resyncFrames": true,
-        "resyncMaxBytes": "8192",
         "sshBinary": "",
         "sshOptions": [],
         "timeoutMs": "7000"
@@ -255,4 +241,4 @@ export const ipc = {
     "phase": "ready",
     "totalBytes": 123
   }
-} satisfies { legacy: PanelView; shelf: PanelView; operation: OperationView; updates: UpdateView };
+} satisfies { initial: PanelView; shelf: PanelView; operation: OperationView; updates: UpdateView };

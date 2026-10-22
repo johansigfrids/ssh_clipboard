@@ -1,10 +1,10 @@
-// Check tracked Markdown links, heading targets and docs-index coverage without builds.
+// Check current Markdown links, including new guides, before staging or builds.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const files = execFileSync('git', ['ls-files', '-z', '*.md'], { encoding: 'utf8' }).split('\0').filter(file => file && existsSync(file));
+const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '*.md'], { encoding: 'utf8' }).split('\0').filter(file => file && existsSync(file));
 const failures = [];
 function headings(text) {
   const seen = new Map();

@@ -2,19 +2,19 @@
 
 ## Purpose
 
-Document the shared sequential client and explicit shelf CLI. Desktop profiles select either V2 or the shelf client as described in [desktop history](desktop-history.md). This client targets `ssh_clipboard session-proxy` deliberately. No service, forced command, or clipboard changes happen merely by using List/Health.
+Document the shared sequential client and explicit shelf CLI. All desktop profiles use this session client. This client targets `ssh_clipboard session-proxy` deliberately. No service, forced command, or clipboard changes happen merely by using List/Health.
 
 ## Key Files
 
 - `src/client/session.rs`, `src/client/session/tests.rs`: stream session, reply validation, consistent metadata snapshots, content validation.
 - `src/client/session_transport.rs`: SSH stdio ownership, bounded stderr, deadline/cleanup.
-- `src/client/ssh.rs`: fixed legacy/session endpoint selection.
+- `src/client/ssh.rs`: fixed session endpoint selection.
 - `src/cli/shelf.rs`: explicit input/export and mutation commands.
 - `tests/shelf_cli.rs`, `tests/native_shelf_server.rs`: preflight and real disposable Linux command probes.
 
 ## Commands
 
-The `shelf` namespace selects the new protocol. Existing `push`/`pull`/`peek` retain V2 behavior. Connection options may appear before or after the subcommand. Use a saved selected profile, `--profile <id>`, or a direct `--target <alias-or-user@host>`. Port, identity, SSH options, executable, and timeout follow the shared connection rules. Direct destinations bypass saved connection/device defaults unless a profile is explicitly selected. New payload/decode limits are independent of the saved V2 frame setting: defaults 64 MiB encoded and 256 MiB decoded, narrowed by negotiation. Framing is strict; legacy noisy-shell recovery is not silently applied to session payloads.
+The `shelf` namespace is the sole transfer/metadata CLI. Connection options may appear before or after the subcommand. Use a saved selected profile, `--profile <id>`, or a direct `--target <alias-or-user@host>`. Port, identity, SSH options, executable, and timeout follow the shared connection rules. Direct destinations bypass saved connection/device defaults unless a profile is explicitly selected. New payload/decode limits are independent of the saved V2 frame setting: defaults 64 MiB encoded and 256 MiB decoded, narrowed by negotiation. Framing is strict; legacy noisy-shell recovery is not silently applied to session payloads.
 
 ```text
 ssh_clipboard shelf --profile home list
@@ -33,6 +33,8 @@ List/Health print JSON metadata. A snapshot includes its epoch and sequence as w
 Share reads only an explicitly requested file/stdin, bounded to the encoded limit plus one overflow byte. Text must be UTF-8; PNG decode and descriptors are checked under the decoded limit. No conversion, trimming, resizing, or OS clipboard read occurs. Saved profile sharing needs the device UUID assigned by a shared settings save. Direct sharing supplies `--device-id <uuid>` and can supply `--device-name <name>`; it does not read a corrupt saved file merely to discover an identity. The server receipt time is authoritative; this CLI leaves capture time unknown. Each invocation generates one operation UUID, printed to stderr, and makes one attempt. It does not automatically retry an uncertain share or persist captured content.
 
 Delete/Clear require the epoch returned by List. A changed epoch is rejected after Hello and before any mutation is sent; Fetch can use the same optional guard. Item UUIDs are never interpreted as list positions. The client cannot make a history snapshot transactional with a later fetch: expired/deleted items return NotFound and produce no export.
+
+Policy overrides use CLI flags, saved profile, then the shared defaults (64 MiB item, 256 MiB decoded, 7,000 ms). Direct targets without profiles do not inherit saved connection/policy.
 
 ## Session and Process Contracts
 

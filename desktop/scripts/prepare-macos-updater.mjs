@@ -11,7 +11,9 @@ const root=fileURLToPath(new URL('../../',import.meta.url)),desktop=path.join(ro
 const cli=path.join(desktop,'node_modules/@tauri-apps/cli/tauri.js');
 const original=new Map(['Cargo.toml','Cargo.lock','desktop/src-tauri/Cargo.lock'].map(name=>[name,readFileSync(path.join(root,name),'utf8')]));
 const core=original.get('Cargo.toml').match(/^version\s*=\s*"([^"]+)"/m)?.[1];
-if(core!=='0.4.2')throw Error('This rehearsal expects the reviewed 0.4.2 baseline.');
+if(!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(core??'')||core==='0.0.0')throw Error('This rehearsal requires a committed stable core version.');
+const [major,minor,patch]=core.split('.');
+const versions=[core,`${major}.${minor}.${BigInt(patch)+1n}`];
 const source=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 if(execFileSync('git',['status','--porcelain'],{cwd:root,encoding:'utf8'}).trim())throw Error('Start from a clean source checkout.');
 const privateRoot=mkdtempSync(path.join(tmpdir(),'ssh-clipboard-mac-test-key-'));
@@ -22,10 +24,10 @@ const packages=[];
 try {
   const generated=spawnSync(process.execPath,[cli,'signer','generate','--ci','--password','','--write-keys',key],{cwd:desktop,stdio:'pipe'});
   if(generated.status!==0)throw Error('Disposable signer generation failed; output withheld.');
-  for(const version of ['0.4.2','0.4.3']){
+  for(const version of versions){
     writeFileSync(path.join(root,'Cargo.toml'),original.get('Cargo.toml').replace(/^version\s*=\s*"([^"]+)"/m,`version = "${version}"`));
     for(const name of ['Cargo.lock','desktop/src-tauri/Cargo.lock']){
-      const expression=/name = "ssh_clipboard"\r?\nversion = "0\.4\.2"/;
+      const expression=new RegExp('name = "ssh_clipboard"\\r?\\nversion = "'+core.replaceAll('.','\\.')+'"');
       if(!expression.test(original.get(name)))throw Error('Missing core lock anchor.');
       writeFileSync(path.join(root,name),original.get(name).replace(expression,`name = "ssh_clipboard"\nversion = "${version}"`));
     }

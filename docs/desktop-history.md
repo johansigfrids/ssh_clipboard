@@ -73,6 +73,7 @@ The [2026-10-16 Windows native pass](history/native-history-acceptance.md) confi
 - Keep empty-history Refresh enabled and revision-guarded. Visual priority and preview truncation must not change the item/epoch copied or the original payload.
 - Validate timestamp strings before Number conversion; JavaScript rounding must not turn unknown server metadata into a credible exact time.
 - Keep local-clock display independent of server expiry and DOM identity. Do not announce clock ticks or steal focus on ordinary metadata updates.
+- Keep history hover on the row surface and suppress the generic button hover border/background inside it. Nested rounded button borders split the selected card visually; the Exact times disclosure remains a separate control and keyboard focus stays visible.
 
 ## Update Triggers
 

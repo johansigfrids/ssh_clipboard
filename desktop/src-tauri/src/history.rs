@@ -78,7 +78,13 @@ impl History {
         }
     }
     pub fn accept_snapshot(&mut self, snapshot: Snapshot) {
-        let retain = (self.epoch == Some(snapshot.epoch))
+        // A newly arrived head takes priority over a manual selection. A head
+        // exposed by expiry/deletion already exists locally and must not do so.
+        let new_arrival = snapshot
+            .items
+            .first()
+            .is_some_and(|newest| !self.items.iter().any(|item| item.id == newest.id));
+        let retain = (self.epoch == Some(snapshot.epoch) && !new_arrival)
             .then_some(self.selected)
             .flatten();
         self.selected = retain
@@ -99,17 +105,12 @@ impl History {
         {
             return false;
         }
-        let same_selection = self.epoch == Some(snapshot.epoch)
-            && self
-                .selected
-                .is_some_and(|id| snapshot.items.iter().any(|item| item.id == id));
-        let preview = if same_selection {
-            self.preview.take()
-        } else {
-            None
-        };
+        let previous = (self.epoch, self.selected);
+        let preview = self.preview.take();
         self.accept_snapshot(snapshot);
-        self.preview = preview;
+        if previous == (self.epoch, self.selected) {
+            self.preview = preview;
+        }
         true
     }
     pub fn guard(&self, epoch: Uuid) -> Result<(), String> {
@@ -238,7 +239,7 @@ mod tests {
         assert!(history.accept_background(Snapshot {
             epoch,
             sequence: 3.into(),
-            items: vec![item(3, "New"), item(2, "Selected")]
+            items: vec![item(2, "Selected")]
         }));
         assert_eq!(history.selected, Some(Uuid::from_u128(2)));
         assert_eq!(
@@ -248,6 +249,13 @@ mod tests {
         assert!(history.accept_background(Snapshot {
             epoch,
             sequence: 4.into(),
+            items: vec![item(3, "New"), item(2, "Selected")]
+        }));
+        assert_eq!(history.selected, Some(Uuid::from_u128(3)));
+        assert!(history.preview.is_none());
+        assert!(history.accept_background(Snapshot {
+            epoch,
+            sequence: 5.into(),
             items: vec![item(3, "New")]
         }));
         assert_eq!(history.selected, Some(Uuid::from_u128(3)));
@@ -269,6 +277,47 @@ mod tests {
             items: vec![item(3, "Other server")],
         });
         assert!(history.preview.is_none());
+    }
+
+    #[test]
+    fn new_arrivals_select_the_newest_but_removal_does_not_override_a_live_selection() {
+        let epoch = Uuid::from_u128(1);
+        let mut history = History::default();
+        history.accept_snapshot(Snapshot {
+            epoch,
+            sequence: 3.into(),
+            items: vec![item(3, "Newest"), item(2, "Middle"), item(1, "Oldest")],
+        });
+        history.selected = Some(Uuid::from_u128(1));
+        // Removing the head reveals an existing item, not a new arrival.
+        assert!(history.accept_background(Snapshot {
+            epoch,
+            sequence: 4.into(),
+            items: vec![item(2, "Middle"), item(1, "Oldest")],
+        }));
+        assert_eq!(history.selected, Some(Uuid::from_u128(1)));
+        // Multiple arrivals between snapshots select the newest of the batch.
+        history.accept_snapshot(Snapshot {
+            epoch,
+            sequence: 6.into(),
+            items: vec![item(6, "Latest"), item(5, "New"), item(1, "Oldest")],
+        });
+        assert_eq!(history.selected, Some(Uuid::from_u128(6)));
+        // A late update cannot put the old selection back.
+        assert!(!history.accept_background(Snapshot {
+            epoch,
+            sequence: 4.into(),
+            items: vec![item(2, "Middle"), item(1, "Oldest")],
+        }));
+        assert_eq!(history.selected, Some(Uuid::from_u128(6)));
+        // Choosing an older item still survives an unchanged metadata snapshot.
+        history.selected = Some(Uuid::from_u128(1));
+        assert!(history.accept_background(Snapshot {
+            epoch,
+            sequence: 6.into(),
+            items: vec![item(6, "Latest"), item(5, "New"), item(1, "Oldest")],
+        }));
+        assert_eq!(history.selected, Some(Uuid::from_u128(1)));
     }
 
     #[test]

@@ -12,7 +12,11 @@ Describe optional direct transfers, recording, and OS registration recovery in t
 
 ## Behavior
 
-Open panel defaults to `CommandOrControl+Shift+V`. Optional Share current clipboard and Copy shared clipboard have no default bindings and remain disabled until enabled and applied. Imported bindings remain visible but inactive until explicitly enabled. Either direct binding can be cleared independently; disabling retains both choices.
+Open panel defaults to `CommandOrControl+Alt+Shift+S`: Ctrl+Alt+Shift+S on Windows/Linux and Cmd+Option+Shift+S on macOS. Restore default shortcut selects this binding in the draft; Apply activates it. Existing saved bindings, including the former Ctrl+Shift+V/Cmd+Shift+V default, remain unchanged until edited and applied in Settings > Shortcuts.
+
+The former default intercepted paste without formatting in other applications. Keep common editing shortcuts available when choosing global defaults; the replacement is configurable and can still conflict with bindings in other apps.
+
+Optional Share current clipboard and Copy shared clipboard have no default bindings and remain disabled until enabled and applied. Imported bindings remain visible but inactive until explicitly enabled. Either direct binding can be cleared independently; disabling retains both choices.
 
 Display uses the backend platform: CommandOrControl appears as Ctrl on Windows/Linux and Cmd on macOS; Alt becomes Option on macOS, and Super becomes Win on Windows, Cmd on macOS, or Super on Linux. Explicit Control stays Ctrl on every platform. Canonical stored bindings and physical-key recording are unchanged. Recorder labels remain associated with their controls; recording help describes the platform keys.
 

@@ -221,7 +221,7 @@ impl Default for Configuration {
                 endpoint: Endpoint::default(),
             }],
             preferences: Preferences {
-                open_shortcut: "CommandOrControl+Shift+V".into(),
+                open_shortcut: "CommandOrControl+Alt+Shift+S".into(),
                 shortcut_enabled: true,
                 show_preview: true,
                 close_after_copy: false,

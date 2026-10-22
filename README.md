@@ -35,7 +35,7 @@ The Mac app is ad-hoc signed without Apple notarization; use macOS per-app Priva
 
 ## Settings and everyday behavior
 
-Close hides the panel in the tray/menu bar; Quit exits. Configure panel and transfer shortcuts in Settings. Updates offers explicit download/verification and a separate install confirmation.
+Close hides the panel in the tray/menu bar; Quit exits. Configure panel and transfer shortcuts in Settings. Source builds default to Ctrl+Alt+Shift+S (Cmd+Option+Shift+S on Mac) to open the panel; existing saved bindings are preserved. See [shortcuts](docs/desktop-shortcuts.md) to change or restore the default. Updates offers explicit download/verification and a separate install confirmation.
 
 Save connection settings before transferring; transfers use the saved configuration. Named profiles let you switch between servers, and the desktop and CLI share settings. See [shared settings](docs/shared-configuration.md) and [migration/recovery](docs/configuration-migration.md).
 

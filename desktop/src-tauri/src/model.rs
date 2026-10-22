@@ -63,7 +63,7 @@ impl Default for SessionSettings {
             identity_file: String::new(),
             transport: TransportDraft::default(),
             endpoint: Default::default(),
-            open_shortcut: "CommandOrControl+Shift+V".into(),
+            open_shortcut: "CommandOrControl+Alt+Shift+S".into(),
             shortcut_enabled: !is_wayland(),
             direct_shortcuts_enabled: false,
             direct_share_shortcut: None,

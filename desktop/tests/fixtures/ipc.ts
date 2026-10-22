@@ -3,7 +3,7 @@ import type { PanelView, OperationView, UpdateView } from "../../src/api";
 
 export const ipc = {
   "legacy": {
-    "activeShortcut": "CommandOrControl+Shift+V",
+    "activeShortcut": "CommandOrControl+Alt+Shift+S",
     "clipboardChecked": true,
     "connected": true,
     "connectionReport": null,
@@ -55,7 +55,7 @@ export const ipc = {
       },
       "identityFile": "",
       "notifications": "panel",
-      "openShortcut": "CommandOrControl+Shift+V",
+      "openShortcut": "CommandOrControl+Alt+Shift+S",
       "port": null,
       "profileId": "default",
       "profileName": "Default",
@@ -106,7 +106,7 @@ export const ipc = {
     "generation": "1"
   },
   "shelf": {
-    "activeShortcut": "CommandOrControl+Shift+V",
+    "activeShortcut": "CommandOrControl+Alt+Shift+S",
     "clipboardChecked": true,
     "connected": true,
     "connectionReport": {
@@ -203,7 +203,7 @@ export const ipc = {
       },
       "identityFile": "",
       "notifications": "panel",
-      "openShortcut": "CommandOrControl+Shift+V",
+      "openShortcut": "CommandOrControl+Alt+Shift+S",
       "port": null,
       "profileId": "default",
       "profileName": "Default",

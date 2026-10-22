@@ -85,6 +85,10 @@ fn schema_one_reads_without_writes_and_first_save_keeps_an_exact_backup() {
     assert_eq!(upgraded.selected_profile().unwrap().target, "existing-hub");
     assert!(!upgraded.preferences.show_preview);
     assert!(upgraded.preferences.close_after_copy);
+    assert_eq!(
+        upgraded.preferences.open_shortcut,
+        "CommandOrControl+Shift+V"
+    );
     assert_eq!(std::fs::read(&path).unwrap(), SCHEMA_ONE.as_bytes());
     assert!(!path.with_extension("schema-1.bak").exists());
     let saved = store

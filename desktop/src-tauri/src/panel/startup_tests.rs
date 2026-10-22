@@ -311,7 +311,10 @@ fn commit_failure_rolls_back_both_activations_and_retains_saved_configuration() 
         )
         .is_err()
     );
-    assert_eq!(activations, ["Ctrl+Shift+K", "CommandOrControl+Shift+V"]);
+    assert_eq!(
+        activations,
+        ["Ctrl+Shift+K", "CommandOrControl+Alt+Shift+S"]
+    );
     assert_eq!(*startup.writes.borrow(), [true, false]);
     assert_eq!(startup.actual.get(), Some(false));
     assert_eq!(store.load().unwrap(), Some(original.clone()));

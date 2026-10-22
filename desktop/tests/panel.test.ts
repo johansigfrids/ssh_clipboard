@@ -188,17 +188,17 @@ describe("quick panel contracts", () => {
   });
 
   it("platform shortcut labels and field-help relationships remain local presentation", async () => {
-    state.platform="macos";state.activeShortcut="CommandOrControl+Shift+KeyV";
+    state.platform="macos";state.activeShortcut="CommandOrControl+Alt+Shift+KeyS";
     render(App);await waitFor(()=>expect(screen.getByRole("button",{name:"Open settings"}).hasAttribute("disabled")).toBe(false));
-    expect(screen.getByText("Cmd + Shift + V")).toBeTruthy();
+    expect(screen.getByText("Cmd + Option + Shift + S")).toBeTruthy();
     await fireEvent.click(screen.getByRole("button",{name:"Open settings"}));
     for(const section of ["Connection","Shortcuts","Behavior","Updates"]){
       await fireEvent.click(screen.getByRole("tab",{name:section,exact:true}));
       for(const element of document.querySelectorAll('[aria-describedby]'))for(const id of element.getAttribute("aria-describedby")!.split(/\s+/))expect(document.getElementById(id)).not.toBeNull();
     }
     await fireEvent.click(screen.getByRole("tab",{name:"Shortcuts",exact:true}));
-    expect(screen.getByLabelText("Open panel").textContent).toBe("Cmd + Shift + V");
-    expect(state.settings.openShortcut).toBe("CommandOrControl+Shift+V");
+    expect(screen.getByLabelText("Open panel").textContent).toBe("Cmd + Option + Shift + S");
+    expect(state.settings.openShortcut).toBe("CommandOrControl+Alt+Shift+S");
     expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
   });
 
@@ -582,6 +582,8 @@ describe("quick panel contracts", () => {
   });
 
   it("secondary form actions and navigation never apply a dirty settings draft", async () => {
+    state.settings.openShortcut = "CommandOrControl+Shift+V";
+    state.activeShortcut = state.settings.openShortcut;
     state.settings.target = "saved-hub";
     state.updateStatus = { ...state.updateStatus, available: true, offeredVersion: "2.0.0", phase: "offered" };
     const normal = bridge.invoke.getMockImplementation()!;
@@ -592,6 +594,8 @@ describe("quick panel contracts", () => {
     await fireEvent.input(screen.getByLabelText("Connection name"), { target: { value: "Work" } });
     await fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     await fireEvent.click(screen.getByRole("button", { name: "Restore default shortcut" }));
+    expect(screen.getByLabelText("Open panel").textContent).toBe("Ctrl + Alt + Shift + S");
+    expect(state.settings.openShortcut).toBe("CommandOrControl+Shift+V");
     await fireEvent.click(screen.getByRole("tab", { name: "Updates" }));
     await fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Download update" }).hasAttribute("disabled")).toBe(false));

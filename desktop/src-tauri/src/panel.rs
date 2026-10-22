@@ -2209,7 +2209,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             activations,
-            ["CommandOrControl+Shift+K", "CommandOrControl+Shift+V"]
+            ["CommandOrControl+Shift+K", "CommandOrControl+Alt+Shift+S"]
         );
         assert_eq!(store.load().unwrap(), Some(original.clone()));
         assert_eq!(session.saved_config, Some(original));

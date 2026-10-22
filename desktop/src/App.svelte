@@ -672,7 +672,7 @@
           <label for="shortcut">Open panel</label>
           <button id="shortcut" aria-describedby="shortcut-status" type="button" class:recording={recording === "openShortcut"} class="shortcut-recorder" disabled={!ready || !draft.shortcutEnabled || busy} onclick={() => startRecording("openShortcut")}>{recording === "openShortcut" ? "Press a shortcut · Esc to cancel" : displayShortcut(draft.openShortcut, view.platform)}</button>
           <p id="shortcut-status" class="field-help">{recording ? `Use ${view.platform === "macos" ? "Command or Option" : "Ctrl or Alt"} with a key. Recording never transfers content.` : view.shortcutStatus}</p>
-          <button type="button" class="text-button" disabled={!ready || busy} onclick={() => { draft.openShortcut = "CommandOrControl+Shift+V"; inform("Default shortcut restored in your draft."); }}>Restore default shortcut</button>
+          <button type="button" class="text-button" disabled={!ready || busy} onclick={() => { draft.openShortcut = "CommandOrControl+Alt+Shift+S"; inform("Default shortcut restored in your draft."); }}>Restore default shortcut</button>
           <h3>Share and copy shortcuts <span class="background-cue">Background only</span></h3>
           <p id="direct-help" class="field-help">Use the panel buttons while this window has focus. Recording never transfers content. Choose feedback in Behavior.</p>
           <label class="toggle"><input type="checkbox" aria-describedby="direct-help" bind:checked={draft.directShortcutsEnabled} disabled={!ready || busy || !view.shortcutAvailable} />Enable direct shortcuts</label>

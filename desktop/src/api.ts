@@ -107,7 +107,7 @@ export interface ConnectionReport {
 }
 
 export const initialView: PanelView = {
-  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), endpoint: { protocol: "legacy" }, openShortcut: "CommandOrControl+Shift+V", shortcutEnabled: true, directShortcutsEnabled: false, directShareShortcut: null, directCopyShortcut: null, showPreview: true, closeAfterCopy: false, notifications: "panel" },
+  settings: { profileId: "default", profileName: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), endpoint: { protocol: "legacy" }, openShortcut: "CommandOrControl+Alt+Shift+S", shortcutEnabled: true, directShortcutsEnabled: false, directShareShortcut: null, directCopyShortcut: null, showPreview: true, closeAfterCopy: false, notifications: "panel" },
   profiles: [{ id: "default", name: "Default", target: "", port: null, identityFile: "", transport: defaultTransport(), endpoint: { protocol: "legacy" } }],
   item: null,
   history: null,

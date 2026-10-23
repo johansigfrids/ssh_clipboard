@@ -66,6 +66,12 @@ The obsolete private 0.5.0 executable directory was renamed to a same-parent bac
 
 The owner subsequently confirmed completing the Mac upgrade to 0.6.0 on 2026-10-23. This records owner-confirmed completion of the coordinated Windows/Mac/server upgrade. The Mac installation method, installed hashes and post-upgrade native behavior were not independently checked in this session; the earlier package verification and source/native acceptance retain their original scope.
 
+## Post-Upgrade Windows Cleanup
+
+At the owner's explicit request on 2026-10-23, the obsolete Codex-private 0.5.0 backup, both `inspect-windows-0.5.0` and `inspect-windows-0.6.0` diagnostic extract directories, and the downloaded 0.6.0 setup executable in Downloads were deleted. The exact physical paths, expected file lists and hashes were verified before deletion. All four targets were confirmed absent afterward, removing 60,244,582 bytes (about 60 MB).
+
+Before/after snapshots verified that acceptance records, release verification records/helpers, settings and the protected Windows clipboard-cache contents and directory trees remained unchanged. The running app's exclusively held production cache lock was left open and untouched; its presence and size were checked without reading its bytes. Both normal installed 0.6.0 executable hashes still matched the values above. The cleanup receipt and protected snapshots remain in `target/release-0.6.0/windows-repair-cleanup.json`; the small cleanup helper is retained alongside it. The earlier backup-retention statement records the repair checkpoint before this separately authorized deletion.
+
 ## Update Triggers
 
 - Additional exact-byte public-delivery verification or release corrections.

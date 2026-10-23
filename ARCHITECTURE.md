@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe the session-only 0.5 source: headless shared core and CLI, native desktop, and managed Linux shelf. Release identities and native observations remain in [history](docs/index.md#history-and-acceptance); source version 0.5.0 is not publication evidence.
+Describe the session-only 0.6 source: headless shared core and CLI, native desktop, and managed Linux shelf. Release identities and native observations remain in [history](docs/index.md#history-and-acceptance); source version 0.6.0 is not publication evidence.
 
 ## Key Files
 

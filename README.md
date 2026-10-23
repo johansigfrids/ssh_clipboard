@@ -2,7 +2,7 @@
 
 `ssh_clipboard` shares text, PNG clipboard content, and files/folders between machines over SSH. Sharing and copying are explicit; the app never auto-pastes into another application.
 
-File transfers describe current source, require upgraded clients/server (session version 2), and are not included in the published 0.5.0 packages linked below. Existing settings are preserved.
+File transfers are new in the 0.6.0 source, require upgraded clients/server (session version 2), and are not included in the published 0.5.0 packages linked below. The 0.6.0 releases are being prepared. Existing 0.5 settings and device identities are preserved.
 
 Your computers connect to a Linux server running `ssh_clipboard` through your existing SSH aliases, keys and host verification. Share an item from one computer, then select and copy it on another.
 

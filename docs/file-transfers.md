@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe explicit file/folder sharing through Explorer, Finder and the headless CLI. This describes current source; published 0.5.0 packages use session version 1 and do not support file bundles.
+Describe explicit file/folder sharing through Explorer, Finder and the headless CLI in 0.6.0. Signed releases are being prepared; published 0.5.0 packages use session version 1 and do not support file bundles.
 
 ## Key Files
 

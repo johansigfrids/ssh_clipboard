@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-23
+
+### Added
+- Share multiple files and folder trees through Explorer/Finder clipboard references, the desktop panel and existing shortcuts. Include hidden files, empty folders and arbitrary file bytes.
+- Add `shelf share-files` and `shelf fetch-files`, with validated bundles, portable destination names, rename mappings and atomic extraction into a new directory.
+- Retain desktop copies across Quit/restarts with a 24-hour cache, a 1 GiB quota and protection for published clipboard references.
+
+### Changed
+- Require session version 2 on both server and clients; preserve existing 0.5 settings, device identities and managed-server installations.
+- Bound file selections to 64 MiB by default (configurable to 256 MiB including overhead), 4,096 entries, 64 directory levels and a 1 MiB manifest. Reject links, reparse points and special files; transfer contents and structure without source metadata.
+
+### Release status
+- Preparing signed desktop/server 0.6.0 drafts. Published 0.5.0 packages do not support file bundles. See [file transfers](docs/file-transfers.md) and [source/native acceptance](docs/history/file-transfer-source-acceptance.md) for behavior and evidence boundaries.
+
 ## [0.5.0] - 2026-10-22
 
 ### Changed

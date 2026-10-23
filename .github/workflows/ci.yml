@@ -209,7 +209,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Native dependencies can take over ten minutes on a slow Ubuntu mirror.
+    # Browser scenarios retain their own bounded timeouts and zero retries.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: desktop

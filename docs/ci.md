@@ -45,6 +45,8 @@ All pipe-fixture families share two-slot admission before spawning. Keep it shar
 
 The independent `Browser panel contracts` job runs three Chromium scenarios for real keyboard navigation, minimum-size layout and native HTML form validation when desktop checks are selected. It needs no Rust/desktop GUI dependencies or production credentials. Browser version follows the committed Playwright package; CI installs Chromium explicitly. Failures retain traces/screenshots/report for seven days and fail `CI complete`. The test-only Vite aliases and synthetic IPC do not enter production builds.
 
+Allow twenty minutes for the browser job, including native dependency and browser installation. Slow Ubuntu mirror downloads exhausted the former ten-minute budget twice before tests started during 0.6.0 release preparation. Keep the individual browser scenario deadlines, zero retries and failure diagnostics intact; dependency-installation timeouts are not passing browser evidence.
+
 The `desktop` job checks the desktop source and portable development build on Windows, macOS, and Linux. It uses Node.js 24, the committed npm/Cargo lockfiles, Svelte type/build checks, rendered frontend interaction tests, Rust formatting/lint/tests, and `npm run build:prototype` for a standalone executable with an embedded-asset check. Linux installs WebKitGTK 4.1 and tray/clipboard build dependencies. This job does not publish artifacts or run a native GUI session; OS clipboard/paste and focus/shortcut behavior need separate evidence in [desktop development](desktop-development.md).
 
 ## Retired Legacy Publisher

@@ -17,7 +17,7 @@ Record protected desktop/server 0.6.0 staging and independent package verificati
 
 File transfers were committed as `016eb2d29e5153ec29a8dfca2240e45c75c0983c`, with all ten [implementation CI jobs](https://github.com/johansigfrids/ssh_clipboard/actions/runs/39946368670) passing. Release preparation is `eee590bd82fe0d8737ec47b4020d899179e3817e`; all three signed packages record this source, version 0.6.0 and the release profile.
 
-The [release preparation CI](https://github.com/johansigfrids/ssh_clipboard/actions/runs/39949131114) passed core checks on Windows/Mac/Linux, desktop checks on all three platforms and disposable server maintenance. Its browser job and one isolated retry timed out during slow Ubuntu dependency downloads before executing tests. Follow-up `44877dcea51f4867699e51c3b855a1fbeb3a87bb` changes only `.github/workflows/ci.yml` and `docs/ci.md`, increasing the browser job budget to twenty minutes while retaining scenario deadlines and zero retries. [Full follow-up CI](https://github.com/johansigfrids/ssh_clipboard/actions/runs/39951965183) is in progress. Signed source and package bytes remain unchanged.
+The [release preparation CI](https://github.com/johansigfrids/ssh_clipboard/actions/runs/39949131114) passed core checks on Windows/Mac/Linux, desktop checks on all three platforms and disposable server maintenance. Its browser job and one isolated retry timed out during slow Ubuntu dependency downloads before executing tests. Follow-up `44877dcea51f4867699e51c3b855a1fbeb3a87bb` changes only `.github/workflows/ci.yml` and `docs/ci.md`, increasing the browser job budget to twenty minutes while retaining scenario deadlines and zero retries. [Full follow-up CI](https://github.com/johansigfrids/ssh_clipboard/actions/runs/39951965183) passed all ten jobs, including the browser scenarios and final `CI complete` gate. Signed application source and package bytes remain unchanged.
 
 [Desktop staging](https://github.com/johansigfrids/ssh_clipboard/actions/runs/39949145227) and [server staging](https://github.com/johansigfrids/ssh_clipboard/actions/runs/39949148520) passed credential-free validation and protected signing after explicit owner authorization. Both environments retain required owner reviews and master-only rules. Public trust matches the reviewed source; key ID is `08c20604ca8fb748`.
 
@@ -51,7 +51,7 @@ At this checkpoint, `desktop-v0.6.0` and `server-v0.6.0` are unpublished drafts.
 
 ## Update Triggers
 
-- Completion of the remaining CI check, separate publication approval or exact-byte public delivery verification.
+- Separate publication approval or exact-byte public delivery verification.
 - New installed/native evidence for these exact packages; preserve the source and hashes above.
 
 ## Related Docs

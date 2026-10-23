@@ -76,6 +76,7 @@ Historical pending gates and test counts apply to the source/session named in ea
 - [0.4.2 desktop acceptance](history/release-0.4.2-acceptance.md): immutable Windows/Apple Silicon packages and anonymous combined-feed delivery.
 - [0.4.3 desktop acceptance](history/release-0.4.3-acceptance.md): signed desktop improvements, owner-confirmed Windows smoke checks and public update-feed delivery.
 - [0.5.0 publication and migration acceptance](history/release-0.5.0-acceptance.md): signed packages, public delivery, fresh server/Windows/Mac cutover, native text/image checks and legacy cleanup.
+- [0.6.0 file transfer release acceptance](history/release-0.6.0-acceptance.md): protected drafts, exact packages, independent verification and native evidence limits.
 - [Linux cutover acceptance](history/linux-cutover-acceptance.md): signed persistent service, SSH routes and old-install retirement.
 - [Mac cutover](history/macos-cutover.md): actual import, text, login/shortcut and legacy cleanup.
 - [Mac updater acceptance](history/macos-updater-acceptance.md): isolated replacement/restart, settings retention and production preservation.

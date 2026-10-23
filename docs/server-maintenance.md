@@ -24,6 +24,8 @@ The store requires an absolute user-owned installation directory with private re
 
 Executable selection is one relative `current -> releases/<canonical-stable-version>` link replaced atomically. Normal activation requires a newer version and reverifies both selected and previous bytes through the caller's verifier before changing selection. A durable transition journal precedes the switch. A restart must pass the caller's **protocol** health check; process/service-active status alone is insufficient. Failure restores the previous executable, restarts, and rechecks it. Initial installation failure stops the attempted service and removes selection. Failed rollback or outcome persistence retains the journal and blocks new activation until recovery.
 
+For a protocol-breaking upgrade such as 0.5.0 to 0.6.0, verify the new signed package before executing it and use that new binary's `server-maintenance update` command. The old maintenance binary cannot health-check the new protocol and would reject the upgrade. Retain the old verified maintenance binary as well: if rollback selects the old server, recovery must use a caller that speaks that old protocol. A new caller cannot certify old-protocol rollback health. The [0.6.0 installed-upgrade record](history/release-0.6.0-acceptance.md#subsequent-installed-upgrades) records the successful live transition; it did not require rollback.
+
 Recovery accepts only selection matching the journal's previous/next version, conservatively restores the verified previous release, and records the outcome. It cannot restore in-memory clipboard items lost on restart. The CLI must disclose that before activation. No automatic pruning of old versions or unfinished staging directories is implemented.
 
 ## Package Verification

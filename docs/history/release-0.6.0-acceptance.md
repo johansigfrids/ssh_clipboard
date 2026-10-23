@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Record protected desktop/server 0.6.0 staging, separately authorized publication and independent package/public-delivery verification for file copying. Installed applications and the managed server have not been replaced.
+Record protected desktop/server 0.6.0 staging, separately authorized publication and independent package/public-delivery verification for file copying. Installed applications and the managed server were unchanged at publication; subsequent authorized upgrades are recorded below.
 
 ## Key Files
 
@@ -41,7 +41,7 @@ Ignored downloads, workflow artifacts, verification scripts and receipts remain 
 
 [Source/native acceptance](file-transfer-source-acceptance.md) records Explorer/Finder paste in all four Windows/Mac directions, hash/tree comparisons, app Share/Copy, shortcuts, destination conflicts and renamed entries, and repeated paste after hide, Quit and reopening. Those isolated source builds and their clipboard-backed retained files were not replaced during release staging.
 
-The exact 0.6.0 desktop packages have not been installed, and this checkpoint does not establish live SSH-connected file transfers between the installed desktops, production server upgrade, login/reboot, browser-download Gatekeeper behavior or built-in updater replacement. Existing package, service recovery and installer evidence retains its original version and scope. No additional broad manual campaign was performed.
+At publication, the exact 0.6.0 desktop packages had not been installed, and that checkpoint did not establish live SSH-connected file transfers between the installed desktops, production server upgrade, login/reboot, browser-download Gatekeeper behavior or built-in updater replacement. Subsequent server and Windows installation evidence and the owner's Mac upgrade confirmation appear below. Existing package, service recovery and installer evidence retains its original version and scope. No additional broad manual campaign was performed.
 
 ## Compatibility and Publication
 
@@ -50,6 +50,21 @@ The exact 0.6.0 desktop packages have not been installed, and this checkpoint do
 After reviewing the verification results and native evidence limits, the owner explicitly approved publishing both releases. [Server 0.6.0](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.6.0) was published at 12:31:07 UTC with `--latest=false`; desktop 0.5.0 remained latest immediately afterward. [Desktop 0.6.0](https://github.com/johansigfrids/ssh_clipboard/releases/tag/desktop-v0.6.0) was published at 12:31:09 UTC and became latest. Both published tags point to verified source `eee590bd82fe0d8737ec47b4020d899179e3817e`. Neither publication rebuilt or replaced signed assets.
 
 Anonymous HTTPS downloads of all seventeen assets match the reviewed drafts byte-for-byte. Both releases are stable and non-draft; their version-specific descriptions match the reviewed notes. All three public package signatures pass verification against independently pinned trust again. The repository-wide latest keyed-feed URL serves the exact reviewed combined Windows x64/Apple Silicon 0.6.0 feed. `target/release-0.6.0/public-verification.json` retains the public verification receipt.
+
+## Subsequent Installed Upgrades
+
+Later on 2026-10-23, the owner authorized upgrading the existing managed server from 0.5.0. The exact signed Linux package above was verified before execution and activated using its 0.6.0 maintenance command. The enabled user service passed protocol health at 0.6.0, and the running executable hash matched the package. Settings and unit bytes were preserved, the previous managed release was retained and no recovery remained pending. Real SSH file Share/Fetch/extraction passed with multiple roots, overlapping-root deduplication, binary/hidden/Unicode/zero-byte files and an empty folder; extracted hashes matched. The epoch-guarded test item and disposable staging were removed. No OS clipboard was used for this server probe. Receipts are `target/release-0.6.0/live-server-{upgrade,verification,cleanup}.json`.
+
+The Windows Start search investigation found that Codex's packaged process redirected its apparent LocalAppData executable path into a private MSIX `LocalCache` installation containing 0.5.0, while normal Start search launched a separate 0.4.3 installation. Both shortcuts targeted the same apparent path. The owner ran the verified 0.6.0 installer from ordinary File Explorer and confirmed that the same Start search result now shows 0.6.0 and the saved connection. Independent physical-file inspection verified both normal installed executables against extraction of that signed installer:
+
+| Installed file | SHA-256 |
+| --- | --- |
+| `ssh_clipboard_desktop.exe` | `2cc2f9bfb3d252bbadf8397d33c56243ccfc47110d184e8bf3ce656b92ba7e25` |
+| `ssh_clipboard.exe` | `603b2f14b0a8eb26881b73eaef0be4e4d756139eeebf3593653244bbb5b13d6e` |
+
+The obsolete private 0.5.0 executable directory was renamed to a same-parent backup, and Codex then resolved the normal path to the verified 0.6.0 executable. The shared schema 3 Roaming settings remained byte-identical. A preceding WebView-cache experiment did not fix the cause and was fully reversed. Shortcuts were already correct. `target/release-0.6.0/windows-normal-install-repair.json` retains the repair receipt; see the [physical-path prevention guidance](../troubleshooting.md#updates-and-startup). This establishes a normal Windows installer replacement and Start search launch, not built-in updater replacement, login/reboot, or a new installed-desktop file-transfer campaign.
+
+The owner subsequently confirmed completing the Mac upgrade to 0.6.0 on 2026-10-23. This records owner-confirmed completion of the coordinated Windows/Mac/server upgrade. The Mac installation method, installed hashes and post-upgrade native behavior were not independently checked in this session; the earlier package verification and source/native acceptance retain their original scope.
 
 ## Update Triggers
 

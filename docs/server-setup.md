@@ -13,7 +13,7 @@ Install the signed Linux x86_64 shelf server under the intended user's account, 
 
 ## Prerequisites and Trust
 
-Use a Linux x86_64 account with a functioning user systemd manager and system OpenSSH. New source uses installation schema 2 and refuses old installations; follow [fresh cutover](compatibility-and-cutover.md) before replacing one. Use the signed [server 0.5.0 package](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.5.0), with [package/runtime verification and explicit native limits](history/release-0.5.0-acceptance.md). The repository-wide latest release belongs to the desktop. Do not use latest-release discovery to select server assets.
+Use a Linux x86_64 account with a functioning user systemd manager and system OpenSSH. Current releases use installation schema 2 and refuse pre-0.5 installations; follow [fresh cutover](compatibility-and-cutover.md) before replacing one. Use the signed [server 0.6.0 package](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.6.0), with [package/runtime verification and explicit native limits](history/release-0.6.0-acceptance.md). Existing 0.5 installations retain their configuration; upgrade the server and clients together for session version 2. The repository-wide latest release belongs to the desktop. Do not use latest-release discovery to select server assets.
 
 Obtain the public key through a reviewed checkout or independent owner confirmation. Download the exact requested version's binary and detached signature. Verify them without execution using an already trusted verifier:
 

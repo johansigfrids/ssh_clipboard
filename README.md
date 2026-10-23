@@ -2,7 +2,7 @@
 
 `ssh_clipboard` shares text, PNG clipboard content, and files/folders between machines over SSH. Sharing and copying are explicit; the app never auto-pastes into another application.
 
-File transfers are new in the 0.6.0 source, require upgraded clients/server (session version 2), and are not included in the published 0.5.0 packages linked below. The 0.6.0 releases are being prepared. Existing 0.5 settings and device identities are preserved.
+File copying is included in 0.6.0. Upgrade clients and server together for session version 2. Existing 0.5 settings and device identities are preserved.
 
 Your computers connect to a Linux server running `ssh_clipboard` through your existing SSH aliases, keys and host verification. Share an item from one computer, then select and copy it on another.
 
@@ -10,7 +10,7 @@ Your computers connect to a Linux server running `ssh_clipboard` through your ex
 - Server package: Linux x86_64, with bounded temporary history held in memory only.
 - CLI: explicit session file/stdin/stdout transfers, shared settings and metadata Health.
 
-Version 0.5.0 requires fresh settings and managed-server setup. See [cutover](docs/compatibility-and-cutover.md) before installing it; older published packages retain their recorded behavior.
+Upgrading from 0.4 or earlier requires fresh settings and managed-server setup. See [cutover](docs/compatibility-and-cutover.md) before replacing those installations.
 
 ![SSH Clipboard desktop panel showing a selected text item, Share and Copy actions, and temporary history](docs/images/desktop-ux-pr6/history-after.png)
 
@@ -20,15 +20,15 @@ Version 0.5.0 requires fresh settings and managed-server setup. See [cutover](do
 
 Before connecting a desktop, you need a Linux x86_64 server account with SSH access and a functioning user systemd manager. The desktop does not install the server for you.
 
-Follow [managed server setup](docs/server-setup.md) for the exact reviewed server version. Use the signed [server 0.5.0 package](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.5.0) for fresh setup. That guide covers first-install signature trust, installation, the SSH command route and a connection check. Use the explicit server release; desktop and server versions are released separately.
+Follow [managed server setup](docs/server-setup.md) for the exact reviewed server version. Use the signed [server 0.6.0 package](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.6.0) for fresh setup. That guide covers first-install signature trust, installation, the SSH command route and a connection check. Use the explicit server release; desktop and server versions are released separately.
 
 History is held in memory, expires automatically and is lost when the server restarts.
 
-For 0.5, follow [fresh setup and cutover](docs/compatibility-and-cutover.md). Only the session endpoint is supported.
+For first installation or migration from 0.4 or earlier, follow [fresh setup and cutover](docs/compatibility-and-cutover.md). Only the session endpoint is supported.
 
 ## Install the desktop
 
-[Download desktop 0.5.0](https://github.com/johansigfrids/ssh_clipboard/releases/tag/desktop-v0.5.0). Both packages include the desktop and matching CLI, with signed package verification for updates.
+[Download desktop 0.6.0](https://github.com/johansigfrids/ssh_clipboard/releases/tag/desktop-v0.6.0). Both packages include the desktop and matching CLI, with signed package verification for updates.
 
 1. On Windows, run the per-user installer. On Apple Silicon Mac, extract the `.app.tar.gz` and move **SSH Clipboard.app** into a stable Applications folder before opening it.
 2. In Settings, enter your server's SSH alias or `user@host`. Apply and test the saved connection.

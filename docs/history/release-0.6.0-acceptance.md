@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Record protected desktop/server 0.6.0 staging and independent package verification for file copying. Both releases remain drafts; publication requires separate owner approval. Installed applications and the managed server have not been replaced.
+Record protected desktop/server 0.6.0 staging, separately authorized publication and independent package/public-delivery verification for file copying. Installed applications and the managed server have not been replaced.
 
 ## Key Files
 
@@ -47,11 +47,13 @@ The exact 0.6.0 desktop packages have not been installed, and this checkpoint do
 
 0.6.0 requires session version 2 on both clients and server; 0.5.0 peers use version 1 and are incompatible. Existing 0.5 settings schema 3, device identities and managed-server schema 2 are preserved. Coordinate upgrades; the earlier fresh 0.5 migration is not required again.
 
-At this checkpoint, `desktop-v0.6.0` and `server-v0.6.0` are unpublished drafts. Desktop 0.5.0 remains repository latest. Server publication must explicitly retain `--latest=false`; only the reviewed desktop release carrying the combined feed may become latest. Public delivery has not yet been verified.
+After reviewing the verification results and native evidence limits, the owner explicitly approved publishing both releases. [Server 0.6.0](https://github.com/johansigfrids/ssh_clipboard/releases/tag/server-v0.6.0) was published at 12:31:07 UTC with `--latest=false`; desktop 0.5.0 remained latest immediately afterward. [Desktop 0.6.0](https://github.com/johansigfrids/ssh_clipboard/releases/tag/desktop-v0.6.0) was published at 12:31:09 UTC and became latest. Both published tags point to verified source `eee590bd82fe0d8737ec47b4020d899179e3817e`. Neither publication rebuilt or replaced signed assets.
+
+Anonymous HTTPS downloads of all seventeen assets match the reviewed drafts byte-for-byte. Both releases are stable and non-draft; their version-specific descriptions match the reviewed notes. All three public package signatures pass verification against independently pinned trust again. The repository-wide latest keyed-feed URL serves the exact reviewed combined Windows x64/Apple Silicon 0.6.0 feed. `target/release-0.6.0/public-verification.json` retains the public verification receipt.
 
 ## Update Triggers
 
-- Separate publication approval or exact-byte public delivery verification.
+- Additional exact-byte public-delivery verification or release corrections.
 - New installed/native evidence for these exact packages; preserve the source and hashes above.
 
 ## Related Docs

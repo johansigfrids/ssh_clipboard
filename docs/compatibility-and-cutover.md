@@ -38,7 +38,7 @@ These are rollout instructions, not evidence of a live cutover. Source implement
 
 ## File-Capable Session Upgrade
 
-Current file-capable source requires negotiated session version 2; published 0.5.0 uses version 1. Upgrade clients and server together. The SCBS framing, settings schema 3, device identity and managed-server schema 2 are preserved. This session upgrade does not require the fresh settings/server-installation procedure above, which documents the earlier 0.5 schema break. See [file transfers](file-transfers.md).
+The file-capable 0.6.0 releases require negotiated session version 2; 0.5.0 uses version 1. Upgrade clients and server together. The SCBS framing, settings schema 3, device identity and managed-server schema 2 are preserved. This session upgrade does not require the fresh settings/server-installation procedure above, which documents the earlier 0.5 schema break. See [file transfers](file-transfers.md).
 
 ## Update Triggers
 

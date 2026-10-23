@@ -35,7 +35,7 @@ Share validates identity before reading input or starting SSH, bounds input and 
 
 ## File Commands
 
-`shelf share-files <paths>...` captures files/folder trees as one item. `shelf fetch-files <uuid> --output-dir <new-directory>` extracts without overwriting and prints JSON paths/rename mappings. It accepts optional `--epoch`. Both commands use existing connection/identity/policy rules. Raw Fetch still exports exact bytes. See [file transfers](file-transfers.md) for limits, naming and metadata exclusions. File-capable source requires session version 2 at both ends; published 0.5.0 uses version 1.
+`shelf share-files <paths>...` captures files/folder trees as one item. `shelf fetch-files <uuid> --output-dir <new-directory>` extracts without overwriting and prints JSON paths/rename mappings. It accepts optional `--epoch`. Both commands use existing connection/identity/policy rules. Raw Fetch still exports exact bytes. See [file transfers](file-transfers.md) for limits, naming and metadata exclusions. These commands are available in 0.6.0 and require session version 2 at both ends; 0.5.0 uses version 1.
 
 ## Update Triggers
 

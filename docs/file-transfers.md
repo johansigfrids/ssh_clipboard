@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe explicit file/folder sharing through Explorer, Finder and the headless CLI in 0.6.0. Signed releases are being prepared; published 0.5.0 packages use session version 1 and do not support file bundles.
+Describe explicit file/folder sharing through Explorer, Finder and the headless CLI in the signed 0.6.0 releases. See [release acceptance](history/release-0.6.0-acceptance.md) for exact packages and verification limits. Earlier 0.5.0 packages use session version 1 and do not support file bundles.
 
 ## Key Files
 
@@ -53,7 +53,7 @@ Existing `share --file` and `--format png` keep their meanings. `fetch --stdout`
 
 ## Compatibility and Acceptance
 
-Current source negotiates session version 2 inside the unchanged SCBS bootstrap. Upgrade both clients and server; version 1 peers are rejected. Settings schema 3, device identities and managed-server schema 2 remain unchanged. Source implementation does not imply deployment or publication.
+0.6.0 negotiates session version 2 inside the unchanged SCBS bootstrap. Upgrade both clients and server; version 1 peers are rejected. Settings schema 3, device identities and managed-server schema 2 remain unchanged. Publication does not upgrade installed systems automatically.
 
 Automated tests cover codec, filesystem, shelf/session, CLI process, cache and fake native-adapter contracts. Native acceptance requires Windows-to-Windows, Windows-to-Mac, Mac-to-Windows and Mac-to-Mac Explorer/Finder paste, hash/tree comparison, shortcuts, collisions/renames, and repeated paste after hide/Quit/reopen. These checks are separate from rendered UI tests; see [testing](testing.md).
 

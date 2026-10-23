@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 - Bound file selections to 64 MiB by default (configurable to 256 MiB including overhead), 4,096 entries, 64 directory levels and a 1 MiB manifest. Reject links, reparse points and special files; transfer contents and structure without source metadata.
 
 ### Release status
-- Signed desktop/server 0.6.0 drafts pass independent package verification; publication remains separately authorized. Published 0.5.0 packages do not support file bundles. See [release acceptance](docs/history/release-0.6.0-acceptance.md) and [file transfers](docs/file-transfers.md) for behavior and evidence boundaries.
+- Published signed `desktop-v0.6.0` (latest) and `server-v0.6.0` after separate owner approval. All seventeen public assets, three package signatures and the combined desktop update feed pass independent verification. See [release acceptance](docs/history/release-0.6.0-acceptance.md) and [file transfers](docs/file-transfers.md) for behavior and evidence boundaries.
 
 ## [0.5.0] - 2026-10-22
 

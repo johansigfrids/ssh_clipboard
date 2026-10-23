@@ -7,6 +7,12 @@ fn explicit_export_and_epoch_arguments_are_required() {
         vec!["shelf", "fetch", "00000000-0000-0000-0000-000000000001"],
         vec!["shelf", "clear"],
         vec!["shelf", "delete", "00000000-0000-0000-0000-000000000001"],
+        vec!["shelf", "share-files"],
+        vec![
+            "shelf",
+            "fetch-files",
+            "00000000-0000-0000-0000-000000000001",
+        ],
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_ssh_clipboard"))
             .args(args)

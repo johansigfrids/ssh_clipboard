@@ -217,6 +217,15 @@ impl ItemPreview {
             dimensions: None,
         };
         match value.content_type {
+            ssh_clipboard::session_protocol::ContentType::Files => {
+                let bundle = ssh_clipboard::files::validate(&value.data)
+                    .map_err(|_| "The remote file bundle is invalid.".to_string())?;
+                preview.kind = "files";
+                preview.label = bundle.label();
+                if show_preview {
+                    preview.text = Some(bundle.preview());
+                }
+            }
             CONTENT_TYPE_TEXT => {
                 let text = std::str::from_utf8(&value.data)
                     .map_err(|_| "The remote text is not valid UTF-8.".to_string())?;

@@ -1,4 +1,81 @@
 use super::*;
+
+#[tokio::test]
+async fn file_selections_round_trip_deduplicate_and_reject_corruption_without_eviction() {
+    let (mut session, task) = connected().await;
+    let entries = [
+        crate::files::Entry {
+            parent: None,
+            name: "folder".into(),
+            kind: crate::files::Kind::Directory,
+            length: 0,
+        },
+        crate::files::Entry {
+            parent: Some(0),
+            name: "binary".into(),
+            kind: crate::files::Kind::File,
+            length: 3,
+        },
+    ];
+    let data = crate::files::encode(&entries, &[0, 255, 1], 1024).unwrap();
+    let action = |operation| {
+        let Action::Share {
+            operation_id,
+            origin,
+            mut representation,
+            created_at_ms,
+        } = share(&data, operation)
+        else {
+            unreachable!()
+        };
+        representation.content_type = ContentType::Files;
+        Action::Share {
+            operation_id,
+            origin,
+            representation,
+            created_at_ms,
+        }
+    };
+    let first = session.execute(action(501), &data).await.unwrap();
+    let Response::Shared { item, .. } = first.response else {
+        panic!("no shared item")
+    };
+    assert_eq!(item.label, "1 file, 1 folder");
+    assert_eq!(item.representations[0].content_type, ContentType::Files);
+    assert!(matches!(
+        session.execute(action(501), &data).await.unwrap().response,
+        Response::Shared {
+            duplicate: true,
+            ..
+        }
+    ));
+    let fetched = session
+        .execute(Action::Fetch { item_id: item.id }, &[])
+        .await
+        .unwrap();
+    assert_eq!(fetched.payload, data);
+    let mut corrupted = data.clone();
+    *corrupted.first_mut().unwrap() = 0;
+    assert!(matches!(
+        session.execute(action(502), &corrupted).await,
+        Err(SessionError::Remote(wire::ErrorCode::InvalidContent))
+    ));
+    assert_eq!(session.snapshot().await.unwrap().items.len(), 1);
+    session
+        .execute(Action::Delete { item_id: item.id }, &[])
+        .await
+        .unwrap();
+    assert!(matches!(
+        session.execute(action(501), &data).await.unwrap().response,
+        Response::Shared {
+            duplicate: true,
+            available: false,
+            ..
+        }
+    ));
+    session.close().await.unwrap();
+    task.await.unwrap().unwrap();
+}
 use crate::shelf::ShelfLimits;
 use crate::shelf_service::{ServiceLimits, ShelfService};
 use std::sync::Arc;

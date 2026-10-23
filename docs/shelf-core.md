@@ -11,7 +11,7 @@ Define the bounded in-memory shelf used by the managed Linux server, session cli
 
 ## Model and Defaults
 
-Each shelf has a random epoch and a monotonically increasing mutation sequence. Items have random stable IDs, creation sequence, optional device identity/name and captured timestamp, server receipt/expiry display times, content type, encoded size, and PNG dimensions. Device metadata is descriptive; it is not an authentication boundary. Text and PNG remain single-representation items for this first core.
+Each shelf has a random epoch and a monotonically increasing mutation sequence. Items have random stable IDs, creation sequence, optional device identity/name and captured timestamp, server receipt/expiry display times, content type, encoded size, and PNG dimensions. Device metadata is descriptive; it is not an authentication boundary. Text, PNG and file bundles are single-representation items.
 
 | Policy | Default | Validated maximum |
 | --- | --- | --- |
@@ -57,6 +57,10 @@ Retry records have separate fixed count and monotonic retention limits. When the
 Core tests cover preview labels and exact bytes, ordering despite clock skew, count/byte eviction, expiry, deduplication and conflicts, retry-window saturation, no resurrection after deletion, epochs/foreign reservations, pinned leases, concurrent admission, malformed text/PNG, origins, overflow and empty versus unset. They use synthetic content without SSH or OS clipboard access.
 
 Integration is implemented in the [wire codec](session-protocol.md), [stream service](shelf-service.md), [Linux endpoint](shelf-server.md), [client](shelf-client.md) and [desktop history](desktop-history.md). Exact installed/native results and limits are retained in [Windows history acceptance](history/native-history-acceptance.md) and [Linux cutover acceptance](history/linux-cutover-acceptance.md). Logical allocation bounds do not establish total-process RSS.
+
+## File Uploads
+
+File bundles use the existing reserved buffer, fingerprint, retry records and immutable leases. Validation checks a bounded uncompressed manifest, parent graph, names and exact lengths outside the shelf lock, without writing to disk. Labels contain validated file/folder counts. Encoded limits include manifest overhead; image decode budgets do not apply. See [file transfers](file-transfers.md).
 
 ## Update Triggers
 

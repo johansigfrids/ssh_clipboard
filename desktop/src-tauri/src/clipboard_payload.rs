@@ -13,6 +13,13 @@ pub struct ClipboardPayload {
     pub created_at: i64,
 }
 pub trait ClipboardAccess {
+    /// None means that no native file-list representation is available.
+    fn read_files(&mut self) -> Result<Option<Vec<std::path::PathBuf>>> {
+        Ok(None)
+    }
+    fn write_files(&mut self, _: &[std::path::PathBuf]) -> Result<()> {
+        eyre::bail!("Native file clipboard is unavailable.")
+    }
     fn read_text(&mut self) -> Result<String>;
     fn read_image(&mut self) -> Result<ImageData<'static>>;
     fn write_text(&mut self, text: &str) -> Result<()>;
@@ -37,6 +44,9 @@ pub fn apply_payload(
     clipboard: &mut impl ClipboardAccess,
 ) -> Result<(), String> {
     match value.content_type {
+        ContentType::Files => {
+            Err("File bundles require private staging before publication.".into())
+        }
         ContentType::Text => clipboard
             .write_text(
                 std::str::from_utf8(&value.data).map_err(|_| "The item is not valid UTF-8.")?,

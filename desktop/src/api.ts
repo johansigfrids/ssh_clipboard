@@ -53,7 +53,7 @@ export interface PanelView {
   settings: Settings;
   profiles: ConnectionProfile[];
   item: null | {
-    kind: "text" | "image";
+    kind: "text" | "image" | "files";
     label: string;
     text: string | null;
     imageUrl: string | null;
@@ -63,7 +63,7 @@ export interface PanelView {
   history: {
     epoch: string | null;
     selectedId: string | null;
-    items: Array<{ id: string; label: string; kind: "text" | "image"; encodedBytes: number; source: string | null; receivedAt: string; expiresAt: string }>;
+    items: Array<{ id: string; label: string; kind: "text" | "image" | "files"; encodedBytes: number; source: string | null; receivedAt: string; expiresAt: string }>;
   };
   connected: boolean;
   clipboardChecked: boolean;

@@ -36,6 +36,10 @@ Managed installation schema 1 is refused before store/unit/service mutations. Th
 
 These are rollout instructions, not evidence of a live cutover. Source implementation and disposable tests do not authorize deployment, publication or key changes.
 
+## File-Capable Session Upgrade
+
+Current file-capable source requires negotiated session version 2; published 0.5.0 uses version 1. Upgrade clients and server together. The SCBS framing, settings schema 3, device identity and managed-server schema 2 are preserved. This session upgrade does not require the fresh settings/server-installation procedure above, which documents the earlier 0.5 schema break. See [file transfers](file-transfers.md).
+
 ## Update Triggers
 
 - Configuration schemas, SSH routing, supported commands or installation ownership change.

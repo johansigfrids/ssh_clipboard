@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 pub mod framing;
 pub use framing::WireError;
-pub const SESSION_VERSION: u16 = 1;
+pub const SESSION_VERSION: u16 = 2;
 pub const MAX_LIST_ITEMS: u16 = 16;
 pub const MAX_METADATA_BYTES: usize = 65536;
 pub const MAX_PAYLOAD_BYTES: usize = 256 * 1024 * 1024;
@@ -51,12 +51,15 @@ pub enum ContentType {
     Text,
     #[serde(rename = "image/png")]
     Png,
+    #[serde(rename = "application/vnd.ssh-clipboard.files.v1")]
+    Files,
 }
 impl From<ContentType> for shelf::ContentType {
     fn from(value: ContentType) -> Self {
         match value {
             ContentType::Text => Self::Text,
             ContentType::Png => Self::Png,
+            ContentType::Files => Self::Files,
         }
     }
 }
@@ -101,7 +104,7 @@ impl Representation {
     fn validate(&self) -> Result<(), WireError> {
         if self.id != 0
             || self.encoded_bytes as usize > MAX_PAYLOAD_BYTES
-            || (self.content_type == ContentType::Text
+            || (self.content_type != ContentType::Png
                 && (self.dimensions.is_some() || self.decoded_bytes.is_some()))
             || self
                 .decoded_bytes
@@ -182,6 +185,7 @@ impl TryFrom<&shelf::ItemMetadata> for Item {
                 content_type: match item.content_type {
                     shelf::ContentType::Text => ContentType::Text,
                     shelf::ContentType::Png => ContentType::Png,
+                    shelf::ContentType::Files => ContentType::Files,
                 },
                 encoded_bytes: item
                     .encoded_bytes

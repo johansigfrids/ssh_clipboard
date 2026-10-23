@@ -133,6 +133,16 @@ async fn item_aware_cli_lists_exports_and_guards_mutations_through_the_real_prox
         String::from_utf8_lossy(&fetched.stderr)
     );
     assert_eq!(fetched.stdout, text.as_bytes());
+    let not_files = dir.path().join("not-files");
+    let rejected = invoke(vec![
+        "fetch-files".into(),
+        item.clone(),
+        "--output-dir".into(),
+        not_files.to_str().unwrap().into(),
+    ])
+    .await;
+    assert!(!rejected.status.success());
+    assert!(!not_files.exists());
     let destination = dir.path().join("export.txt");
     std::fs::write(&destination, b"preserved").unwrap();
     let rejected = invoke(vec![
@@ -198,6 +208,73 @@ async fn item_aware_cli_lists_exports_and_guards_mutations_through_the_real_prox
     assert!(!dir.path().join("missing.txt").exists());
     let cleared = invoke(vec!["clear".into(), "--epoch".into(), epoch]).await;
     assert!(cleared.status.success());
+    let folder = dir.path().join("bundle");
+    std::fs::create_dir(&folder).unwrap();
+    std::fs::create_dir(folder.join("empty")).unwrap();
+    std::fs::write(folder.join(".hidden"), [0, 255, 1]).unwrap();
+    std::fs::write(folder.join("CON.txt"), b"reserved").unwrap();
+    std::fs::write(folder.join("a?b"), b"one").unwrap();
+    std::fs::write(folder.join("a:b"), b"two").unwrap();
+    let shared = invoke(vec![
+        "share-files".into(),
+        folder.to_str().unwrap().into(),
+        folder.join(".hidden").to_str().unwrap().into(),
+        "--device-id".into(),
+        Uuid::from_u128(10).to_string(),
+    ])
+    .await;
+    assert!(
+        shared.status.success(),
+        "{}",
+        String::from_utf8_lossy(&shared.stderr)
+    );
+    let response: serde_json::Value = serde_json::from_slice(&shared.stdout).unwrap();
+    let item = response["item"]["id"].as_str().unwrap().to_owned();
+    let epoch = response["epoch"].as_str().unwrap().to_owned();
+    let raw = invoke(vec!["fetch".into(), item.clone(), "--stdout".into()]).await;
+    assert!(raw.status.success());
+    assert!(ssh_clipboard::files::validate(&raw.stdout).is_ok());
+    let destination = dir.path().join("received");
+    let args = vec![
+        "fetch-files".into(),
+        item.clone(),
+        "--output-dir".into(),
+        destination.to_str().unwrap().into(),
+        "--epoch".into(),
+        epoch.clone(),
+    ];
+    let fetched = invoke(args.clone()).await;
+    assert!(
+        fetched.status.success(),
+        "{}",
+        String::from_utf8_lossy(&fetched.stderr)
+    );
+    let extracted: serde_json::Value = serde_json::from_slice(&fetched.stdout).unwrap();
+    assert_eq!(extracted["paths"].as_array().unwrap().len(), 1);
+    assert!(extracted["renames"].as_array().unwrap().len() >= 2);
+    assert_eq!(
+        std::fs::read(destination.join("bundle/.hidden")).unwrap(),
+        [0, 255, 1]
+    );
+    assert_eq!(
+        std::fs::read(destination.join("bundle/_CON.txt")).unwrap(),
+        b"reserved"
+    );
+    assert!(destination.join("bundle/empty").is_dir());
+    let repeated = invoke(args).await;
+    assert!(!repeated.status.success());
+    let wrong_epoch_output = dir.path().join("wrong-epoch");
+    let wrong = invoke(vec![
+        "fetch-files".into(),
+        item,
+        "--output-dir".into(),
+        wrong_epoch_output.to_str().unwrap().into(),
+        "--epoch".into(),
+        Uuid::new_v4().to_string(),
+    ])
+    .await;
+    assert!(!wrong.status.success());
+    assert!(!wrong_epoch_output.exists());
 }
 
 #[tokio::test]
@@ -359,7 +436,7 @@ async fn hello(
 ) -> Response {
     let request = Request::Hello {
         request_id: 1.into(),
-        versions: vec![1],
+        versions: vec![2],
         max_item_bytes: 1024,
         max_decoded_bytes: 1024,
     };

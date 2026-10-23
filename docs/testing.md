@@ -126,6 +126,12 @@ Frontend checks can be selected as `npm run test:tooling` (platform-sensitive No
 
 For documentation-only work, validate relative file and heading links, index coverage, referenced assets and `git diff --check`. Inspect `git status`/diff paths to ensure source, manifests, workflows and lockfiles are unchanged. Do not build packages or start live fixtures merely to validate prose. When moving evidence, preserve package hashes, source identities, timestamps and screenshots, and update inbound links.
 
+## File Transfer Evidence
+
+The ignored `clipboard::tests::native_file_clipboard_probe` is an explicit native acceptance tool, never part of ordinary CI clipboard access. Point `SSH_CLIPBOARD_NATIVE_FILES_ROOT` at a disposable directory with an `owner` file containing `ssh-clipboard-native-file-fixture-v1` plus a newline. Set `SSH_CLIPBOARD_NATIVE_FILES_MODE` to `capture` (one selected `source` folder to `outbound.scbf`), `publish` (`inbound.scbf` to the private fixture cache/native clipboard), `inspect` (fresh-process cache/reference check), or `recapture` (only the single root inside that same cache to `recaptured.scbf`). Run the filtered desktop test with `-- --ignored --nocapture` only with explicit native clipboard authority. It never loads production settings or contacts the server; ordinary CLI/process tests cover transport separately. Preserve published fixture paths until they are no longer referenced. [Recorded source acceptance](history/file-transfer-source-acceptance.md) distinguishes actual Explorer/Finder paste from native adapter checks and unobserved desktop UI behavior.
+
+Tests cover bundle/tree validation, binary bytes, no-follow capture, portable renames, no-replace publication, session/CLI process round trips, cache quota/pins/restart retention, and partial/failed fake native publication. IPC fixtures include visible and hidden file names. Native Explorer/Finder acceptance remains separate: all Windows/Mac directions, hashes/trees, shortcuts, collisions and paste after hide/Quit/reopen. See [file transfers](file-transfers.md#compatibility-and-acceptance).
+
 ## Update Triggers
 
 - Test commands, build variants, fixture isolation or observable contracts change.

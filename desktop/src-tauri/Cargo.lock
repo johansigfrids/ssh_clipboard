@@ -3991,6 +3991,8 @@ dependencies = [
  "eyre",
  "image",
  "minisign-verify",
+ "objc2",
+ "objc2-app-kit",
  "reqwest",
  "rustls",
  "semver",

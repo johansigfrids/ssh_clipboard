@@ -2,6 +2,252 @@
 import type { PanelView, OperationView, UpdateView } from "../../src/api";
 
 export const ipc = {
+  "files": {
+    "activeShortcut": "CommandOrControl+Alt+Shift+S",
+    "clipboardChecked": true,
+    "connected": true,
+    "connectionReport": {
+      "checks": [
+        {
+          "detail": "Synthetic unavailable daemon",
+          "label": "Clipboard daemon",
+          "stage": "daemon",
+          "status": "failed"
+        }
+      ],
+      "healthy": false,
+      "hint": "Reconnect explicitly",
+      "summary": "Synthetic connection report"
+    },
+    "history": {
+      "epoch": "00000000-0000-0000-0000-000000000001",
+      "items": [
+        {
+          "encodedBytes": 155,
+          "expiresAt": "1792328400000",
+          "id": "00000000-0000-0000-0000-000000000002",
+          "kind": "files",
+          "label": "1 file, 1 folder",
+          "receivedAt": "1792324800000",
+          "source": "Contract laptop"
+        }
+      ],
+      "selectedId": "00000000-0000-0000-0000-000000000002"
+    },
+    "historyStatus": {
+      "detail": "Reconnect the saved connection.",
+      "phase": "needs_action",
+      "retryInMs": null
+    },
+    "item": {
+      "createdAt": 0,
+      "encodedBytes": 155,
+      "imageUrl": null,
+      "kind": "files",
+      "label": "1 file, 1 folder",
+      "text": "1 file, 1 folder\n3 bytes\nPRIVATE-FILE.txt\nempty-folder"
+    },
+    "notificationStatus": {
+      "available": false,
+      "detail": "Test fixture"
+    },
+    "operationNotice": {
+      "failed": true,
+      "id": "7",
+      "message": "Synthetic retained result"
+    },
+    "pendingShare": null,
+    "platform": "windows",
+    "profiles": [
+      {
+        "id": "default",
+        "identityFile": "",
+        "limits": {
+          "max_decoded_bytes": 67108864,
+          "max_item_bytes": 10485760
+        },
+        "name": "Default",
+        "port": null,
+        "target": "first-hub",
+        "transport": {
+          "sshBinary": "",
+          "sshOptions": [],
+          "timeoutMs": "7000"
+        }
+      }
+    ],
+    "settings": {
+      "closeAfterCopy": false,
+      "directCopyShortcut": null,
+      "directShareShortcut": null,
+      "directShortcutsEnabled": false,
+      "identityFile": "",
+      "limits": {
+        "max_decoded_bytes": 67108864,
+        "max_item_bytes": 10485760
+      },
+      "notifications": "panel",
+      "openShortcut": "CommandOrControl+Alt+Shift+S",
+      "port": null,
+      "profileId": "default",
+      "profileName": "Default",
+      "shortcutEnabled": true,
+      "showPreview": true,
+      "target": "first-hub",
+      "transport": {
+        "sshBinary": "",
+        "sshOptions": [],
+        "timeoutMs": "7000"
+      }
+    },
+    "settingsNotice": null,
+    "settingsRevision": "18446744073709551615",
+    "settingsSaved": true,
+    "settingsWritable": true,
+    "shortcutAvailable": true,
+    "shortcutStatus": "Registered",
+    "startupStatus": {
+      "available": false,
+      "desired": false,
+      "detail": "Test fixture",
+      "enabled": null
+    },
+    "trayStatus": "Available",
+    "updateStatus": {
+      "available": false,
+      "busy": false,
+      "currentVersion": "0.0.0",
+      "detail": "Updates are available in installed release builds. Linux packages use their package manager.",
+      "downloadedBytes": 0,
+      "notes": "",
+      "offeredVersion": null,
+      "phase": "unavailable",
+      "totalBytes": null
+    }
+  },
+  "hiddenFiles": {
+    "activeShortcut": "CommandOrControl+Alt+Shift+S",
+    "clipboardChecked": true,
+    "connected": true,
+    "connectionReport": {
+      "checks": [
+        {
+          "detail": "Synthetic unavailable daemon",
+          "label": "Clipboard daemon",
+          "stage": "daemon",
+          "status": "failed"
+        }
+      ],
+      "healthy": false,
+      "hint": "Reconnect explicitly",
+      "summary": "Synthetic connection report"
+    },
+    "history": {
+      "epoch": "00000000-0000-0000-0000-000000000001",
+      "items": [
+        {
+          "encodedBytes": 155,
+          "expiresAt": "1792328400000",
+          "id": "00000000-0000-0000-0000-000000000002",
+          "kind": "files",
+          "label": "Files",
+          "receivedAt": "1792324800000",
+          "source": "Contract laptop"
+        }
+      ],
+      "selectedId": "00000000-0000-0000-0000-000000000002"
+    },
+    "historyStatus": {
+      "detail": "Reconnect the saved connection.",
+      "phase": "needs_action",
+      "retryInMs": null
+    },
+    "item": {
+      "createdAt": 0,
+      "encodedBytes": 155,
+      "imageUrl": null,
+      "kind": "files",
+      "label": "Files",
+      "text": null
+    },
+    "notificationStatus": {
+      "available": false,
+      "detail": "Test fixture"
+    },
+    "operationNotice": {
+      "failed": true,
+      "id": "7",
+      "message": "Synthetic retained result"
+    },
+    "pendingShare": null,
+    "platform": "windows",
+    "profiles": [
+      {
+        "id": "default",
+        "identityFile": "",
+        "limits": {
+          "max_decoded_bytes": 67108864,
+          "max_item_bytes": 10485760
+        },
+        "name": "Default",
+        "port": null,
+        "target": "first-hub",
+        "transport": {
+          "sshBinary": "",
+          "sshOptions": [],
+          "timeoutMs": "7000"
+        }
+      }
+    ],
+    "settings": {
+      "closeAfterCopy": false,
+      "directCopyShortcut": null,
+      "directShareShortcut": null,
+      "directShortcutsEnabled": false,
+      "identityFile": "",
+      "limits": {
+        "max_decoded_bytes": 67108864,
+        "max_item_bytes": 10485760
+      },
+      "notifications": "panel",
+      "openShortcut": "CommandOrControl+Alt+Shift+S",
+      "port": null,
+      "profileId": "default",
+      "profileName": "Default",
+      "shortcutEnabled": true,
+      "showPreview": false,
+      "target": "first-hub",
+      "transport": {
+        "sshBinary": "",
+        "sshOptions": [],
+        "timeoutMs": "7000"
+      }
+    },
+    "settingsNotice": null,
+    "settingsRevision": "18446744073709551615",
+    "settingsSaved": true,
+    "settingsWritable": true,
+    "shortcutAvailable": true,
+    "shortcutStatus": "Registered",
+    "startupStatus": {
+      "available": false,
+      "desired": false,
+      "detail": "Test fixture",
+      "enabled": null
+    },
+    "trayStatus": "Available",
+    "updateStatus": {
+      "available": false,
+      "busy": false,
+      "currentVersion": "0.0.0",
+      "detail": "Updates are available in installed release builds. Linux packages use their package manager.",
+      "downloadedBytes": 0,
+      "notes": "",
+      "offeredVersion": null,
+      "phase": "unavailable",
+      "totalBytes": null
+    }
+  },
   "initial": {
     "activeShortcut": "CommandOrControl+Alt+Shift+S",
     "clipboardChecked": true,
@@ -241,4 +487,4 @@ export const ipc = {
     "phase": "ready",
     "totalBytes": 123
   }
-} satisfies { initial: PanelView; shelf: PanelView; operation: OperationView; updates: UpdateView };
+} satisfies { initial: PanelView; shelf: PanelView; files: PanelView; hiddenFiles: PanelView; operation: OperationView; updates: UpdateView };

@@ -15,13 +15,15 @@ Describe the session-only 0.5 source: headless shared core and CLI, native deskt
 
 ## Current System
 
-The Tauri/Svelte desktop and headless CLI share session transport, policy, settings and image validation. System OpenSSH connects to Linux `session-proxy`, which bridges strict SCBS stdio to a per-user shelf daemon. There is one protocol and no compatibility fallback. The retired agent, V2 wire protocol, standalone daemon/proxy and old installers are removed.
+The Tauri/Svelte desktop and headless CLI share session transport, policy, settings, image validation and bounded file bundles. System OpenSSH connects to Linux `session-proxy`, which bridges strict SCBS stdio to a per-user shelf daemon. Current source requires negotiated session version 2 inside the unchanged version 1 SCBS framing. There is no compatibility fallback. The retired agent, V2 wire protocol, standalone daemon/proxy and old installers are removed.
 
 The desktop owns native clipboard adapters on a retained worker thread. Only explicit Share samples the local clipboard; only explicit Copy writes it. History owns selected remote metadata and preview; pending-share state retains the frozen upload bytes, operation identity, epoch and original retry deadline. No separate latest-value cache can bypass selected-item/epoch validation.
 
 A foreground session serves explicit operations; a separate metadata connection handles snapshots/Watch and bounded reconnect. Background refresh never fetches payloads, samples/writes the local clipboard or replays a transfer. Explicit operation results, cancellation uncertainty and recovery remain separate from connection state.
 
 The CLI accepts explicit file/stdin input and file/stdout exports, with JSON metadata on stdout. It has no native clipboard support. Distinct persistent and one-shot session lifecycles share bounded stderr classification and safe SSH launching, including Windows console suppression, no PTY and reaping on failure.
+
+Shared file code captures regular files/folder trees, validates a bounded manifest plus raw bytes, maps portable filenames and materializes private staging trees. The desktop uses arboard file lists and a durable bounded local cache; only Copy extracts and publishes native references. The CLI uses explicit share-files/fetch-files with permanent no-overwrite directory exports. See [file transfers](docs/file-transfers.md).
 
 ## Policy and Configuration
 
@@ -31,9 +33,9 @@ Desktop drafts, guarded native activation, coordinated writers, revision checks,
 
 ## Server and Resource Boundaries
 
-The daemon stores only explicitly shared text/PNG in bounded memory. Count, retention, encoded storage, resident buffers, image decode and retry-record budgets remain independent. Reservations precede upload allocation; timed-out validation cannot commit later. Every upload has a valid origin and operation UUID. Retries preserve payload identity and never evict unexpired retry records to shorten a guarantee.
+The daemon stores explicitly shared text, PNG and file bundles in bounded memory. Count, retention, encoded storage, resident buffers, image decode and retry-record budgets remain independent. Reservations precede upload allocation; timed-out validation cannot commit later. Every upload has a valid origin and operation UUID. Retries preserve payload identity and never evict unexpired retry records to shorten a guarantee.
 
-Socket directories are owner-only, listeners validate peer UID and exclusive ownership, and duplicate startup never unlinks a live endpoint. The default shelf path is preserved. Payloads are never persisted; restarts create a new epoch and lose history.
+Socket directories are owner-only, listeners validate peer UID and exclusive ownership, and duplicate startup never unlinks a live endpoint. The default shelf path is preserved. Server payloads are never persisted; restarts create a new epoch and lose history.
 
 Managed installation schema 2 owns a persisted daemon configuration independent of CLI parsing. Signed exact bytes, pinned trust, immutable versions, stable launcher/unit, durable journals and selected-version Health govern activation/recovery. Unsupported installations are refused before mutation; 0.5 requires [fresh cutover](docs/compatibility-and-cutover.md).
 
@@ -49,7 +51,7 @@ The existing protected desktop/server workflows remain independent. Package sign
 - Panel Copy fetches the selected item; direct Copy refreshes and fetches the newest. Expired/deleted/wrong-epoch items leave the clipboard unchanged.
 - Treat content, labels and remote output as untrusted/private. Render inert previews and classify failures without exposing stderr or payloads.
 - SSH aliases, keys, host verification and restricted session routes remain under OpenSSH/account policy. Maintenance access remains separate.
-- Continuous synchronization, full local history, accounts/cloud relays and arbitrary file transfer remain outside scope.
+- Continuous synchronization, full local history, accounts/cloud relays and large streaming transfers remain outside scope.
 
 ## Update Triggers
 

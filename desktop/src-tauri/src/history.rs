@@ -37,7 +37,9 @@ impl History {
     pub fn item_preview(&self, show_preview: bool) -> Option<ItemPreview> {
         self.preview.clone().map(|mut preview| {
             if !show_preview {
-                preview.label = if preview.kind == "image" {
+                preview.label = if preview.kind == "files" {
+                    "Files".into()
+                } else if preview.kind == "image" {
                     "Image".into()
                 } else {
                     "Text".into()
@@ -58,16 +60,25 @@ impl History {
                 .map(|item| {
                     let representation = &item.representations[0];
                     let image = representation.content_type == ContentType::Png;
+                    let files = representation.content_type == ContentType::Files;
                     Row {
                         id: item.id,
                         label: if show_preview {
                             item.label.clone()
+                        } else if files {
+                            "Files".into()
                         } else if image {
                             "Image".into()
                         } else {
                             "Text".into()
                         },
-                        kind: if image { "image" } else { "text" },
+                        kind: if files {
+                            "files"
+                        } else if image {
+                            "image"
+                        } else {
+                            "text"
+                        },
                         encoded_bytes: representation.encoded_bytes,
                         source: item.origin.as_ref().map(|origin| origin.name.clone()),
                         received_at: item.received_at_ms.get().to_string(),

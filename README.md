@@ -1,6 +1,8 @@
 # ssh_clipboard
 
-`ssh_clipboard` shares text and PNG clipboard content between machines over SSH. Sharing and copying are explicit; the app never auto-pastes into another application.
+`ssh_clipboard` shares text, PNG clipboard content, and files/folders between machines over SSH. Sharing and copying are explicit; the app never auto-pastes into another application.
+
+File transfers describe current source, require upgraded clients/server (session version 2), and are not included in the published 0.5.0 packages linked below. Existing settings are preserved.
 
 Your computers connect to a Linux server running `ssh_clipboard` through your existing SSH aliases, keys and host verification. Share an item from one computer, then select and copy it on another.
 
@@ -33,6 +35,8 @@ For 0.5, follow [fresh setup and cutover](docs/compatibility-and-cutover.md). On
 3. Use **Share current clipboard** to upload. On another computer connected to the same server account, select the item and choose **Copy to this computer**, then paste it into your application. Selecting or previewing history does not copy it.
 4. Optionally enable **Start at login** in Behavior and configure shortcuts. Review startup ownership when replacing an existing installation.
 
+With file-capable builds, copy files/folders in Explorer or Finder, Share them, Copy on the receiving computer, then paste into its file manager. Selections default to a 64 MiB limit. Received files use a retained local disk cache; incompatible filenames are renamed. See [file transfers](docs/file-transfers.md) for limits, privacy, cleanup and metadata exclusions.
+
 The Mac app is ad-hoc signed without Apple notarization; use macOS per-app Privacy & Security approval if needed. See [first-install trust](docs/security.md#signed-package-trust). Intel Mac and Linux desktop have no supported package in this delivery.
 
 ## Settings and everyday behavior
@@ -54,9 +58,13 @@ ssh_clipboard shelf health
 ssh_clipboard shelf share --file note.txt
 ssh_clipboard shelf list
 ssh_clipboard shelf fetch <item-uuid> --output received-note.txt
+ssh_clipboard shelf share-files report.pdf photos
+ssh_clipboard shelf fetch-files <file-item-uuid> --output-dir received
 ```
 
 Replace `<item-uuid>` with an item's UUID from `list`. These commands read or write explicit files and leave the OS clipboard alone; an existing output file is never overwritten. Use `--stdin` instead of `--file` to share piped text, or add `--format png` when sharing a PNG file.
+
+`share-files` captures files/folders as a bundle; `fetch-files` extracts to a new directory and prints final paths/renames as JSON. Existing `fetch` exports raw bundle bytes for file items.
 
 For CLI-only connection setup, see [shared settings](docs/shared-configuration.md#cli-selection-and-edits). See [shelf commands](docs/shelf-client.md) for direct targets, profile selection and more examples, or the [CLI reference](docs/cli.md) for all commands. Use `ssh_clipboard <command> --help` for flags.
 

@@ -64,6 +64,10 @@ Native WSL probes run the real CLI through a synthetic SSH executable that execs
 - Stage and publish file exports without clobbering; a preflight existence check alone does not prevent races.
 - Reserve stdout for JSON or explicitly selected raw bytes. All tracing belongs on stderr.
 
+## File Input and Extraction
+
+`share-files <paths>...` captures a bounded immutable bundle. `fetch-files <uuid> --output-dir <new-directory>` requires a file item, validates before extraction, and atomically publishes a new directory with JSON paths/renames. It supports optional `--epoch`. Raw Fetch remains an exact-byte export for every content type. The client validates file manifests and exact lengths without extracting anything. See [file transfers](file-transfers.md). Current source negotiates session version 2 only; upgrade both ends without resetting settings.
+
 ## Update Triggers
 
 - Desktop client integration, persistent SSH ownership, recovery/subscriptions, or new representations.

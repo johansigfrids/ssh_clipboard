@@ -1177,11 +1177,7 @@ async fn share_current(
     )?;
     let representation = ShelfRepresentation {
         id: 0,
-        content_type: if value.content_type == crate::clipboard_payload::CONTENT_TYPE_PNG {
-            ShelfContent::Png
-        } else {
-            ShelfContent::Text
-        },
+        content_type: value.content_type,
         encoded_bytes: value.data.len() as u32,
         dimensions: preview.dimensions,
         // Native capture encodes RGBA8, so its PNG native buffer equals RGBA size.
@@ -1295,8 +1291,28 @@ async fn copy_latest(
     let value = fetch_item(session, config)
         .await?
         .ok_or("The shared clipboard is empty. Your clipboard was left unchanged.")?;
+    publish_clipboard(session, clipboard, value, limit, operation).await
+}
+
+async fn publish_clipboard(
+    session: &mut Session,
+    clipboard: &ClipboardWorker,
+    value: ClipboardPayload,
+    limit: usize,
+    operation: &Operation,
+) -> Result<(), String> {
+    let prepared = clipboard.prepare(value, limit).await?;
     operation.finishing()?;
-    clipboard.write_with_limit(value, limit).await
+    let renamed = clipboard.write_prepared(prepared).await?;
+    if session.settings.show_preview
+        && let Some(renamed) = renamed
+        && let Some(preview) = session.history.preview.as_mut()
+    {
+        let text = preview.text.get_or_insert_default();
+        text.push_str("\nReceived names:\n");
+        text.push_str(&renamed);
+    }
+    Ok(())
 }
 
 fn handle_shortcut(
@@ -1428,11 +1444,14 @@ async fn copy_item(
                 .ok_or("Select an item in history first.")?;
 
             let value = session.load_selected(id, config).await?;
-            operation.finishing()?;
-            state
-                .clipboard
-                .write_with_limit(value.clone(), policy.max_decoded_bytes as usize)
-                .await?;
+            publish_clipboard(
+                &mut session,
+                &state.clipboard,
+                value,
+                policy.max_decoded_bytes as usize,
+                &operation,
+            )
+            .await?;
 
             Ok(())
         })

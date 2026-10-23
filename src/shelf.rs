@@ -81,6 +81,8 @@ pub enum ShelfError {
     InvalidText,
     #[error("invalid PNG or decoded image exceeds the limit")]
     InvalidImage,
+    #[error("invalid file bundle")]
+    InvalidFiles,
     #[error("device identity or name is invalid")]
     InvalidOrigin,
     #[error("an upload operation requires a nonempty operation and device identity")]
@@ -103,6 +105,7 @@ pub enum ShelfError {
 pub enum ContentType {
     Text,
     Png,
+    Files,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -259,6 +262,10 @@ impl IncomingUpload {
             return Err(ShelfError::InvalidOperation);
         }
         let dimensions = match content_type {
+            ContentType::Files => {
+                crate::files::validate(&self.data).map_err(|_| ShelfError::InvalidFiles)?;
+                None
+            }
             ContentType::Text => {
                 std::str::from_utf8(&self.data).map_err(|_| ShelfError::InvalidText)?;
                 None
@@ -275,6 +282,9 @@ impl IncomingUpload {
         };
         let fingerprint = fingerprint(content_type, &origin, created_at_ms, &self.data);
         let label = match content_type {
+            ContentType::Files => crate::files::validate(&self.data)
+                .map_err(|_| ShelfError::InvalidFiles)?
+                .label(),
             ContentType::Text => {
                 let text = std::str::from_utf8(&self.data).map_err(|_| ShelfError::InvalidText)?;
                 let line = text
@@ -366,6 +376,7 @@ fn fingerprint(
     hash.update([match content_type {
         ContentType::Text => 0,
         ContentType::Png => 1,
+        ContentType::Files => 2,
     }]);
     hash.update([1]);
     hash.update(origin.device_id.as_bytes());

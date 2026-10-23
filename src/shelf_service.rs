@@ -463,7 +463,9 @@ fn code(error: &ShelfError) -> ErrorCode {
     match error {
         ShelfError::ItemTooLarge => ErrorCode::PayloadTooLarge,
         ShelfError::Busy | ShelfError::Allocation => ErrorCode::Busy,
-        ShelfError::InvalidText | ShelfError::InvalidImage => ErrorCode::InvalidContent,
+        ShelfError::InvalidText | ShelfError::InvalidImage | ShelfError::InvalidFiles => {
+            ErrorCode::InvalidContent
+        }
         ShelfError::InvalidOrigin | ShelfError::InvalidOperation => ErrorCode::InvalidRequest,
         ShelfError::EpochChanged => ErrorCode::EpochChanged,
         ShelfError::OperationConflict => ErrorCode::OperationConflict,

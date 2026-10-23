@@ -33,6 +33,10 @@ Use `<command> --help` for complete flags. `push/pull/peek/doctor`, `daemon/prox
 
 Share validates identity before reading input or starting SSH, bounds input and validates UTF-8/PNG. Direct destinations need an explicit device UUID. Fetch validates complete payloads before publishing a new output file. Stdout contains JSON metadata or explicitly requested payload bytes; diagnostics go to stderr. Unacknowledged mutations are uncertain and never automatically replayed.
 
+## File Commands
+
+`shelf share-files <paths>...` captures files/folder trees as one item. `shelf fetch-files <uuid> --output-dir <new-directory>` extracts without overwriting and prints JSON paths/rename mappings. It accepts optional `--epoch`. Both commands use existing connection/identity/policy rules. Raw Fetch still exports exact bytes. See [file transfers](file-transfers.md) for limits, naming and metadata exclusions. File-capable source requires session version 2 at both ends; published 0.5.0 uses version 1.
+
 ## Update Triggers
 
 - Command surface, policy precedence, I/O, schema or error behavior changes.

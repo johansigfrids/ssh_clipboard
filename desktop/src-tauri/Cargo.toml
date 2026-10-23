@@ -29,7 +29,8 @@ tauri-plugin-updater = { version = "2", optional = true }
 tauri-plugin-autostart = { version = "2", optional = true }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["sync", "time"] }
-arboard = { version = "3", features = ["wayland-data-control"] }
+arboard = { version = "3.6.1", features = ["wayland-data-control"] }
+tempfile = "3"
 image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
 eyre = "0.6"
@@ -47,6 +48,11 @@ serde_json = "1"
 
 [target.'cfg(windows)'.dependencies]
 auto-launch = { version = "0.6", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Reuse arboard's existing AppKit bindings to distinguish absent/malformed file lists.
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSPasteboard", "NSPasteboardItem"] }
 
 [dev-dependencies]
 tempfile = "3"

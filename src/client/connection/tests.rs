@@ -159,7 +159,7 @@ fn frame(response: &Response) -> Vec<u8> {
 fn hello() -> Request {
     Request::Hello {
         request_id: 1.into(),
-        versions: vec![1],
+        versions: vec![2],
         max_item_bytes: 1024,
         max_decoded_bytes: 1024,
     }

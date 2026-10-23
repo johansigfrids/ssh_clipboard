@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod configuration;
 mod file_lock;
+pub mod files;
 pub mod session_bridge;
 pub mod session_protocol;
 pub mod shelf;

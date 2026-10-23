@@ -54,8 +54,16 @@ pub enum SessionError {
     Unsupported,
     #[error("The server returned invalid or oversized clipboard content.")]
     Content,
-    #[error("The server rejected the shelf operation: {0:?}.")]
+    #[error("{}", remote_error(.0))]
     Remote(ErrorCode),
+}
+
+fn remote_error(code: &ErrorCode) -> String {
+    if *code == ErrorCode::UnsupportedVersion {
+        "Client and server session versions differ. Upgrade both clients and server to file-capable builds (session version 2); existing settings can be kept.".into()
+    } else {
+        format!("The server rejected the shelf operation: {code:?}.")
+    }
 }
 
 /// Caller retains the original operation ID and captured bytes for any deliberate reconciliation.
@@ -374,6 +382,9 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Session<T> {
             let max_decoded = self.limits.max_decoded_bytes as usize;
             payload = tokio::task::spawn_blocking(move || {
                 match representation.content_type {
+                    ContentType::Files => {
+                        crate::files::validate(&payload).map_err(|_| SessionError::Content)?;
+                    }
                     ContentType::Text => {
                         std::str::from_utf8(&payload).map_err(|_| SessionError::Content)?;
                     }

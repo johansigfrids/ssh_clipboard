@@ -25,6 +25,22 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("quick panel contracts", () => {
+  it("renders file previews and renamed names while selection alone never copies", async () => {
+    state=structuredClone(ipc.files);
+    render(App);
+    await screen.findByText(/PRIVATE-FILE.txt/);
+    expect(screen.getByText("Files",{selector:".kind"})).toBeTruthy();
+    expect(bridge.invoke.mock.calls.some(([name])=>name==="copy_item")).toBe(false);
+    await fireEvent.click(screen.getByRole("button",{name:"Copy to this computer"}));
+    await waitFor(()=>expect(bridge.invoke).toHaveBeenCalledWith("copy_item",{expectedRevision:state.settingsRevision}));
+  });
+
+  it("hidden file previews expose neither names nor staged paths", async () => {
+    state=structuredClone(ipc.hiddenFiles);
+    render(App);
+    await screen.findByText("Files",{selector:".kind"});
+    expect(screen.queryByText(/PRIVATE-FILE|received-files/)).toBeNull();
+  });
   it("unknown IPC commands fail instead of receiving a successful panel snapshot", async () => {
     await expect(panelResponder(() => state)("apply_setting", { settings: state.settings })).rejects.toThrow("Unhandled IPC fixture command");
   });

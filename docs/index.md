@@ -25,6 +25,7 @@ Maintainer and agent navigation for current behavior, development, operations, f
 - [Shared configuration](shared-configuration.md): schema, profiles, draft/save transaction, CLI precedence and reload.
 - [Fresh setup and cutover](compatibility-and-cutover.md): schema boundaries, backups and explicit replacement.
 - [History](desktop-history.md): labels/privacy, selection, safe copy and mutations.
+- [File transfers](file-transfers.md): Explorer/Finder, CLI bundles, filename handling and retained local copies.
 - [Shortcuts](desktop-shortcuts.md): registration, recording, background actions and keyboard behavior.
 - [Feedback and notifications](desktop-notifications.md): preferences, capability fallback and retained outcomes.
 - [Persistent sessions](persistent-sessions.md): SSH ownership, metadata Watch/reconnect, cancellation and no replay.
@@ -68,6 +69,7 @@ Historical pending gates and test counts apply to the source/session named in ea
 - [Testing checkpoints](history/testing-checkpoints.md): earlier automated/process/native results and fixture lessons.
 - [Release evidence overview](history/release-readiness.md): original rework validation, draft admission and delivery closure.
 - [Windows native history](history/native-history-acceptance.md): isolated migration, text/PNG, cancellation and acknowledgment recovery.
+- [File transfer source acceptance](history/file-transfer-source-acceptance.md): Explorer/Finder paste, native Windows/Mac clipboard round trip, cache reopen and remaining UI boundaries.
 - [Windows development installer/updater](history/desktop-update-acceptance.md): actual login, native faults, key transition and cleanup.
 - [0.4.0 artifact acceptance](history/release-0.4.0-acceptance.md): exact production source/packages and Windows installation correction.
 - [0.4.1 desktop acceptance](history/release-0.4.1-acceptance.md): real-profile upgrade/startup and public delivery.

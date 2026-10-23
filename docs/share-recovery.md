@@ -40,6 +40,10 @@ Stream tests deliberately commit and drop the first client without reading its a
 
 Desktop probes preserve capture identity/bytes/time/deadline, reject other epochs and stale operation IDs, expire local bytes, and block another native read while recovery is pending. Rendered tests require explicit Check/Retry/Discard commands and issue no Share/Copy command during recovery. The native Linux proxy probe checks operation metadata on the existing owned connection. On 2026-10-14 the disposable [real SSH probe](testing.md) additionally confirmed protected retry, exact bytes, Watch, and operation lookup on one owned SSH child against the authorized Ubuntu host. The [2026-10-16 Windows native pass](history/native-history-acceptance.md) withheld a committed Share acknowledgment, confirmed Open/Cancel and the retained recovery card, then confirmed earlier acceptance through Check share status. The final replacement-marker paste was skipped; explicit Retry/Discard remain unobserved native paths.
 
+## File Captures
+
+File selections freeze complete validated bundle bytes before connecting. Retry never reopens source files, even if originals change or disappear. Pending uploads stay in RAM; the separate receiver disk cache is created only by explicit file Copy. See [file transfers](file-transfers.md).
+
 ## Update Triggers
 
 - Retry window, deadline/correlation, operation retention, or profile isolation changes.

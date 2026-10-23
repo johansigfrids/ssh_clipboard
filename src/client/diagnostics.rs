@@ -204,7 +204,7 @@ pub fn server_problem(code: &crate::session_protocol::ErrorCode) -> (&'static st
         ),
         ErrorCode::UnsupportedVersion => (
             "The server uses an incompatible session protocol.",
-            "Use a compatible session server and verify the session-proxy SSH route.",
+            "Upgrade clients and server together to session version 2; keep existing settings and verify the session-proxy SSH route.",
         ),
         _ => (
             "The shelf server rejected the operation.",

@@ -202,7 +202,7 @@ impl Peer {
         let task = tokio::spawn(async move { service.serve(server).await });
         let hello = Request::Hello {
             request_id: 1.into(),
-            versions: vec![1],
+            versions: vec![2],
             max_item_bytes: 1024,
             max_decoded_bytes: max_decoded,
         };

@@ -2,12 +2,12 @@ use super::framing::*;
 use super::*;
 use crate::shelf::{Now, Shelf};
 
-const HELLO: &[u8] = br#"{"type":"hello","request_id":"1","versions":[1],"max_item_bytes":67108864,"max_decoded_bytes":268435456}"#;
+const HELLO: &[u8] = br#"{"type":"hello","request_id":"1","versions":[2],"max_item_bytes":67108864,"max_decoded_bytes":268435456}"#;
 
 fn hello() -> Request {
     Request::Hello {
         request_id: 1.into(),
-        versions: vec![1],
+        versions: vec![2],
         max_item_bytes: 64 * 1024 * 1024,
         max_decoded_bytes: 256 * 1024 * 1024,
     }
@@ -94,7 +94,7 @@ fn decimal_fields_preserve_full_precision_and_reject_noncanonical_forms() {
 fn negotiation_intersects_policy_and_never_advertises_pending_capabilities() {
     let request = Request::Hello {
         request_id: u64::MAX.into(),
-        versions: vec![3, 1],
+        versions: vec![3, 2],
         max_item_bytes: 1024,
         max_decoded_bytes: 2048,
     };
@@ -118,7 +118,7 @@ fn negotiation_intersects_policy_and_never_advertises_pending_capabilities() {
     };
     assert_eq!(request_id.get(), u64::MAX);
     assert_eq!(sequence.get(), u64::MAX);
-    assert_eq!(session_version, 1);
+    assert_eq!(session_version, 2);
     assert_eq!(limits.max_item_bytes, 1024);
     assert_eq!(limits.max_decoded_bytes, 2048);
     assert_eq!(limits.max_metadata_bytes, 65536);
@@ -144,6 +144,16 @@ fn negotiation_intersects_policy_and_never_advertises_pending_capabilities() {
     };
     assert!(matches!(
         negotiate(&unsupported, Uuid::from_u128(1), 0, &ShelfLimits::default()),
+        Err(WireError::Rejected(ErrorCode::UnsupportedVersion))
+    ));
+    let legacy = Request::Hello {
+        request_id: 1.into(),
+        versions: vec![1],
+        max_item_bytes: 1024,
+        max_decoded_bytes: 1024,
+    };
+    assert!(matches!(
+        negotiate(&legacy, Uuid::from_u128(1), 0, &ShelfLimits::default()),
         Err(WireError::Rejected(ErrorCode::UnsupportedVersion))
     ));
     for versions in [vec![], vec![1, 1], vec![1; 9]] {
@@ -286,8 +296,8 @@ async fn startup_and_ready_helpers_reject_the_wrong_message_state() {
         read_request(&mut frame.as_slice(), limits, &shelf.upload_budget()).await,
         Err(WireError::InvalidState)
     ));
-    for raw in [br#"{"type":"hello","request_id":1,"versions":[1],"max_item_bytes":1,"max_decoded_bytes":1}"#.as_slice(),
-        br#"{"type":"hello","request_id":"1","versions":[1],"max_item_bytes":1,"max_decoded_bytes":1,"unknown":true}"#] {
+    for raw in [br#"{"type":"hello","request_id":1,"versions":[2],"max_item_bytes":1,"max_decoded_bytes":1}"#.as_slice(),
+        br#"{"type":"hello","request_id":"1","versions":[2],"max_item_bytes":1,"max_decoded_bytes":1,"unknown":true}"#] {
         assert!(serde_json::from_slice::<Request>(raw).is_err());
     }
 }

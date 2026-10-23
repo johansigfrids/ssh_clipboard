@@ -4,6 +4,7 @@ mod clipboard;
 mod clipboard_payload;
 mod configuration;
 mod connection;
+mod file_cache;
 mod history;
 mod model;
 mod notifications;

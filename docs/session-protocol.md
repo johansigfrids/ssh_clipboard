@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Describe the shelf endpoint's bootstrap, framing, negotiated messages and resource contracts. Version 2 (`SCB1`) remains a separately selected compatibility endpoint; see [the connection matrix](history/0.4/compatibility-and-cutover.md#connection-matrix).
+Describe the shelf endpoint's bootstrap, framing, negotiated messages and resource contracts. Current source supports negotiated session version 2; legacy SCB1/V2 endpoints are removed.
 
 ## Key Files
 
@@ -13,7 +13,7 @@ Describe the shelf endpoint's bootstrap, framing, negotiated messages and resour
 
 ## Endpoint and Bootstrap
 
-`ssh_clipboard session-proxy` is the Linux shelf SSH endpoint, backed by a separate owner-only session socket in the daemon's runtime directory. The existing `proxy` command/forced-command key continues to mean version 2. Never probe this endpoint by sending new serialized enums to `proxy`, silently change a forced command, or upload before negotiation. The [native endpoint](shelf-server.md) is used by the managed server and shelf clients. Exact process, SSH, installed-service and desktop results remain separate in [testing](testing.md) and the [acceptance records](history/release-readiness.md).
+`ssh_clipboard session-proxy` is the Linux shelf SSH endpoint, backed by a separate owner-only session socket in the daemon's runtime directory. The old `proxy` endpoint is removed. Do not silently change a forced command or upload before negotiation. The [native endpoint](shelf-server.md) is used by the managed server and shelf clients. Exact process, SSH, installed-service and desktop results remain separate in [testing](testing.md) and the [acceptance records](history/release-readiness.md).
 
 Every frame has a fixed 16-byte header, followed by bounded UTF-8 JSON metadata and then raw payload bytes:
 
@@ -29,7 +29,7 @@ Every frame has a fixed 16-byte header, followed by bounded UTF-8 JSON metadata 
 
 The bootstrap envelope is independent of negotiated session versions. Unknown framing versions/flags fail closed; a future incompatible bootstrap needs an explicitly separate entry point. Header sizes are checked before allocation. Metadata and encoded payload budgets are separate: a maximum-sized item does not lose space to JSON metadata. No clipboard payload is embedded in JSON.
 
-The first frame is Hello, with at most 4,096 metadata bytes and no payload. It supplies a nonzero request ID, 1-8 distinct supported session versions, and positive client encoded/decoded limits. Initial session version is `1`; lack of overlap yields `unsupported_version`, without fallback upload. Welcome echoes the request ID and reports the selected version, server version/epoch/sequence, capabilities, effective item/decoded limits, fixed 65,536-byte session metadata bound, retention/storage/resident policies, retry record/time bounds, and a maximum 16-item list page. Effective item and decoded limits are the minimum of client/server policy. Clients implementing version 1 must accept the fixed metadata bound.
+The first frame is Hello, with at most 4,096 metadata bytes and no payload. It supplies a nonzero request ID, 1-8 distinct supported session versions, and positive client encoded/decoded limits. Current session version is `2` (published 0.5.0 used `1`); lack of overlap yields `unsupported_version`, without fallback upload. Welcome echoes the request ID and reports the selected version, server version/epoch/sequence, capabilities, effective item/decoded limits, fixed 65,536-byte session metadata bound, retention/storage/resident policies, retry record/time bounds, and a maximum 16-item list page. Effective item and decoded limits are the minimum of client/server policy. Clients implementing version 2 must accept the fixed metadata bound.
 
 Capabilities are `list`, `fetch`, `delete`, `clear`, `deduplicated_share`, `watch`, `operation_status`, and `deadline_share`. Health is always available. Watch is a bounded metadata subscription: supply the last snapshot sequence and a wait of 0-10,000 ms; receive Changed with the current epoch/sequence and no payload. A later sequence signals that the client must resnapshot. Equal sequence is a heartbeat; a future sequence anchor yields ResyncRequired. Subscribe before checking current state so mutations between the initial snapshot and the watch cannot be missed. The service may shorten the wait to half its operation deadline. There is no unsolicited payload delivery. Metadata field/type changes require negotiated compatibility; unknown fields/types are rejected. New optional capability names can be advertised without making old clients use them.
 
@@ -54,7 +54,7 @@ Messages are internally tagged JSON objects with a snake-case `type`. Each reque
 | `operation_status` | epoch, device UUID, operation UUID | none | `operation` |
 | `retry_share` | nested Share, original not-after deadline | exactly nested representation `encoded_bytes` | `shared` |
 
-Origin has device UUID/name, subject to the shelf's 256-byte/no-control rules. A representation has ID, content type, encoded byte count, and optional dimensions. Initial ID is `0`; only UTF-8 text and PNG are supported. Initial items have one representation descriptor; multiple simultaneous representations require a future negotiated capability and verified native adapters. Supplied PNG dimensions are untrusted and must agree with decoded content when present; text must not claim dimensions. The server derives the stored descriptor from validated bytes. PNG validation must enforce effective decoded limits, not only global storage policy.
+Origin has device UUID/name, subject to the shelf's 256-byte/no-control rules. A representation has ID, content type, encoded byte count, and optional dimensions. Initial ID is `0`; UTF-8 text, PNG and file bundles are supported. Items have one representation descriptor; multiple simultaneous representations require a future negotiated capability and verified native adapters. Supplied PNG dimensions are untrusted and must agree with decoded content when present; text must not claim dimensions. The server derives the stored descriptor from validated bytes. PNG validation must enforce effective decoded limits, not only global storage policy.
 
 Item metadata has item ID, creation sequence, optional origin/captured timestamp, server receipt/expiry display timestamps, and representation descriptors. `value` identifies the representation whose exact bytes follow. Metadata must agree with header/body length; a body on a control-only message is rejected before upload allocation. Empty text shares still have an explicit zero-length upload and remain distinct from missing items.
 
@@ -79,6 +79,14 @@ Session framing is strict throughout. Do not scan for another header after corru
 ## Validation
 
 Codec and negotiation fixtures run independently of sockets and SSH. [Stream tests](shelf-service.md) cover actions, pagination and deadlines; [Linux endpoint tests](shelf-server.md#validation) cover real session processes. [Client tests](shelf-client.md) validate association/content and lifecycle behavior. Real SSH, native Windows history and installed Linux acceptance are recorded separately in [testing](testing.md) and [release evidence](history/release-readiness.md).
+
+## File Bundle Representation
+
+The content type is `application/vnd.ssh-clipboard.files.v1`; representation ID remains 0 and image dimensions/decoded-byte fields must be absent. Encoded size includes all bundle bytes. Session version 2 prevents older strict clients from receiving an unknown type; it is distinct from bootstrap version 1 and bundle version 1.
+
+A bundle starts with `SCBFILES` (8 bytes), a little-endian u32 version (1), and a little-endian u32 manifest length. A bounded UTF-8 JSON array follows, then raw file bytes in entry order. Entries contain `parent` (null or an earlier directory's zero-based index), `name` (one UTF-8 component), `kind` (`file` or `directory`) and `length` (u32; directories require zero). Parents precede children, preventing cycles. Names cannot be empty, `.`, `..`, contain slash/NUL, or exceed 4,096 UTF-8 bytes. Nested siblings must have unique names; independent roots may share a basename. Bounds are 4,096 entries, depth 64 and a 1 MiB manifest. Length sums consume the remaining payload exactly, without truncation/trailing bytes.
+
+Server and client validate the same codec without extraction. The server derives count labels; full names stay in the payload. Existing encoded admission, expiry and retry budgets apply. No absolute source paths, compression, links or permissions are encoded. See [file transfers](file-transfers.md) for receiver-side mapping and extraction.
 
 ## Update Triggers
 

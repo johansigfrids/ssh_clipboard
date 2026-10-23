@@ -18,7 +18,7 @@ fn welcome() -> Vec<u8> {
         &wire::negotiate(
             &wire::Request::Hello {
                 request_id: 1.into(),
-                versions: vec![1],
+                versions: vec![2],
                 max_item_bytes: 1024,
                 max_decoded_bytes: 1024,
             },
@@ -97,7 +97,7 @@ fn fixture(reply: &[u8], hold: bool) -> Child {
     // Health or Clear length; Share timeout fixtures need only drain some bytes.
     let hello = wire::Request::Hello {
         request_id: 1.into(),
-        versions: vec![1],
+        versions: vec![2],
         max_item_bytes: 1024,
         max_decoded_bytes: 1024,
     };

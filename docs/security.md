@@ -5,8 +5,8 @@ Describe how `ssh_clipboard` relies on SSH for transport security and provide re
 
 ## Key Files
 - `src/client/ssh.rs`
-- `src/proxy.rs`
-- `src/daemon.rs`
+- `src/session_proxy.rs`
+- `src/shelf_daemon.rs`
 - [docs/protocol.md](history/0.4/protocol.md)
 
 ## Threat Model
@@ -35,7 +35,7 @@ Current-source daemons use a stable ownership lock, preserve active sockets, rej
 ### 2. Forced command in `authorized_keys` (optional but recommended)
 Restrict a dedicated key so it can only run the proxy:
 ```
-command="ssh_clipboard proxy",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... your-key-comment
+command="ssh_clipboard session-proxy",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... your-key-comment
 ```
 
 Notes:
@@ -58,8 +58,8 @@ Establish first-install trust through a reviewed checkout or independent owner c
 - Prefer structured logs for errors (connection failures, protocol errors, size-limit rejections).
 
 ## Implementation Notes
-- V2 (`SCB1`) and shelf sessions (`SCBS`, session version 1) are separate endpoints. Both correlate requests by ID; logs must exclude clipboard payloads and content-derived labels.
-- `--io-timeout-ms` is available on Linux `daemon`/`proxy` to avoid hung sessions.
+- Current shelf sessions use SCBS framing version 1 and negotiated session version 2. Legacy SCB1/V2 endpoints are removed. Correlate requests by ID and exclude payloads, filenames and content-derived labels from logs.
+- Linux shelf endpoints enforce bounded operation/idle deadlines. File bundles are validated before storage or extraction and never restore links or source permissions. Receiver-side files persist in a private bounded cache; see [file transfers](file-transfers.md).
 
 ## Update Triggers
 - Adding new clipboard formats (especially binary/image) or changing the protocol.

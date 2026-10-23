@@ -42,6 +42,23 @@ enum InputFormat {
 }
 #[derive(Subcommand)]
 enum ShelfCommand {
+    /// Capture regular files and folder trees as one temporary history item.
+    ShareFiles {
+        #[arg(required = true, num_args = 1..)]
+        paths: Vec<PathBuf>,
+        #[arg(long)]
+        device_id: Option<Uuid>,
+        #[arg(long)]
+        device_name: Option<String>,
+    },
+    /// Extract a file item into a new directory without overwriting existing data.
+    FetchFiles {
+        item_id: Uuid,
+        #[arg(long)]
+        output_dir: PathBuf,
+        #[arg(long)]
+        epoch: Option<Uuid>,
+    },
     /// Print a consistent metadata-only history snapshot as JSON.
     List,
     /// Print metadata-only health as JSON.
@@ -102,7 +119,82 @@ pub async fn run(args: ShelfArgs) -> Result<()> {
     policy.validate()?;
     let mut payload = Vec::new();
     let mut export = None;
+    let mut file_export = None;
     let operation = match args.command {
+        ShelfCommand::ShareFiles {
+            paths,
+            device_id,
+            device_name,
+        } => {
+            let device = if direct || device_id.is_some() {
+                None
+            } else {
+                settings::store_at(args.settings_file.as_deref())?
+                    .load()?
+                    .map(|config| config.device)
+            };
+            let origin = Origin {
+                device_id: device_id
+                    .or_else(|| device.as_ref().and_then(|d| d.id.as_ref()?.parse().ok()))
+                    .ok_or_else(|| {
+                        eyre!("Save settings first, or pass --device-id for a direct destination.")
+                    })?,
+                name: device_name
+                    .or_else(|| device.map(|d| d.name))
+                    .unwrap_or_else(|| "This computer".into()),
+            };
+            let operation_id = Uuid::new_v4();
+            let mut representation = Representation {
+                id: 0,
+                content_type: ContentType::Files,
+                encoded_bytes: 0,
+                dimensions: None,
+                decoded_bytes: None,
+            };
+            crate::session_protocol::Request::Share {
+                request_id: 1.into(),
+                epoch: Uuid::from_u128(1),
+                operation_id,
+                origin: origin.clone(),
+                representation: representation.clone(),
+                created_at_ms: None,
+            }
+            .validate(0)?;
+            payload = tokio::task::spawn_blocking(move || {
+                crate::files::capture(
+                    &paths,
+                    policy.max_item_bytes as usize,
+                    &std::sync::atomic::AtomicBool::new(false),
+                )
+            })
+            .await??;
+            representation.encoded_bytes = payload.len().try_into()?;
+            eprintln!("Share operation ID: {operation_id}");
+            Operation::Action(Action::Share {
+                operation_id,
+                origin,
+                representation,
+                created_at_ms: None,
+            })
+        }
+        ShelfCommand::FetchFiles {
+            item_id,
+            output_dir,
+            epoch,
+        } => {
+            ensure!(
+                !output_dir.try_exists()?,
+                "Output directory already exists."
+            );
+            file_export = Some(output_dir);
+            match epoch {
+                Some(epoch) => Operation::AtEpoch {
+                    epoch,
+                    action: Action::Fetch { item_id },
+                },
+                None => Operation::Action(Action::Fetch { item_id }),
+            }
+        }
         ShelfCommand::List => Operation::Snapshot,
         ShelfCommand::Health => Operation::Action(Action::Health),
         ShelfCommand::Delete { item_id, epoch } => Operation::AtEpoch {
@@ -210,7 +302,38 @@ pub async fn run(args: ShelfArgs) -> Result<()> {
             )?
         ),
         Outcome::Reply(reply) => {
-            if let Some(path) = export {
+            if let Some(path) = file_export {
+                ensure!(
+                    matches!(&reply.response,crate::session_protocol::Response::Value{item,..} if item.representations[0].content_type==ContentType::Files),
+                    "Selected item is not a file selection."
+                );
+                let result = tokio::task::spawn_blocking(move || -> Result<_> {
+                    let parent = path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or_else(|| std::path::Path::new("."));
+                    let parent = parent.canonicalize()?;
+                    let name = path
+                        .file_name()
+                        .ok_or_else(|| eyre!("Choose a new output directory name."))?;
+                    let destination = parent.join(name);
+                    let staged = tempfile::Builder::new()
+                        .prefix(".ssh-clipboard-")
+                        .tempdir_in(&parent)?;
+                    let mut result = crate::files::materialize(
+                        &reply.payload,
+                        staged.path(),
+                        &std::sync::atomic::AtomicBool::new(false),
+                    )?;
+                    crate::files::publish_directory(staged.path(), &destination)?;
+                    for path in &mut result.paths {
+                        *path = destination.join(&*path);
+                    }
+                    Ok(result)
+                })
+                .await??;
+                println!("{}", serde_json::to_string_pretty(&result)?);
+            } else if let Some(path) = export {
                 match path {
                     Some(path) => {
                         // Complete and validate the fetch before creating a destination. Stage

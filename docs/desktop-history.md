@@ -23,7 +23,7 @@ All profiles use `session-proxy`. Saved plain session limits default to 64 MiB e
 
 When a new item arrives, metadata updates select the newest item so Panel Copy is ready to copy it. Ordinary refreshes and expiry/deletion updates retain a manually selected ID within the same epoch and current snapshot. If it is absent, select the newest remaining item. A restart replaces the epoch and invalidates the old selection. Refresh lists metadata and loads the selected item; passive updates clear an old preview when selection changes and do not fetch the new payload. Rows show bounded labels, source, size, receipt time, and expiry; source is unknown when wire metadata omits an origin. Explicit selection fetches/previews by ID and brings the preview into view. These operations do not write the OS clipboard.
 
-Panel Copy fetches the selected ID again, guarded by the loaded epoch, validates the exact text/PNG and descriptor, then writes through the persistent clipboard owner. Expired/deleted/wrong/oversized items leave the local clipboard unchanged. Optional background direct Copy deliberately clears the retained selection before listing so it always copies the newest item. Share captures once under the local endpoint budget and creates one upload operation; no automatic capture/replay is added.
+Panel Copy fetches the selected ID again, guarded by the loaded epoch, validates the exact text, PNG or file bundle and descriptor, then writes through the persistent clipboard owner. Expired/deleted/wrong/oversized items leave the local clipboard unchanged. Optional background direct Copy deliberately clears the retained selection before listing so it always copies the newest item. Share captures once under the local endpoint budget and creates one upload operation; no automatic capture/replay is added.
 
 Delete selected item and Clear history use an inline confirmation, not an immediate destructive click. The confirmation captures its epoch/item ID; any settings/history reload cancels it. Backend commands also check the settings revision and loaded epoch before sending a guarded mutation. Confirmed mutations update the local view without turning a later refresh failure into an apparent mutation failure. Server deletion cannot revoke copies already held elsewhere.
 
@@ -70,6 +70,10 @@ The [2026-10-16 Windows native pass](history/native-history-acceptance.md) confi
 - Validate timestamp strings before Number conversion; JavaScript rounding must not turn unknown server metadata into a credible exact time.
 - Keep local-clock display independent of server expiry and DOM identity. Do not announce clock ticks or steal focus on ordinary metadata updates.
 - Keep history hover on the row surface and suppress the generic button hover border/background inside it. Nested rounded button borders split the selected card visually; the Exact times disclosure remains a separate control and keyboard focus stays visible.
+
+## File Items
+
+Files are a third single-representation history kind, labelled with validated file/folder counts. Loaded previews show a bounded root-name list and byte count; hidden previews use Files labels and conceal names/mappings. Selection/preview does not extract. Copy stages the bundle, then publishes and verifies native references. Successful Copy can show filename mappings. Cache paths never enter previews or notifications; copies survive history expiry/deletion and Quit. See [file transfers](file-transfers.md) for durable pins, retention, quota and native failures.
 
 ## Update Triggers
 

@@ -79,7 +79,7 @@ impl FailureKind {
                 "Check compatible client/server versions and that SSH runs the clipboard proxy."
             }
             Self::RequestEncoding => {
-                "Try a supported text or PNG item and check the connection settings."
+                "Try a supported text, PNG, or file item and check the connection settings."
             }
             Self::SshExit | Self::Io => {
                 "Check the SSH connection, remote proxy, and running clipboard daemon. Unrecognized SSH output is kept out of the report."

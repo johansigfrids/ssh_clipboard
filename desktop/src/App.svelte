@@ -513,7 +513,7 @@
         </section>
       {:else if view.item}
         <section class="item-card" aria-label="Shared item">
-          <div class="item-top"><span class="kind">{view.item.kind === "image" ? "Image" : "Text"}</span><span>{formatSize(view.item.encodedBytes)}</span></div>
+          <div class="item-top"><span class="kind">{view.item.kind === "files" ? "Files" : view.item.kind === "image" ? "Image" : "Text"}</span><span>{formatSize(view.item.encodedBytes)}</span></div>
           <h2 id="shared-item-heading" tabindex="-1">{view.item.label}</h2>
           {#if view.item.imageUrl}<img class="preview-image" src={view.item.imageUrl} alt="Shared clipboard preview" />
           {:else if view.item.text !== null}<pre>{view.item.text || "(Empty text)"}</pre>
@@ -523,7 +523,7 @@
       {:else if selectedHistory}
         <section class="item-card" aria-label="Selected history item"><h2 id="shared-item-heading" tabindex="-1">{selectedHistory.label}</h2><p class="muted">Select this item in history to load its preview, or copy it to this computer.</p></section>
       {:else if view.clipboardChecked}
-        <section class="empty-state compact"><h2>Server clipboard is empty</h2><p>Copy text or an image, then choose Share current clipboard.</p></section>
+        <section class="empty-state compact"><h2>Server clipboard is empty</h2><p>Copy text, an image, or files, then choose Share current clipboard.</p></section>
       {:else}
         <section class="empty-state compact"><h2>No shared item loaded</h2><p>Refresh to load a shared item, or share your current clipboard.</p></section>
       {/if}

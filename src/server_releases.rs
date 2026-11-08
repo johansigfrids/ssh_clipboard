@@ -269,8 +269,11 @@ impl Store {
     }
 }
 
-fn hash(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+pub(crate) fn hash(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 fn sync(directory: &Path) -> Result<()> {
     File::open(directory)?.sync_all()?;
@@ -370,6 +373,19 @@ pub(crate) fn version_numbers(value: &str) -> Result<[u64; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_hash_preserves_canonical_sha256_hex() {
+        assert_eq!(
+            hash(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            hash(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
     struct Verified;
     impl Verifier for Verified {
         fn verify(&self, version: &str, signature: &str, bytes: &[u8]) -> Result<()> {

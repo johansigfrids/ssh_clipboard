@@ -32,7 +32,7 @@ tokio = { version = "1", features = ["sync", "time"] }
 arboard = { version = "3.6.1", features = ["wayland-data-control"] }
 tempfile = "3"
 image = { version = "0.25", default-features = false, features = ["png"] }
-base64 = "0.22"
+base64 = "0.23"
 eyre = "0.6"
 uuid = { version = "1", features = ["v4", "serde"] }
 minisign-verify = "0.3"

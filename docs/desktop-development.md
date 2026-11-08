@@ -15,7 +15,7 @@ Build and validate the Tauri 2/Svelte desktop from source. Windows x64 and Apple
 
 ## Run and Build
 
-Use Node.js 24, Rust and the [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/). From `desktop/`:
+Use Node.js 24.15 or later in the 24.x series, or Node.js 26 or later, Rust and the [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/). CI uses Node.js 24; signed release workflows pin Rust 1.99.0. Keep TypeScript on the supported 6.x series until `svelte-check` declares support for a newer major. From `desktop/`:
 
 ```powershell
 npm ci

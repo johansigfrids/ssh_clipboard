@@ -56,6 +56,18 @@ cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --all-features
 | Desktop | Draft/Apply/Discard, startup/shortcut rollback, preview privacy, selected-item copy, cancellation and retained outcomes. Native adapters are controlled in automated tests. |
 | Release | Exact source/profile/platform/bytes, synthetic signatures, bounded downloads, real draft-handoff refusal and package identity. Normal tests need no production secrets. |
 
+## Dependency Audits
+
+After dependency changes, inspect all three committed lockfiles, including development dependencies:
+
+```powershell
+cargo audit --file Cargo.lock
+cargo audit --file desktop/src-tauri/Cargo.lock
+npm --prefix desktop audit
+```
+
+`cargo audit` is a separate Cargo tool and needs an up-to-date RustSec advisory database. Report vulnerability findings separately from informational maintenance/soundness warnings and verify that any remaining findings belong to the expected upstream graph. Do not use forced major overrides or blanket suppressions merely to obtain a clean report. [Dependency decisions](dependency-decisions.md#dependency-upgrade-guardrails) records the current upstream limitations.
+
 ## Desktop IPC Contract
 
 `desktop/src-tauri/src/panel/ipc_contract_tests.rs` serializes real initial/populated history views, operation state and update state into the checked-in `desktop/tests/fixtures/ipc.ts`. The generated file uses TypeScript `satisfies` against the frontend interfaces and is included in the normal Svelte check. Rust tests reject unreviewed fixture drift; rendered tests consume the same backend-shaped history/recovery data. Only host-dependent platform/shortcut availability is normalized for the fixture.

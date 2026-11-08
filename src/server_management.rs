@@ -3,7 +3,6 @@ use crate::server_package::{MAX_PACKAGE_BYTES, Policy, artifact_name, native_pla
 use crate::server_releases::{Outcome, Service, Store, Verifier, version_numbers};
 use eyre::{Result, WrapErr, bail, ensure};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, symlink};
@@ -199,7 +198,7 @@ impl Manager {
             recovery_required: self.store.needs_recovery()?,
             launcher: self.config.launcher.clone(),
             unit: self.config.unit.clone(),
-            public_key_id: format!("{:x}", Sha256::digest(self.config.public_key.as_bytes()))[..16]
+            public_key_id: crate::server_releases::hash(self.config.public_key.as_bytes())[..16]
                 .into(),
         })
     }

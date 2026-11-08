@@ -22,7 +22,7 @@ beforeEach(() => {
   bridge.listen.mockReset().mockResolvedValue(() => {});
   bridge.invoke.mockImplementation(panelResponder(() => state));
 });
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe("quick panel contracts", () => {
   it("renders file previews and renamed names while selection alone never copies", async () => {
@@ -127,6 +127,8 @@ describe("quick panel contracts", () => {
     state.settings.target="hub";
     state.history={epoch:"epoch-1",selectedId:"one",items:[{id:"one",label:"Saved item",kind:"text",encodedBytes:1048576,source:"Laptop",receivedAt:String(now-90000),expiresAt:String(now+90000)}]};
     vi.useFakeTimers();vi.setSystemTime(now);
+    const startInterval=vi.spyOn(globalThis,"setInterval");
+    const stopInterval=vi.spyOn(globalThis,"clearInterval");
     const rendered=render(App);
     await vi.advanceTimersByTimeAsync(0);
     // Visibility refresh samples the clock without an IPC request.
@@ -144,20 +146,29 @@ describe("quick panel contracts", () => {
     expect(row.closest("li")!.querySelector('[aria-live="off"]')).toBeTruthy();
     expect(screen.getByText(new Date(now-90000).toLocaleString())).toBeTruthy();
     expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
-    rendered.unmount();await vi.advanceTimersByTimeAsync(0);expect(vi.getTimerCount()).toBe(0);
+    const clockTimers=startInterval.mock.results.filter((_,index)=>startInterval.mock.calls[index][1]===30000);
+    expect(clockTimers).toHaveLength(1);
+    rendered.unmount();
+    // jsdom 31 has its own queued DOM tasks; check the application's interval handle.
+    expect(stopInterval).toHaveBeenCalledWith(clockTimers[0].value);
   });
 
   it("hidden history clocks pause and resume without fetching or changing selection", async () => {
     const now=Date.UTC(2026,9,18,12);vi.useFakeTimers();vi.setSystemTime(now);
+    const startInterval=vi.spyOn(globalThis,"setInterval");
+    const stopInterval=vi.spyOn(globalThis,"clearInterval");
     let visibility: DocumentVisibilityState="visible";
     vi.spyOn(document,"visibilityState","get").mockImplementation(()=>visibility);
     state.settings.target="hub";state.history={epoch:"epoch",selectedId:"one",items:[{id:"one",label:"Clock item",kind:"text",encodedBytes:1,source:null,receivedAt:String(now),expiresAt:String(now+60000)}]};
     render(App);await vi.advanceTimersByTimeAsync(0);
     expect(screen.getByText(/Just now/)).toBeTruthy();
     visibility="hidden";await fireEvent(document,new Event("visibilitychange"));await vi.advanceTimersByTimeAsync(0);
-    expect(vi.getTimerCount()).toBe(0);
+    const clockTimers=()=>startInterval.mock.results.filter((_,index)=>startInterval.mock.calls[index][1]===30000);
+    expect(clockTimers()).toHaveLength(1);
+    expect(stopInterval).toHaveBeenCalledWith(clockTimers()[0].value);
     await vi.advanceTimersByTimeAsync(120000);expect(screen.getByText(/Just now/)).toBeTruthy();
     visibility="visible";await fireEvent(document,new Event("visibilitychange"));await vi.advanceTimersByTimeAsync(0);
+    expect(clockTimers()).toHaveLength(2);
     expect(screen.getByText(/2 minutes ago/)).toBeTruthy();
     expect(screen.getByRole("button",{name:/Clock item/}).getAttribute("aria-pressed")).toBe("true");
     expect(bridge.invoke.mock.calls.map(([name])=>name)).toEqual(["get_operation","get_panel"]);
